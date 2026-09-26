@@ -1,5 +1,143 @@
-# web
+# web — the BUMP marketing site
 
-The BUMP website. React.
+React + TypeScript + Vite, with GSAP/ScrollTrigger driving one scroll sequence.
+No other animation library, no WebGL.
 
-Not built yet — this directory is a placeholder.
+## Run it
+
+```bash
+cd web
+npm install
+npm run dev        # http://localhost:5173
+```
+
+```bash
+npm run build      # type-checks, then builds to dist/
+npm run preview    # serve the build on http://localhost:4173
+npm run typecheck
+```
+
+Independent of the iOS app — nothing here imports from `../ios`.
+
+## Assets
+
+The originals live in `assets-source/` and are never edited. Web-ready
+derivatives are generated from them:
+
+| Source | Derivative | Notes |
+|---|---|---|
+| `phone-blue-hand.source.png` | `public/assets/phone-blue.png` (+`@1600`) | Blue phone, hand and full wrist, keyed to transparency |
+| `phone-orange-hand.source.png` | `public/assets/phone-orange.png` (+`@1600`) | Orange phone, hand and full wrist |
+| `wordmark.source.png` | `src/assets/wordmark.png` | BUMP logo artwork, ivory keyed out |
+
+```bash
+python3 assets-source/extract.py   # regenerate the phone cutouts
+```
+
+`extract.py` keys the white studio background, keeps the largest connected blob
+(so stray specks go) and fills interior holes (so the camera plateau and the gaps
+between fingers survive). Each phone and its hand stay one layer, at the
+photograph's own proportions — nothing is stretched or re-posed.
+
+### Still wanted
+
+- **The Horizon webfont.** The wordmark is the real artwork, so the logo is
+  pixel-accurate without it — but headings currently use **Archivo** (Google
+  Fonts, variable weight + width), chosen to sit close to the heavy wide
+  lettering. Drop licensed `.woff2` files in and swap the `--font-display` stack
+  if you want Horizon for headings too.
+- **A vector wordmark.** `wordmark.png` is 1875×311, which is crisp up to about
+  1900 CSS px. It is displayed up to 92vw, so on displays wider than ~2000px it
+  softens slightly. An SVG export would remove that ceiling.
+- **Product screenshots.** The "how it works" and overlap sections use typography
+  and example data rather than app UI. Real screenshots from the iOS app would
+  strengthen both.
+
+## The scroll sequence
+
+`src/components/BumpHero.tsx` — one pinned scene, one scrubbed GSAP timeline.
+Normal browser scrolling drives it; nothing hijacks the wheel and nothing snaps.
+Because every beat is a tween on a scrubbed timeline, scrolling back up reverses
+it exactly.
+
+**Beats** (`STAGE`, as a fraction of the section's scroll):
+
+| | | |
+|---|---|---|
+| `cueOut` | 0.10 | "Scroll to bump" fades |
+| `approachIn` | 0.15 | phones start closing |
+| `contact` | 0.50 | edges meet; contact mark blooms |
+| `recoilOut` | 0.62 | recoil settles |
+| `revealIn` | 0.66 | phones part, wordmark takes focus, copy arrives |
+| `settled` | 0.90 | composition holds before release |
+
+The timeline is explicitly normalised to a duration of **1** (`tl.set({}, {}, 1)`)
+so those fractions mean what they say. Without it the timeline ends at `settled`
+and every beat lands ~10% late.
+
+**Positions** (`DESKTOP` / `MOBILE` in the same file):
+
+| Knob | What it does |
+|---|---|
+| `restOffset` | how far off-screen each phone starts, as % of its own width |
+| `travel` | inward distance to contact (vw on desktop, vh on mobile) |
+| `axis` | `'x'` desktop, `'y'` mobile — see below |
+| `partX` / `partY` | how far the phones clear the frame during the reveal |
+| `markRest` / `markReveal` | wordmark width before and after |
+
+Scroll length is the second argument to `build(...)`: **320vh** desktop,
+**240vh** mobile.
+
+### Why the two breakpoints differ
+
+They are separate compositions, not one scaled down.
+
+These are photographs, so the phone body is not centred in its own image.
+Measured from the source art: the **blue** phone occupies 63.8%–99.8% of its
+image width (its leading edge is the right one), and the **orange** phone
+occupies roughly 0.2%–48% (leading edge on the left). Contact is tuned against
+those silhouettes, which is why the numbers are not symmetrical.
+
+- **Desktop** has room for the reference's side-by-side meeting, so the phones
+  close along **x** and the edges touch near the centre.
+- **Mobile** does not — at 82vw each they already overlap horizontally, so they
+  close along **y** instead: blue descends from the upper left, orange rises from
+  the lower right, and they meet corner to corner. During the reveal they part
+  back along that same axis so the tagline and button get a clear band between
+  them.
+
+### Reduced motion
+
+`prefers-reduced-motion: reduce` skips the timeline entirely (no pin, no scrub).
+The hero becomes a static stacked composition in normal flow with the wordmark,
+both phones, the tagline and the CTA all present and readable.
+
+## Checks performed
+
+`scripts/shots.mjs` captures every beat on desktop and mobile plus each section;
+`scripts/robustness.mjs` runs the behavioural checks. Both need a running server
+and use the installed Google Chrome.
+
+```bash
+npm run preview &
+node scripts/shots.mjs http://localhost:4173        # -> shots/
+node scripts/robustness.mjs http://localhost:4173
+```
+
+Verified: opening / approach / pre-contact / contact / recoil / reveal / settled
+on both breakpoints · all four sections · reduced-motion full page · pin length
+recomputed on resize and across the 860px breakpoint (3780 → 2940 → 2720 → 3780) ·
+scrolling back to the top restores the rest pose · fast-scroll burst · all three
+anchors land · reload partway down · no dead links · **no console errors and no
+horizontal overflow at any size**.
+
+## Known limitations
+
+- The contact beat is tuned by eye against the silhouettes at 1440×900 and
+  390×844. Other aspect ratios land close but not pixel-perfect; `travel` is the
+  knob.
+- Reloading partway down the page returns you to the top rather than restoring
+  scroll position. That is deliberate — a restored mid-pin scroll position is the
+  usual source of broken pinned layouts.
+- Between roughly 700–860px the mobile composition is used at a width where the
+  desktop one would also work; the breakpoint is a judgement call, not a measurement.
