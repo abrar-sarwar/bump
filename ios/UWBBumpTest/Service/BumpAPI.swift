@@ -100,6 +100,48 @@ struct BumpAPIClient: Sendable {
         let generator: Generator
     }
 
+    /// A short-lived realtime voice token. The phone connects to xAI with this;
+    /// the permanent key stays on the server.
+    struct VoiceSession: Decodable, Sendable {
+        let token: String
+        let expiresAt: Double
+        let url: String
+        let model: String
+        let voice: String
+    }
+
+    /// What a spoken reply to "Does that sound right?" meant, as card edits.
+    struct Revision: Decodable, Sendable {
+        struct Rename: Decodable, Sendable { let id: String; let label: String }
+        let intent: String           // confirm | correct | unclear
+        let remove: [String]
+        let rename: [Rename]
+        let add: [ProposedFact]
+        let generator: Generator
+    }
+
+    func voiceSession() async throws -> VoiceSession {
+        var request = URLRequest(url: baseURL.appendingPathComponent("v1/voice/session"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data("{}".utf8)
+        request.timeoutInterval = 10
+        return try await send(request)
+    }
+
+    func revise(items: [(id: String, kind: ProfileFact.Kind, label: String)], utterance: String) async throws -> Revision {
+        var request = URLRequest(url: baseURL.appendingPathComponent("v1/profile/revise"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 12
+        let body: [String: Any] = [
+            "items": items.prefix(30).map { ["id": $0.id, "kind": $0.kind.rawValue, "label": $0.label.clipped(Limit.label)] },
+            "utterance": utterance.trimmed().clipped(Limit.answer),
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try await send(request)
+    }
+
     func health() async throws -> Health {
         var request = URLRequest(url: baseURL.appendingPathComponent("healthz"))
         request.timeoutInterval = 3

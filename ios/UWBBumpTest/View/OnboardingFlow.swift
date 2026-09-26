@@ -5,13 +5,18 @@ import SwiftUI
 /// an answer or an edit.
 struct OnboardingFlow: View {
     @StateObject private var model: OnboardingModel
+    @StateObject private var voice: VoiceOnboardingModel
     var onFinished: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var movingForward = true
+    @State private var showVoice = false
 
-    init(store: Store, model: OnboardingModel? = nil, onFinished: @escaping () -> Void) {
-        _model = StateObject(wrappedValue: model ?? OnboardingModel(store: store))
+    init(store: Store, model: OnboardingModel? = nil, voice: VoiceOnboardingModel? = nil,
+         onFinished: @escaping () -> Void) {
+        let onboarding = model ?? OnboardingModel(store: store)
+        _model = StateObject(wrappedValue: onboarding)
+        _voice = StateObject(wrappedValue: voice ?? VoiceOnboardingModel(onboarding: onboarding))
         self.onFinished = onFinished
     }
 
@@ -21,7 +26,7 @@ struct OnboardingFlow: View {
             ZStack {
                 switch model.step {
                 case .name: NameStep(model: model).transition(transition)
-                case .intro: IntroStep(model: model).transition(transition)
+                case .intro: IntroStep(model: model, startVoice: startVoice).transition(transition)
                 case .questions: QuestionsStep(model: model).transition(transition)
                 case .card: CardStep(model: model, onFinished: finish).transition(transition)
                 }
@@ -30,7 +35,18 @@ struct OnboardingFlow: View {
         }
         .background(BumpColor.background.ignoresSafeArea())
         .onChange(of: model.step) { old, new in movingForward = new > old }
-        .onDisappear { model.tearDown() }
+        .onDisappear { model.tearDown(); voice.stop() }
+        .fullScreenCover(isPresented: $showVoice) {
+            VoiceOnboardingView(model: voice,
+                                onSaved: { showVoice = false; Haptics.success(); onFinished() },
+                                onTypeInstead: { voice.typeInstead(); showVoice = false },
+                                onClose: { voice.stop(); showVoice = false })
+        }
+    }
+
+    private func startVoice() {
+        showVoice = true
+        voice.start()
     }
 
     private var transition: AnyTransition {
@@ -129,39 +145,32 @@ private struct NameStep: View {
 
 private struct IntroStep: View {
     @ObservedObject var model: OnboardingModel
-    @ObservedObject private var recorder: IntroRecorder
+    var startVoice: () -> Void
     @FocusState private var focused: Bool
-
-    init(model: OnboardingModel) {
-        self.model = model
-        self.recorder = model.recorder
-    }
 
     var body: some View {
         Screen {
             VStack(alignment: .leading, spacing: Space.l) {
                 VStack(alignment: .leading, spacing: Space.s) {
-                    Text("Introduce yourself")
+                    Text("Tell us about yourself")
                         .font(BumpFont.screenTitle)
                         .foregroundStyle(BumpColor.navy)
-                    Text("Say what you're into, what you've done, and what you're hoping to find. We'll turn it into a card you can edit.")
+                    Text("We'll turn it into your Bump profile.")
                         .font(BumpFont.body)
                         .foregroundStyle(BumpColor.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if model.cloud == .undecided {
+                if !model.typing {
+                    VoiceStartCard(start: startVoice, typeInstead: { model.typing = true })
+                } else if model.cloud == .undecided {
                     CloudConsentCard(model: model)
                 } else if model.busy == .drafting {
                     WorkingCard(title: "Drafting your profile…",
                                 detail: model.cloudAllowed ? "Grok is reading your intro." : nil,
                                 onCancel: model.cancelUpload)
-                } else if !model.transcript.isEmpty && model.transcriptFromVoice && !model.typing {
-                    transcriptReview
-                } else if model.typing || !model.cloudAllowed {
-                    typingPanel
                 } else {
-                    voicePanel
+                    typingPanel
                 }
 
                 if let notice = model.notice {
@@ -170,13 +179,11 @@ private struct IntroStep: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            if model.cloud != .undecided && model.busy == .idle {
+            if model.typing && model.cloud != .undecided && model.busy == .idle {
                 BottomBar {
-                    if showDraftButton {
-                        Button("Draft my profile", action: model.draftProfile)
-                            .buttonStyle(.bumpPrimary)
-                            .disabled(!model.canDraft)
-                    }
+                    Button("Draft my profile", action: model.draftProfile)
+                        .buttonStyle(.bumpPrimary)
+                        .disabled(!model.canDraft)
                     Button("Skip, I'll pick interests myself", action: model.skipIntro)
                         .font(BumpFont.caption)
                         .foregroundStyle(BumpColor.secondaryText)
@@ -185,122 +192,6 @@ private struct IntroStep: View {
             }
         }
         .onChange(of: model.typing) { _, typing in if typing { focused = true } }
-    }
-
-    private var showDraftButton: Bool {
-        model.typing || !model.cloudAllowed || (!model.transcript.isEmpty && model.transcriptFromVoice)
-    }
-
-    // Voice
-
-    @ViewBuilder
-    private var voicePanel: some View {
-        switch model.busy {
-        case .uploading:
-            WorkingCard(title: "Uploading…", detail: "Sending your recording to the BUMP server.",
-                        onCancel: model.cancelUpload)
-        case .transcribing:
-            WorkingCard(title: "Transcribing…", detail: "Turning your recording into text.",
-                        onCancel: model.cancelUpload)
-        default:
-            recorderPanel
-        }
-    }
-
-    @ViewBuilder
-    private var recorderPanel: some View {
-        VStack(spacing: Space.m) {
-            switch recorder.state {
-            case .idle:
-                RecordButton(recording: false) { recorder.start() }
-                Text("Tap to record · up to 45 seconds")
-                    .font(BumpFont.caption)
-                    .foregroundStyle(BumpColor.secondaryText)
-
-            case .requestingPermission:
-                ProgressView("Asking for microphone access…")
-                    .foregroundStyle(BumpColor.secondaryText)
-                    .padding(.vertical, Space.l)
-
-            case .denied:
-                Card {
-                    VStack(alignment: .leading, spacing: Space.s) {
-                        Text("Microphone access is off")
-                            .font(BumpFont.bodyEmphasis).foregroundStyle(BumpColor.navy)
-                        Text("Turn it on in Settings to record, or type your intro instead. It works the same.")
-                            .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Button("Open Settings") {
-                            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
-                        }
-                        .buttonStyle(.bumpSecondary)
-                    }
-                }
-
-            case .recording:
-                RecordButton(recording: true) { recorder.stop() }
-                LevelMeter(level: recorder.level)
-                Text("\(Self.clock(recorder.remaining)) left")
-                    .font(BumpFont.bodyEmphasis.monospacedDigit())
-                    .foregroundStyle(BumpColor.navy)
-                    .accessibilityLabel("\(Int(recorder.remaining)) seconds left")
-
-            case .finished(let duration, let interrupted):
-                Card {
-                    VStack(alignment: .leading, spacing: Space.s) {
-                        Text("Recorded \(Self.clock(duration))")
-                            .font(BumpFont.bodyEmphasis).foregroundStyle(BumpColor.navy)
-                        if interrupted {
-                            Text("Recording stopped because of an interruption. You can use what you have or record again.")
-                                .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        if let error = model.error {
-                            Text(error).font(BumpFont.caption).foregroundStyle(BumpColor.negative)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Button(model.error == nil ? "Use this recording" : "Try again", action: model.useRecording)
-                            .buttonStyle(.bumpPrimary)
-                        Button("Record again", action: model.recordAgain)
-                            .buttonStyle(.bumpSecondary)
-                    }
-                }
-
-            case .failed(let message):
-                Card {
-                    VStack(alignment: .leading, spacing: Space.s) {
-                        Text(message).font(BumpFont.body).foregroundStyle(BumpColor.navy)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Button("Record again", action: model.recordAgain)
-                            .buttonStyle(.bumpSecondary)
-                    }
-                }
-            }
-
-            if recorder.state != .recording {
-                Button("Type instead") { recorder.discard(); model.typing = true }
-                    .font(BumpFont.bodyEmphasis)
-                    .foregroundStyle(BumpColor.action)
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var transcriptReview: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
-            SectionHeading(title: "Here's what we heard",
-                           subtitle: "Fix anything that's off before we draft your card. This text isn't saved or shared.")
-            BumpField(label: "Transcript", placeholder: "", axis: .vertical, lines: 4...12, text: $model.transcript)
-                .focused($focused)
-            HStack {
-                Text("Transcribed by xAI speech-to-text")
-                    .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
-                Spacer()
-                Button("Record again", action: model.recordAgain)
-                    .font(BumpFont.caption)
-                    .foregroundStyle(BumpColor.action)
-            }
-        }
     }
 
     private var typingPanel: some View {
@@ -313,18 +204,53 @@ private struct IntroStep: View {
                 Text(model.cloudAllowed ? "Grok will suggest a card from this." : "Stays on this phone. Your phone suggests a card from this.")
                     .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
                 Spacer()
-                if model.cloudAllowed {
-                    Button("Record instead") { model.typing = false; focused = false }
-                        .font(BumpFont.caption)
-                        .foregroundStyle(BumpColor.action)
-                }
+                Button("Talk instead") { model.typing = false; focused = false }
+                    .font(BumpFont.caption)
+                    .foregroundStyle(BumpColor.action)
             }
         }
     }
+}
 
-    static func clock(_ t: TimeInterval) -> String {
-        let s = max(0, Int(t.rounded()))
-        return String(format: "%d:%02d", s / 60, s % 60)
+/// "Start talking" / "Type instead", with the one-line xAI notice.
+private struct VoiceStartCard: View {
+    var start: () -> Void
+    var typeInstead: () -> Void
+
+    var body: some View {
+        VStack(spacing: Space.l) {
+            ZStack {
+                PulseRings(active: false)
+                Circle().fill(BumpColor.action).frame(width: 96, height: 96)
+                Image(systemName: "waveform")
+                    .font(.system(size: 36, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .frame(height: 180)
+            .accessibilityHidden(true)
+
+            Text("Bump will ask you two or three quick questions out loud. It takes about a minute, and you can check everything before it's saved.")
+                .font(BumpFont.body)
+                .foregroundStyle(BumpColor.navy)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: Space.s) {
+                Button(action: start) {
+                    Label("Start talking", systemImage: "mic.fill")
+                }
+                .buttonStyle(.bumpPrimary)
+                Button("Type instead", action: typeInstead)
+                    .buttonStyle(.bumpSecondary)
+            }
+
+            Text("Your voice and answers are processed by xAI through the Bump server. Audio isn't saved, and only the card you approve is kept.")
+                .font(BumpFont.caption)
+                .foregroundStyle(BumpColor.secondaryText)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -464,12 +390,6 @@ private struct CardStep: View {
     @ObservedObject var model: OnboardingModel
     var onFinished: () -> Void
 
-    @State private var editing: OnboardingModel.Item?
-    @State private var editText = ""
-    @State private var adding: ProfileFact.Kind?
-    @State private var addText = ""
-    @State private var browsing = false
-
     var body: some View {
         Screen {
             VStack(alignment: .leading, spacing: Space.l) {
@@ -482,7 +402,38 @@ private struct CardStep: View {
                         .foregroundStyle(BumpColor.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                BumpCardEditor(model: model)
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            BottomBar {
+                Button("Start bumping", action: onFinished)
+                    .buttonStyle(.bumpPrimary)
+                    .disabled(!model.canFinish)
+                if !model.canFinish {
+                    Text("Add your name and check at least one thing to continue.")
+                        .font(BumpFont.caption)
+                        .foregroundStyle(BumpColor.secondaryText)
+                }
+            }
+        }
+    }
+}
 
+/// The editable card: photo, name, bio, interests / experiences / goals with
+/// their evidence, check to share, edit, remove, add, browse. Shared by the
+/// typed flow and spoken review.
+struct BumpCardEditor: View {
+    @ObservedObject var model: OnboardingModel
+
+    @State private var editing: OnboardingModel.Item?
+    @State private var editText = ""
+    @State private var adding: ProfileFact.Kind?
+    @State private var addText = ""
+    @State private var browsing = false
+
+    var body: some View {
+            VStack(alignment: .leading, spacing: Space.l) {
                 if let notice = model.notice { NoticeText(text: notice) }
 
                 HStack(alignment: .top, spacing: Space.m) {
@@ -504,24 +455,11 @@ private struct CardStep: View {
                     section(kind)
                 }
 
-                Text("Only your name, photo, bio and the checked items are shared, and only with someone you've both confirmed after a bump. Your recording, transcript and answers are never saved or shared.")
+                Text("Only your name, photo, bio and the checked items are shared, and only with someone you've both confirmed after a bump. Your voice, transcript and answers are never saved or shared.")
                     .font(BumpFont.caption)
                     .foregroundStyle(BumpColor.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
-        }
-        .safeAreaInset(edge: .bottom) {
-            BottomBar {
-                Button("Start bumping", action: onFinished)
-                    .buttonStyle(.bumpPrimary)
-                    .disabled(!model.canFinish)
-                if !model.canFinish {
-                    Text("Add your name and check at least one thing to continue.")
-                        .font(BumpFont.caption)
-                        .foregroundStyle(BumpColor.secondaryText)
-                }
-            }
-        }
         .alert("Edit", isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) {
             TextField("Text", text: $editText)
             Button("Save") { if let e = editing { model.rename(e.id, to: editText) }; editing = nil }
@@ -653,7 +591,7 @@ private struct CardStep: View {
 
 // MARK: - Shared bits
 
-private struct BottomBar<Content: View>: View {
+struct BottomBar<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
         VStack(spacing: Space.xs) { content }
@@ -664,7 +602,7 @@ private struct BottomBar<Content: View>: View {
     }
 }
 
-private struct WorkingCard: View {
+struct WorkingCard: View {
     let title: String
     let detail: String?
     var onCancel: (() -> Void)?
@@ -692,7 +630,7 @@ private struct WorkingCard: View {
     }
 }
 
-private struct NoticeText: View {
+struct NoticeText: View {
     let text: String
     var body: some View {
         HStack(alignment: .top, spacing: Space.s) {
@@ -703,43 +641,6 @@ private struct NoticeText: View {
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: Space.corner, style: .continuous).fill(BumpColor.paleBlue))
-    }
-}
-
-private struct RecordButton: View {
-    let recording: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                Circle().fill(BumpColor.action).frame(width: 88, height: 88)
-                if recording {
-                    RoundedRectangle(cornerRadius: 6).fill(.white).frame(width: 28, height: 28)
-                } else {
-                    Image(systemName: "mic.fill").font(.system(size: 32, weight: .semibold)).foregroundStyle(.white)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(recording ? "Stop recording" : "Start recording")
-        .padding(.top, Space.m)
-    }
-}
-
-private struct LevelMeter: View {
-    let level: Float
-    var body: some View {
-        GeometryReader { geo in
-            Capsule().fill(BumpColor.paleBlue)
-                .overlay(alignment: .leading) {
-                    Capsule().fill(BumpColor.brand)
-                        .frame(width: max(8, geo.size.width * CGFloat(level)))
-                        .animation(.linear(duration: 0.1), value: level)
-                }
-        }
-        .frame(width: 180, height: 8)
-        .accessibilityHidden(true)
     }
 }
 

@@ -164,3 +164,45 @@ Use only the given labels. Do not invent facts about either person. No compatibi
   },
   input: ({ candidates }) => wrapUserData({ candidates }),
 };
+
+// ---------------------------------------------------------------------------
+// 4. Spoken confirmation or correction of a draft card
+// ---------------------------------------------------------------------------
+
+export const REVISE = {
+  name: 'bump_profile_revise',
+  instructions: `A person is reviewing a draft profile card after a short spoken interview. They just said something in reply to "Does that sound right?". Decide what they meant and turn it into edits.
+
+${DATA_RULE}
+
+The JSON has "items" (the card: id, kind, label) and "utterance" (exactly what they said).
+
+Return:
+- intent: "confirm" if they agreed with the card as it is (e.g. "yes", "sounds good"), "correct" if they asked for any change, "unclear" otherwise. If they agree AND ask for a change, use "correct".
+- remove: ids of items they asked to remove or said are wrong. Only ids from "items".
+- rename: items they corrected, as { id, label }. The new label must use the person's own words from "utterance".
+- add: new facts they stated, as { kind, label, source } where source is an exact excerpt of "utterance".
+${FACT_RULES}
+Only act on what they actually said. Never invent, broaden, or narrow anything (e.g. "coffee" is not "Espresso"). Leave everything else unchanged. Never use em dashes or en dashes.`,
+  schema: {
+    type: 'object',
+    properties: {
+      intent: { type: 'string', enum: ['confirm', 'correct', 'unclear'] },
+      remove: { type: 'array', maxItems: LIMITS.known, items: str(LIMITS.candidateId) },
+      rename: {
+        type: 'array',
+        maxItems: LIMITS.known,
+        items: {
+          type: 'object',
+          properties: { id: str(LIMITS.candidateId), label: { type: 'string', minLength: 1, maxLength: LIMITS.label } },
+          required: ['id', 'label'],
+          additionalProperties: false,
+        },
+      },
+      add: factsSchema(LIMITS.followupFacts),
+    },
+    required: ['intent', 'remove', 'rename', 'add'],
+    additionalProperties: false,
+  },
+  input: ({ items, utterance }) => wrapUserData({ items, utterance }),
+};

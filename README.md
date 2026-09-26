@@ -22,8 +22,8 @@ bump/
 
 BUMP runs with a server. The backend powers the spoken intro, Grok-drafted
 profiles and Grok talking points, and it holds the xAI key so the app never
-does. There's still no account. Bumping, matching and the profile exchange
-happen directly between the phones in the room, and each person chooses
+does. This build has no sign-up; profiles are stored on each phone. Bumping,
+matching and the profile exchange happen directly between the phones in the room, and each person chooses
 whether their data goes to the server. If the server can't be reached, the app
 falls back to on-phone suggestions and says so, so an event doesn't stop.
 

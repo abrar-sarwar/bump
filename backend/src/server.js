@@ -11,14 +11,16 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { ApiError, badRequest, notConfigured, tooLarge } from './errors.js';
 import { createRateLimiter } from './ratelimit.js';
-import { DRAFT, FOLLOWUP, TALKING_POINTS } from './prompts.js';
-import { generateJson, transcribe } from './xai.js';
+import { DRAFT, FOLLOWUP, REVISE, TALKING_POINTS } from './prompts.js';
+import { createVoiceSecret, generateJson, transcribe } from './xai.js';
 import {
   LIMITS,
   checkDraftOutput,
   checkFollowupOutput,
+  checkReviseOutput,
   checkTalkingPointsOutput,
   parseDraftRequest,
+  parseReviseRequest,
   parseFollowupRequest,
   parseTalkingPointsRequest,
 } from './validate.js';
@@ -29,6 +31,8 @@ const BODY_LIMITS = {
   draft: 16 * 1024,
   followup: 16 * 1024,
   talkingPoints: 8 * 1024,
+  revise: 16 * 1024,
+  voiceSession: 1024,
 };
 
 export const DEFAULTS = {
@@ -43,6 +47,11 @@ export const DEFAULTS = {
   host: '0.0.0.0',
   llmTimeoutMs: 12_000,
   sttTimeoutMs: 20_000,
+  // Realtime voice (spoken onboarding). The phone gets a short-lived token.
+  voiceModel: 'grok-voice-latest',
+  voice: 'eve',
+  voiceTokenSeconds: 300,
+  voiceRateLimitPerMinute: 6,
   rateLimitPerMinute: 30,
   transcribeRateLimitPerMinute: 6,
   log: (line) => console.log(line),
@@ -85,6 +94,8 @@ export function configFromEnv(env = process.env) {
     apiKey: env.XAI_API_KEY?.trim() || null,
     model: env.XAI_MODEL?.trim() || DEFAULTS.model,
     sttModel: env.XAI_STT_MODEL?.trim() || DEFAULTS.sttModel,
+    voiceModel: env.XAI_VOICE_MODEL?.trim() || DEFAULTS.voiceModel,
+    voice: env.XAI_VOICE?.trim() || DEFAULTS.voice,
     reasoningEffort: env.XAI_REASONING_EFFORT !== undefined ? env.XAI_REASONING_EFFORT.trim() : DEFAULTS.reasoningEffort,
     baseUrl: env.XAI_BASE_URL?.trim() || DEFAULTS.baseUrl,
     port: Number.isInteger(port) ? port : DEFAULTS.port,
@@ -166,6 +177,7 @@ export function createServer(options = {}) {
 
   const limiter = createRateLimiter({ limit: config.rateLimitPerMinute });
   const sttLimiter = createRateLimiter({ limit: config.transcribeRateLimitPerMinute });
+  const voiceLimiter = createRateLimiter({ limit: config.voiceRateLimitPerMinute });
 
   const generator = (model) => ({ provider: 'xai', model });
 
@@ -181,7 +193,38 @@ export function createServer(options = {}) {
       grokConfigured: Boolean(config.apiKey),
       model: config.model,
       sttModel: config.sttModel,
+      voiceModel: config.voiceModel,
     };
+  }
+
+  /**
+   * Issue a short-lived realtime voice token. The response carries only the
+   * temporary token, never the API key, and the token is never logged.
+   */
+  async function voiceSessionRoute(req) {
+    requireKey();
+    await readBody(req, BODY_LIMITS.voiceSession); // body is ignored; bounded anyway
+    const secret = await createVoiceSecret(config);
+    const wsBase = config.baseUrl.replace(/^http/, 'ws');
+    return {
+      token: secret.value,
+      expiresAt: secret.expiresAt,
+      url: `${wsBase}/v1/realtime`,
+      model: config.voiceModel,
+      voice: config.voice,
+    };
+  }
+
+  async function reviseRoute(req) {
+    requireKey();
+    const input = parseReviseRequest(await readJson(req, BODY_LIMITS.revise));
+    const { data, model } = await generateJson(config, {
+      name: REVISE.name,
+      instructions: REVISE.instructions,
+      schema: REVISE.schema,
+      input: REVISE.input(input),
+    });
+    return { ...checkReviseOutput(data, input), generator: generator(model) };
   }
 
   async function transcribeRoute(req) {
@@ -251,6 +294,8 @@ export function createServer(options = {}) {
     '/v1/profile/draft': { POST: draftRoute },
     '/v1/profile/followup': { POST: followupRoute },
     '/v1/talking-points': { POST: talkingPointsRoute },
+    '/v1/voice/session': { POST: voiceSessionRoute },
+    '/v1/profile/revise': { POST: reviseRoute },
   };
 
   // --- Request pipeline ---------------------------------------------------
@@ -260,7 +305,10 @@ export function createServer(options = {}) {
     const ip = req.socket.remoteAddress ?? 'unknown';
     // Check every applicable limiter before charging any of them, so a
     // request blocked by one doesn't use up the other's quota.
-    const applicable = pathname === '/v1/transcribe' ? [limiter, sttLimiter] : [limiter];
+    const applicable =
+      pathname === '/v1/transcribe' ? [limiter, sttLimiter]
+        : pathname === '/v1/voice/session' ? [limiter, voiceLimiter]
+          : [limiter];
     const full = applicable.find((l) => !l.allows(ip));
     const results = full ? [full.hit(ip)] : applicable.map((l) => l.hit(ip));
     const blocked = results.find((r) => !r.ok);

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Local persistence: profile + saved connections as JSON in Application
-/// Support. No account, no database dependency, nothing synced anywhere.
+/// Support. Nothing here is synced to a server; there is no database.
 @MainActor
 final class Store: ObservableObject {
 

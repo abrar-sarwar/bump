@@ -152,6 +152,23 @@ export function parseFollowupRequest(body) {
   return { known, asked, answer, catalogLabels: catalogLabelsField(body.catalogLabels) };
 }
 
+export function parseReviseRequest(body) {
+  requireObject(body);
+  const items = arrayField(body.items ?? [], 'items', LIMITS.known).map((item, i) => {
+    if (item === null || typeof item !== 'object' || !KINDS.includes(item.kind)) {
+      throw badRequest(`"items[${i}].kind" must be one of ${KINDS.join(', ')}.`);
+    }
+    return {
+      id: stringField(item.id, `items[${i}].id`, { min: 1, max: LIMITS.candidateId }),
+      kind: item.kind,
+      label: stringField(item.label, `items[${i}].label`, { min: 1, max: LIMITS.label }),
+    };
+  });
+  const utterance = stringField(body.utterance, 'utterance', { min: 1, max: LIMITS.answer });
+  if (!utterance.trim()) throw badRequest('"utterance" must not be blank.');
+  return { items, utterance };
+}
+
 export function parseTalkingPointsRequest(body) {
   requireObject(body);
   const candidates = arrayField(body.candidates, 'candidates', LIMITS.candidates).map((c, i) => {
@@ -279,4 +296,30 @@ export function checkTalkingPointsOutput(raw, { candidates }) {
   const opener = cleanQuestion(raw.opener, { max: LIMITS.prompt });
   if (!opener) throw upstreamInvalid();
   return { points, opener };
+}
+
+/**
+ * Revise: only known ids may be removed or renamed; every new or renamed label
+ * must be grounded in what the person actually said.
+ */
+export function checkReviseOutput(raw, { items, utterance }) {
+  requireOutputObject(raw);
+  const intent = ['confirm', 'correct', 'unclear'].includes(raw.intent) ? raw.intent : null;
+  if (!intent) throw upstreamInvalid();
+  const ids = new Set(items.map((i) => i.id));
+  const remove = [...new Set((Array.isArray(raw.remove) ? raw.remove : []).filter((id) => ids.has(id)))];
+  const renamed = new Set();
+  const rename = [];
+  for (const r of Array.isArray(raw.rename) ? raw.rename : []) {
+    if (r === null || typeof r !== 'object' || !ids.has(r.id) || renamed.has(r.id) || remove.includes(r.id)) continue;
+    if (typeof r.label !== 'string') continue;
+    const label = clip(noDashes(tidy(r.label)), LIMITS.label);
+    if (!label || !isGrounded(label, utterance)) continue;
+    renamed.add(r.id);
+    rename.push({ id: r.id, label });
+  }
+  const add = groundFacts(raw.add ?? [], utterance, { max: LIMITS.followupFacts, exclude: items });
+  // A "correction" with nothing usable left is really "unclear".
+  const effective = intent === 'correct' && !remove.length && !rename.length && !add.length ? 'unclear' : intent;
+  return { intent: effective, remove, rename, add };
 }

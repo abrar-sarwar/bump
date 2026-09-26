@@ -1,6 +1,6 @@
 # backend (`bump-api`)
 
-**The BUMP server.** The app in `../ios` uses it for voice transcription, Grok
+**The BUMP server.** The app in `../ios` uses it for spoken onboarding, Grok
 profile drafting and Grok talking points, and it's the only place the xAI key
 lives. Run it for any real test or event. Bumping and the profile exchange
 still happen directly between phones, and if this server can't be reached the
@@ -14,6 +14,11 @@ app and xAI Grok. The app never sees an xAI key. It does four things:
 - `POST /v1/profile/draft`: transcript → draft bio, facts and one follow-up question
 - `POST /v1/profile/followup`: follow-up answer → more facts and the next question
 - `POST /v1/talking-points`: verified shared/complementary pairs → conversation starters
+
+For spoken onboarding the phone talks to xAI's realtime voice API directly,
+using a **5-minute token** from `POST /v1/voice/session`. The token is minted
+with your key on this server (`POST /v1/realtime/client_secrets`); the key
+itself never reaches the phone, and the token is never logged.
 
 The exact HTTP contract (paths, fields, limits, error codes) is in
 [CONTRACT.md](./CONTRACT.md). Everything the model returns is checked on the
@@ -39,6 +44,8 @@ exists, and it never overrides variables already set in the environment.
 | `XAI_MODEL` | `grok-4.3` | model for draft/followup/talking points |
 | `XAI_REASONING_EFFORT` | `none` | `grok-4.3` defaults to `low`; `none` measured ~3× faster for these short tasks. Set empty for a model that doesn't accept `reasoning.effort` |
 | `XAI_STT_MODEL` | `grok-voice-transcribe-2.0` | speech-to-text model |
+| `XAI_VOICE_MODEL` | `grok-voice-latest` | realtime voice model for spoken onboarding |
+| `XAI_VOICE` | `eve` | Grok's speaking voice (any voice from xAI's voice list) |
 | `PORT` / `HOST` | `8787` / `0.0.0.0` | |
 
 ### Picking a model

@@ -3,8 +3,9 @@
 Meet someone. Find your overlap.
 
 Two people tap phones, confirm each other, and get the specific things they
-actually have in common plus grounded talking points. **No account, and no API
-key in the app.** Bumping, matching and the partner-only profile exchange run on
+actually have in common plus grounded talking points. This build has no
+sign-up: profiles are stored on the phone, and **the app holds no API key**
+(the BUMP server does). Bumping, matching and the partner-only profile exchange run on
 the phones in the room. The voice intro, Grok profile drafting and Grok talking
 points go through the BUMP server ([`backend/`](../backend/README.md)) to xAI,
 only after the person allows it, and for talking points only when **both**
@@ -144,31 +145,52 @@ limit, not a bug.
 ## Onboarding (Pre)
 
 1. **Name.**
-2. **Introduce yourself** — record up to 45 s, or **Type instead**. Before
-   anything is uploaded, a one-time card explains that the recording, typed text
-   and answers go to the BUMP server and on to xAI, and offers **Keep everything
-   on this phone** (typing only; suggestions come from the phone). States:
-   asking for mic permission, denied (→ Settings / Type instead), recording with
-   countdown and level meter, interrupted (call/Siri), too short, silent,
-   uploading, transcribing, drafting, and every failure with a retry. The
-   transcript is shown for correction before drafting.
-3. **Up to three follow-ups**, one at a time, skip any. Grok is asked not to
-   repeat anything already said; the phone's fallback questions only ask about a
-   broad category if nothing specific in it was mentioned.
-4. **Your Bump card** — name, bio, and interests / experiences / goals. Each
-   suggestion shows the exact words it came from and who suggested it (Grok, your
-   phone, or you). Check/uncheck to decide what's shared, edit, remove, add, or
-   browse the catalogue. Only checked items are saved; transcript and answers
-   are dropped.
+2. **Tell us about yourself.** "Start talking" or "Type instead". A one-line
+   notice says voice is processed by xAI through the BUMP server. Mic
+   permission is asked when you tap Start talking; if it's denied, typing is
+   offered.
+3. **Spoken interview** (`VoiceOnboardingView` + `VoiceOnboardingModel`).
+   Grok speaks the opening question verbatim ("Tell me a little about
+   yourself. What do you enjoy doing?"), listens, and asks follow-ups: **three
+   questions total, including the opening one**, each one short
+   acknowledgment + one question. The app enforces the count: once it's used,
+   or from 90 s on, any reply Grok starts is cancelled before it plays, and at
+   120 s discovery ends regardless. "I'm done" jumps straight to review.
+   - States: Connecting, Listening, Thinking, Speaking.
+   - Controls: mute, Stop (interrupt Grok), tap-to-talk (hold to talk, for
+     noisy rooms), I'm done, Type instead. Talking over Grok interrupts it and
+     drops its queued audio.
+   - Transcript, always visible: "You" and "Bump", live partial captions that
+     are replaced (never duplicated) when final, Grok's text as it speaks. It
+     follows the newest turn only if you're already at the bottom.
+   - Echo: iOS voice processing cancels Grok's voice from the mic; the app
+     also drops a "user" turn that just repeats what Bump said.
+4. **Review.** Grok reads a summary ("I've got cybersecurity, Valorant, and
+   house music. Does that sound right?") while the editable card appears. Say
+   yes, say a correction ("change Valorant to Overwatch"), or edit by hand.
+   Spoken corrections go through `POST /v1/profile/revise`, are applied to the
+   card, and Bump reads the new summary; **nothing is saved until you
+   confirm** by voice or button. The transcript stays available under "What
+   Bump heard".
 
-Rules enforced in `OnboardingModel`: a newer request cancels the older one and
-late responses are ignored (including after leaving the screen); every cloud
-call has a hard deadline; Grok failing (not configured, offline, timeout,
-invalid output) falls back to the on-phone drafter with a calm notice, and
-nothing local is ever labelled Grok. Facts must quote the user's words
-(word-bounded, checked on the server **and** in Swift). Nothing is inferred from
-the voice itself — only the transcript text is analysed, and sensitive
-categories (health, religion, ethnicity, …) are never auto-suggested.
+How the realtime link works: the phone gets a 5-minute token from the BUMP
+server (`POST /v1/voice/session`) and opens `wss://api.x.ai/v1/realtime`
+with it; the API key never reaches the phone. Turn detection runs on xAI's
+side (server VAD). Exact lines (opening, closing, summaries) use xAI's
+`force_message`; an unexpected reply is held silently until its first words
+show whether it's one of those lines, otherwise it's cancelled. The card is
+extracted with `POST /v1/profile/draft` from **only the person's words**,
+never Grok's, so every fact quotes them.
+
+Failures: denied mic → typing; no key / offline / timeout → "Try again" or
+"Type instead", with everything said so far kept (retry replays it to Grok as
+history); extraction fails → the on-phone drafter fills the card and you edit
+it; a spoken correction that returns after you've edited the card by hand is
+ignored. Leaving the screen or backgrounding the app stops the mic, playback
+and socket. No audio is ever written to disk, and the transcript is dropped
+once the card is saved.
+
+The typed path (intro text → up to three follow-ups → card) is unchanged.
 
 **Catalogue:** 12 broad topics people actually talk about (Music, Coffee, Food
 & drink, Sports & fitness, Gaming, Movies & TV, Collecting, Outdoors, Tech, Art &

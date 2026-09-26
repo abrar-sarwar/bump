@@ -130,6 +130,41 @@ Response:
 With zero candidates the model writes only a warm, general `opener` and `points`
 is empty.
 
+## `POST /v1/voice/session`
+
+Issues a short-lived token for xAI's realtime voice API (spoken onboarding).
+Empty body. Rate limited separately (6/min per client by default).
+
+```json
+{ "token": "xai-realtime-client-secret-…", "expiresAt": 1790000000,
+  "url": "wss://api.x.ai/v1/realtime", "model": "grok-voice-latest", "voice": "eve" }
+```
+
+The phone opens `url?model=<model>` with the WebSocket subprotocol
+`xai-client-secret.<token>`. The API key never leaves the server; the token
+expires after 5 minutes and is never logged.
+
+## `POST /v1/profile/revise`
+
+A spoken reply to "Does that sound right?", turned into card edits. Max body 16 KB.
+
+```json
+{ "items": [ { "id": "fact-1", "kind": "interest", "label": "Valorant" } ],   // ≤ 30
+  "utterance": "Change Valorant to Overwatch" }                               // 1..500
+```
+
+Response:
+
+```json
+{ "intent": "confirm" | "correct" | "unclear",
+  "remove": ["fact-1"],                                   // known ids only
+  "rename": [ { "id": "fact-1", "label": "Overwatch" } ], // label must be in the utterance
+  "add": [ { "kind": "interest", "label": "Techno", "source": "exact excerpt of utterance" } ],
+  "generator": { ... } }
+```
+
+A `correct` with nothing usable after validation is returned as `unclear`.
+
 ## Server-side validation (all endpoints)
 
 * Output must parse as JSON and match the schema (types, enums, lengths, counts).

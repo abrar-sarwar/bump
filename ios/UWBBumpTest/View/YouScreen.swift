@@ -106,7 +106,7 @@ struct YouScreen: View {
                         }
                     }
 
-                    Text("BUMP needs Local Network and Nearby Interaction access to find the phone next to you. Your card goes only to a partner you've both confirmed, directly between the two phones. There's no account. With cloud processing off, nothing goes to the BUMP server or xAI.")
+                    Text("BUMP needs Local Network and Nearby Interaction access to find the phone next to you. Your card goes only to a partner you've both confirmed, directly between the two phones. Your profile is stored on this phone. With cloud processing off, nothing goes to the BUMP server or xAI.")
                         .font(BumpFont.caption)
                         .foregroundStyle(BumpColor.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)

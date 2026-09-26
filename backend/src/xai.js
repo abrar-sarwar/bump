@@ -89,6 +89,27 @@ export async function generateJson(config, { name, instructions, schema, input }
   return { data, model };
 }
 
+/**
+ * Mint a short-lived client secret for the realtime voice API
+ * (POST /v1/realtime/client_secrets). The phone connects with this token, so
+ * the permanent key never leaves the server. Returns { value, expires_at }.
+ */
+export async function createVoiceSecret(config) {
+  const json = await postUpstream(
+    config,
+    '/v1/realtime/client_secrets',
+    {
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ expires_after: { seconds: config.voiceTokenSeconds } }),
+    },
+    config.llmTimeoutMs,
+  );
+  if (typeof json?.value !== 'string' || !json.value || typeof json.expires_at !== 'number') {
+    throw upstreamInvalid();
+  }
+  return { value: json.value, expiresAt: json.expires_at };
+}
+
 /** Pick a filename extension xAI will recognise for the incoming audio type. */
 export function audioFilename(contentType) {
   const type = contentType.split(';')[0].trim().toLowerCase();

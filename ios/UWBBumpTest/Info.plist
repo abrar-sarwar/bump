@@ -28,7 +28,7 @@
 		<true/>
 	</dict>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>BUMP records a short spoken intro (up to 45 seconds) so it can be transcribed into your profile, only if you choose to record. The audio is deleted from your phone after transcription.</string>
+	<string>BUMP listens while you talk with Bump during setup, only if you choose to talk, so it can build your profile. Your voice is streamed for processing and never saved.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>BUMP uses the motion sensor to feel the moment you tap phones with someone. Motion data stays on your iPhone.</string>
 	<key>NSBonjourServices</key>

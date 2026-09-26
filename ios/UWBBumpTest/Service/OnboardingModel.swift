@@ -4,7 +4,6 @@ import SwiftUI
 /// What onboarding needs from the cloud. `BumpAPIClient` in the app; stubs in
 /// tests and previews.
 protocol OnboardingCloud: Sendable {
-    func transcribe(fileURL: URL, onUploaded: @escaping @Sendable () -> Void) async throws -> BumpAPIClient.Transcription
     func draft(transcript: String) async throws -> BumpAPIClient.Draft
     func followup(known: [(kind: ProfileFact.Kind, label: String)], asked: [String], answer: String) async throws -> BumpAPIClient.Followup
 }
@@ -70,15 +69,12 @@ final class OnboardingModel: ObservableObject {
 
     enum Busy: Equatable {
         case idle
-        case uploading
-        case transcribing
         case drafting
         case thinking           // fetching the next question
     }
 
     /// Hard ceilings on top of URLSession's own timeouts.
     struct Deadlines {
-        var transcribe: TimeInterval = 30
         var draft: TimeInterval = 20
         var followup: TimeInterval = 15
     }
@@ -93,7 +89,6 @@ final class OnboardingModel: ObservableObject {
 
     @Published var typing = false               // "Type instead"
     @Published var transcript: String = ""
-    @Published private(set) var transcriptFromVoice = false
     @Published private(set) var busy: Busy = .idle
     @Published private(set) var error: String?
     /// A calm note, e.g. that Grok was unavailable and the phone drafted instead.
@@ -109,7 +104,6 @@ final class OnboardingModel: ObservableObject {
     @Published private(set) var current: Question?
     @Published var answer: String = ""
 
-    let recorder = IntroRecorder()
 
     // MARK: Collaborators
 
@@ -136,6 +130,8 @@ final class OnboardingModel: ObservableObject {
     var includedCount: Int { items.filter(\.included).count }
     var canFinish: Bool { !name.trimmed().isEmpty && items.contains { $0.included } }
     var cloudAllowed: Bool { cloud == .allowed }
+    /// The Testing-tools server override, for other onboarding services.
+    var apiOverride: String? { store.settings.apiBaseURL }
     var questionNumber: Int { answered.count + 1 }
 
     func items(_ kind: ProfileFact.Kind) -> [Item] { items.filter { $0.kind == kind } }
@@ -161,14 +157,12 @@ final class OnboardingModel: ObservableObject {
     /// Go straight to the card and pick interests by hand.
     func skipIntro() {
         cancelWork()
-        recorder.discard()
         step = .card
     }
 
     /// Called when the screen goes away: nothing in flight may land afterwards.
     func tearDown() {
         cancelWork()
-        recorder.discard()
     }
 
     // MARK: Cloud choice
@@ -176,77 +170,12 @@ final class OnboardingModel: ObservableObject {
     func chooseCloud(_ allowed: Bool) {
         cloud = allowed ? .allowed : .localOnly
         store.privacy.cloud = cloud
-        if !allowed {
-            typing = true
-            recorder.discard()
-        }
+        if !allowed { typing = true }
     }
 
-    // MARK: Voice
-
-    func useRecording() {
-        guard cloudAllowed else { return }
-        guard let file = recorder.fileURL else {
-            error = "There's no recording to send. Record again, or type instead."
-            return
-        }
-        guard let client = cloudProvider() else {
-            error = "Voice needs the BUMP server, which isn't set up on this phone. Type instead. It works the same."
-            return
-        }
-        error = nil
-        busy = .uploading
-        let deadline = deadlines.transcribe
-        let markUploaded: @Sendable (Int) -> Void = { [weak self] g in
-            Task { @MainActor in self?.uploadFinished(generation: g) }
-        }
-        run { [weak self] g in
-            do {
-                let result = try await withDeadline(deadline) {
-                    try await client.transcribe(fileURL: file) { markUploaded(g) }
-                }
-                guard let self, self.generation == g else { return }
-                self.recorder.deleteFile()          // audio is not kept
-                self.transcript = String(result.transcript.trimmed().prefix(BumpAPIClient.Limit.transcript))
-                self.transcriptFromVoice = true
-                self.busy = .idle
-            } catch {
-                guard let self, self.generation == g else { return }
-                self.busy = .idle
-                self.error = Self.voiceMessage(for: BumpAPIError.map(error))
-            }
-        }
-    }
-
-    private func uploadFinished(generation g: Int) {
-        guard generation == g, busy == .uploading else { return }
-        busy = .transcribing
-    }
-
+    /// Stop drafting (the "Cancel" on the working card).
     func cancelUpload() {
         cancelWork()
-    }
-
-    func recordAgain() {
-        cancelWork()
-        error = nil
-        transcript = ""
-        transcriptFromVoice = false
-        recorder.discard()
-        recorder.start()
-    }
-
-    static func voiceMessage(for error: BumpAPIError) -> String {
-        switch error {
-        case .emptyAudio: return "We couldn't make out any words. Try again a little closer to the mic, or type instead."
-        case .offline: return "Couldn't reach the BUMP server. Check the connection and try again, or type instead."
-        case .timeout: return "Transcribing took too long. Try again, or type instead."
-        case .notConfigured: return "Voice isn't available right now because the BUMP server has no Grok key. Type instead."
-        case .rateLimited: return "Too many tries in a row. Wait a moment, or type instead."
-        case .tooLarge: return "That recording is too large. Record a shorter one, or type instead."
-        case .cancelled: return "Upload cancelled."
-        default: return "Something went wrong transcribing that. Try again, or type instead."
-        }
     }
 
     // MARK: Draft
@@ -262,7 +191,6 @@ final class OnboardingModel: ObservableObject {
         }
         error = nil
         notice = nil
-        recorder.deleteFile()
 
         guard cloudAllowed, let client = cloudProvider() else {
             applyLocalDraft(text, reason: nil)
@@ -448,16 +376,19 @@ final class OnboardingModel: ObservableObject {
 
     func toggle(_ id: String) {
         guard let i = items.firstIndex(where: { $0.id == id }) else { return }
+        cardVersion += 1
         items[i].included.toggle()
     }
 
     func remove(_ id: String) {
+        cardVersion += 1
         items.removeAll { $0.id == id }
     }
 
     func rename(_ id: String, to text: String) {
         let clean = String(text.trimmed().prefix(BumpAPIClient.Limit.label))
         guard !clean.isEmpty, let i = items.firstIndex(where: { $0.id == id }) else { return }
+        cardVersion += 1
         items[i].text = items[i].kind == .interest ? displayLabel(forInterest: clean) : clean
         items[i].origin = .you
     }
@@ -466,6 +397,7 @@ final class OnboardingModel: ObservableObject {
         let clean = String(text.trimmed().prefix(BumpAPIClient.Limit.label))
         guard !clean.isEmpty else { return }
         let label = kind == .interest ? displayLabel(forInterest: clean) : clean
+        cardVersion += 1
         if let i = items.firstIndex(where: { $0.kind == kind && Grounding.fold($0.text) == Grounding.fold(label) }) {
             items[i].included = true
             return
@@ -474,6 +406,7 @@ final class OnboardingModel: ObservableObject {
     }
 
     func toggleCatalog(_ interest: Interest) {
+        cardVersion += 1
         if let i = items.firstIndex(where: { $0.kind == .interest && InterestCatalog.canonical(from: $0.text)?.id == interest.id }) {
             items[i].included.toggle()
         } else {
@@ -485,7 +418,101 @@ final class OnboardingModel: ObservableObject {
         items.contains { $0.included && $0.kind == .interest && InterestCatalog.canonical(from: $0.text)?.id == interest.id }
     }
 
-    func bioEdited() { bioOrigin = .you }
+    func bioEdited() { bioOrigin = .you; cardVersion += 1 }
+
+    // MARK: Spoken onboarding
+
+    /// Bumped on every card edit. A spoken correction that comes back after
+    /// the person has edited the card by hand is ignored rather than applied
+    /// on top of a newer version.
+    @Published private(set) var cardVersion = 0
+
+    /// Fill the card from a finished spoken interview. `userText` is only what
+    /// the person said (never Grok's lines), so every fact quotes their words.
+    /// Returns false if Grok's draft wasn't usable.
+    func applyVoiceDraft(_ draft: BumpAPIClient.Draft, userText: String) -> Bool {
+        guard draft.generator.provider == "xai" else { return false }
+        let facts = Grounding.facts(draft.facts, groundedIn: userText, limit: 12)
+        guard !facts.isEmpty else { return false }
+        replaceIntroItems(with: facts.map { item(from: $0, origin: .grok, fromIntro: true) })
+        if let b = draft.bio, bio.trimmed().isEmpty || bioOrigin != .you,
+           b.sources.contains(where: { Grounding.supports(userText, $0) }) {
+            let t = b.text.withoutDashes().trimmed()
+            if !t.isEmpty, t.count <= BumpAPIClient.Limit.bio + 40 { bio = t; bioOrigin = .grok }
+        }
+        rememberVoiceAnswers(userText)
+        return true
+    }
+
+    /// On-phone fallback when Grok couldn't build the card.
+    func applyLocalVoiceDraft(userText: String, reason: BumpAPIError?) {
+        replaceIntroItems(with: LocalDrafter.extract(from: userText).map {
+            item(from: ProfileFact(kind: $0.kind, text: $0.label, evidence: $0.source), origin: .onPhone, fromIntro: true)
+        })
+        rememberVoiceAnswers(userText)
+        if let reason {
+            notice = "Grok couldn't build your card (\(Self.shortReason(reason))), so your phone suggested these. Edit anything that's off."
+        }
+    }
+
+    /// Keep what was said so "Type instead" later starts from it.
+    func rememberVoiceAnswers(_ userText: String) {
+        transcript = String(userText.prefix(BumpAPIClient.Limit.transcript))
+        lastDrafted = transcript
+        current = nil
+    }
+
+    /// Apply a spoken correction. Only known items change, and every new or
+    /// renamed label must be in what the person said.
+    @discardableResult
+    func applyRevision(_ revision: BumpAPIClient.Revision, utterance: String) -> Bool {
+        guard revision.generator.provider == "xai" else { return false }
+        var changed = false
+        for id in revision.remove where items.contains(where: { $0.id == id }) {
+            items.removeAll { $0.id == id }
+            changed = true
+        }
+        for r in revision.rename {
+            let label = r.label.withoutDashes().trimmed().clipped(BumpAPIClient.Limit.label)
+            guard !label.isEmpty, Grounding.supports(utterance, label),
+                  let i = items.firstIndex(where: { $0.id == r.id }) else { continue }
+            items[i].text = items[i].kind == .interest ? displayLabel(forInterest: label) : label
+            items[i].evidence = utterance.clipped(BumpAPIClient.Limit.evidence)
+            items[i].origin = .you
+            items[i].included = true
+            changed = true
+        }
+        let before = items.count
+        appendAnswerItems(Grounding.facts(revision.add, groundedIn: utterance, limit: 6)
+            .map { item(from: $0, origin: .grok, fromIntro: false) })
+        changed = changed || items.count != before
+        if changed { cardVersion += 1 }
+        return changed
+    }
+
+    /// Lowercase a label mid-sentence only when the person said it that way
+    /// (or it's a catalogue topic), so "cybersecurity" drops its capital but
+    /// "Valorant" keeps it.
+    static func spokenLabel(_ item: Item) -> String {
+        let first = item.text.split(separator: " ").first.map(String.init) ?? item.text
+        let lower = first.lowercased()
+        let saidLowercase = item.evidence.map { " \($0) ".contains(" \(lower)") } ?? false
+        let isCatalogue = InterestCatalog.canonical(from: item.text)?.custom == false
+        return (saidLowercase || isCatalogue) ? item.text.lowercasedFirstWord() : item.text
+    }
+
+    /// What Bump reads aloud: "I've got cybersecurity, Valorant, and house music."
+    var spokenSummary: String {
+        let order: [ProfileFact.Kind] = [.interest, .experience, .goal]
+        let labels = order.flatMap { kind in items.filter { $0.included && $0.kind == kind } }
+            .prefix(4).map(Self.spokenLabel)
+        switch labels.count {
+        case 0: return "I didn't catch much yet. You can add things on your card."
+        case 1: return "I've got \(labels[0])."
+        case 2: return "I've got \(labels[0]) and \(labels[1])."
+        default: return "I've got \(labels.dropLast().joined(separator: ", ")), and \(labels.last!)."
+        }
+    }
 
     // MARK: Save
 
@@ -520,11 +547,10 @@ final class OnboardingModel: ObservableObject {
     #if DEBUG
     /// Previews and demo screenshots only: pose the flow with SAMPLE data.
     func seedSample(step: Step, transcript: String, bio: String, items: [Item],
-                    answered: [Answered], current: Question?, fromVoice: Bool) {
+                    answered: [Answered], current: Question?) {
         self.cloud = .allowed
         self.step = step
         self.transcript = transcript
-        self.transcriptFromVoice = fromVoice
         self.bio = bio
         self.bioOrigin = bio.isEmpty ? nil : .grok
         self.items = items

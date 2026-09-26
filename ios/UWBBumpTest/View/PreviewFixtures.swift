@@ -110,15 +110,15 @@ enum PreviewFixtures {
             break
         case .intro:
             model.seedSample(step: .intro, transcript: sampleIntro, bio: "", items: [], answered: [],
-                             current: nil, fromVoice: true)
+                             current: nil)
         case .questions:
             model.seedSample(step: .questions, transcript: sampleIntro, bio: "Jazz pianist, new boulderer, robotics by day.",
                              items: Array(items.prefix(4)),
                              answered: [.init(question: .init(text: "What kind of hardware are you building?", origin: .grok), answer: "Small legged robots")],
-                             current: q, fromVoice: true)
+                             current: q)
         case .card:
             model.seedSample(step: .card, transcript: sampleIntro, bio: "Jazz pianist, new boulderer, robotics by day.",
-                             items: items, answered: [], current: nil, fromVoice: true)
+                             items: items, answered: [], current: nil)
         }
         return model
     }

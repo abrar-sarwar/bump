@@ -53,6 +53,7 @@ test('MOCKED healthz reports config and never leaks the key', async () => {
     grokConfigured: true,
     model: 'grok-4.3',
     sttModel: 'grok-voice-transcribe-2.0',
+    voiceModel: 'grok-voice-latest',
   });
   assert.ok(!text.includes(DUMMY_KEY));
   assert.ok(!text.includes('DUMMY'));

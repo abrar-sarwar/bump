@@ -18,7 +18,7 @@ struct BumpTutorial: View {
 
     private let pages: [Page] = [
         Page(title: "Find someone to meet",
-             body: "You both open BUMP and tap Start bumping. No codes, no accounts. BUMP finds the phones around you.",
+             body: "You both open BUMP and tap Start bumping. No codes to type. BUMP finds the phones around you.",
              art: .open),
         Page(title: "Tap your phones together",
              body: "A gentle tap, back to back. That's how BUMP knows who you just met, and nobody else.",
