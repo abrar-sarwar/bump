@@ -912,3 +912,44 @@ final class ProximityGateTests: XCTestCase {
         XCTAssertEqual(g.feed(distance: 0.12, age: 0.1, now: 1), .notRearmed)
     }
 }
+
+// MARK: - Startup must not be stranded by routine errors
+
+@MainActor
+final class StartupResilienceTests: XCTestCase {
+
+    private func engine() -> BumpEngine {
+        let store = Store(inMemory: true)
+        store.profile = Profile(displayName: "Ada", bio: "",
+                                interests: [InterestCatalog.byID["chess"]!])
+        return BumpEngine(store: store)
+    }
+
+    /// Regression: a send to a peer that just dropped sets transport.lastError.
+    /// That used to be treated as a startup blocker and was never cleared, so a
+    /// single routine failure permanently killed discovery and the Live
+    /// Activity. Recoverable errors must never block startup.
+    func testARoutineTransportErrorDoesNotBlockStartup() {
+        let e = engine()
+        XCTAssertNil(e.setupBlocker)
+        e.autoStart()
+        XCTAssertTrue(e.nearbyMode)
+
+        // Whatever lastError ends up holding, the session must survive it.
+        XCTAssertNil(e.setupBlocker,
+                     "only a genuine discovery failure may block, never a recoverable error")
+        e.autoStart()
+        XCTAssertTrue(e.nearbyMode, "the session is still up")
+    }
+
+    /// Returning to the foreground gives discovery a fresh attempt, so a person
+    /// who just fixed a permission is not stuck until they relaunch.
+    func testForegroundingClearsAStaleDiscoveryBlock() {
+        let e = engine()
+        e.autoStart()
+        e.handleScenePhase(.background)
+        e.handleScenePhase(.active)
+        XCTAssertNil(e.setupBlocker)
+        XCTAssertNotEqual(e.autoStatus, .paused)
+    }
+}

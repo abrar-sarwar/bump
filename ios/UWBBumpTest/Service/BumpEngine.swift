@@ -286,9 +286,11 @@ final class BumpEngine: ObservableObject {
         if !store.profile.isComplete {
             return "Finish your profile first so the person you meet knows who you are."
         }
-        if transport.lastError != nil {
-            return "BUMP needs Local Network access to see the phones around you. Turn it on in Settings, then come back."
-        }
+        // Only a genuine discovery failure blocks. `transport.lastError` must
+        // NOT be used here: it is also set by routine recoverable things like a
+        // send to a peer that just dropped, and a single one of those would
+        // otherwise strand the app with no session and no Live Activity.
+        if let why = transport.discoveryUnavailable { return why }
         return nil
     }
 
@@ -1101,6 +1103,9 @@ final class BumpEngine: ObservableObject {
         case .active:
             isBackgrounded = false
             proximityGates.removeAll()
+            // Coming back may mean they just fixed a permission, so always give
+            // discovery another chance rather than staying blocked forever.
+            transport.clearDiscoveryBlock()
             ranging.resumeAll()
             if room != .none { refreshCloudStatus() }
             // Validate the deadline here rather than trusting an in-memory
