@@ -26,9 +26,9 @@ struct OnboardingFlow: View {
                 case .card: CardStep(model: model, onFinished: finish).transition(transition)
                 }
             }
-            .animation(reduceMotion ? .easeInOut(duration: 0.2) : .easeInOut(duration: 0.28), value: model.step)
+            .animation(reduceMotion ? .easeInOut(duration: 0.2) : Motion.spatial, value: model.step)
         }
-        .background(BumpColor.background.ignoresSafeArea())
+        .background(BumpColor.surface.ignoresSafeArea())
         .onChange(of: model.step) { old, new in movingForward = new > old }
         .onDisappear { model.tearDown() }
     }
@@ -46,11 +46,9 @@ struct OnboardingFlow: View {
                 movingForward = false
                 model.goBack()
             } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(BumpColor.navy)
-                    .frame(width: 44, height: 44)
+                Image(systemName: "arrow.left")
             }
+            .buttonStyle(.bumpIcon(BumpColor.onSurface))
             .opacity(model.step == .name ? 0 : 1)
             .disabled(model.step == .name)
             .accessibilityLabel("Back")
@@ -76,15 +74,17 @@ struct StepIndicator: View {
     let current: Int
     let total: Int
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         HStack(spacing: 6) {
             ForEach(0..<total, id: \.self) { i in
                 Capsule()
-                    .fill(i <= current ? BumpColor.action : BumpColor.hairline)
-                    .frame(width: i == current ? 22 : 8, height: 8)
+                    .fill(i <= current ? BumpColor.primary : BumpColor.surfaceContainerHighest)
+                    .frame(width: i == current ? 28 : 8, height: 8)
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: current)
+        .animation(reduceMotion ? nil : Motion.spatial, value: current)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Step \(current + 1) of \(total)")
     }
@@ -101,12 +101,12 @@ private struct NameStep: View {
             VStack(alignment: .leading, spacing: Space.l) {
                 Wordmark()
                 Text("What should we call you?")
-                    .font(BumpFont.screenTitle)
-                    .foregroundStyle(BumpColor.navy)
+                    .font(BumpFont.headlineLarge)
+                    .foregroundStyle(BumpColor.onSurface)
                     .fixedSize(horizontal: false, vertical: true)
                 Text("This is the name people see after you bump.")
-                    .font(BumpFont.body)
-                    .foregroundStyle(BumpColor.secondaryText)
+                    .font(BumpFont.bodyLarge)
+                    .foregroundStyle(BumpColor.onSurfaceVariant)
                 BumpField(label: "Your name", placeholder: "First name is fine", text: $model.name)
                     .focused($focused)
                     .submitLabel(.next)
@@ -142,11 +142,11 @@ private struct IntroStep: View {
             VStack(alignment: .leading, spacing: Space.l) {
                 VStack(alignment: .leading, spacing: Space.s) {
                     Text("Introduce yourself")
-                        .font(BumpFont.screenTitle)
-                        .foregroundStyle(BumpColor.navy)
+                        .font(BumpFont.headlineLarge)
+                        .foregroundStyle(BumpColor.onSurface)
                     Text("Say what you're into, what you've done, and what you're hoping to find. We'll turn it into a card you can edit.")
-                        .font(BumpFont.body)
-                        .foregroundStyle(BumpColor.secondaryText)
+                        .font(BumpFont.bodyLarge)
+                        .foregroundStyle(BumpColor.onSurfaceVariant)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -178,9 +178,7 @@ private struct IntroStep: View {
                             .disabled(!model.canDraft)
                     }
                     Button("Skip, I'll pick interests myself", action: model.skipIntro)
-                        .font(BumpFont.caption)
-                        .foregroundStyle(BumpColor.secondaryText)
-                        .padding(.top, Space.xs)
+                        .buttonStyle(.bumpText(BumpColor.onSurfaceVariant))
                 }
             }
         }
@@ -214,21 +212,21 @@ private struct IntroStep: View {
             case .idle:
                 RecordButton(recording: false) { recorder.start() }
                 Text("Tap to record · up to 45 seconds")
-                    .font(BumpFont.caption)
-                    .foregroundStyle(BumpColor.secondaryText)
+                    .font(BumpFont.bodySmall)
+                    .foregroundStyle(BumpColor.onSurfaceVariant)
 
             case .requestingPermission:
                 ProgressView("Asking for microphone access…")
-                    .foregroundStyle(BumpColor.secondaryText)
+                    .foregroundStyle(BumpColor.onSurfaceVariant)
                     .padding(.vertical, Space.l)
 
             case .denied:
                 Card {
                     VStack(alignment: .leading, spacing: Space.s) {
                         Text("Microphone access is off")
-                            .font(BumpFont.bodyEmphasis).foregroundStyle(BumpColor.navy)
+                            .font(BumpFont.titleMedium).foregroundStyle(BumpColor.onSurface)
                         Text("Turn it on in Settings to record, or type your intro instead. It works the same.")
-                            .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
+                            .font(BumpFont.bodySmall).foregroundStyle(BumpColor.onSurfaceVariant)
                             .fixedSize(horizontal: false, vertical: true)
                         Button("Open Settings") {
                             if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
@@ -241,22 +239,22 @@ private struct IntroStep: View {
                 RecordButton(recording: true) { recorder.stop() }
                 LevelMeter(level: recorder.level)
                 Text("\(Self.clock(recorder.remaining)) left")
-                    .font(BumpFont.bodyEmphasis.monospacedDigit())
-                    .foregroundStyle(BumpColor.navy)
+                    .font(BumpFont.titleMedium.monospacedDigit())
+                    .foregroundStyle(BumpColor.onSurface)
                     .accessibilityLabel("\(Int(recorder.remaining)) seconds left")
 
             case .finished(let duration, let interrupted):
                 Card {
                     VStack(alignment: .leading, spacing: Space.s) {
                         Text("Recorded \(Self.clock(duration))")
-                            .font(BumpFont.bodyEmphasis).foregroundStyle(BumpColor.navy)
+                            .font(BumpFont.titleMedium).foregroundStyle(BumpColor.onSurface)
                         if interrupted {
                             Text("Recording stopped because of an interruption. You can use what you have or record again.")
-                                .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
+                                .font(BumpFont.bodySmall).foregroundStyle(BumpColor.onSurfaceVariant)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         if let error = model.error {
-                            Text(error).font(BumpFont.caption).foregroundStyle(BumpColor.negative)
+                            Text(error).font(BumpFont.bodySmall).foregroundStyle(BumpColor.negative)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         Button(model.error == nil ? "Use this recording" : "Try again", action: model.useRecording)
@@ -269,7 +267,7 @@ private struct IntroStep: View {
             case .failed(let message):
                 Card {
                     VStack(alignment: .leading, spacing: Space.s) {
-                        Text(message).font(BumpFont.body).foregroundStyle(BumpColor.navy)
+                        Text(message).font(BumpFont.bodyLarge).foregroundStyle(BumpColor.onSurface)
                             .fixedSize(horizontal: false, vertical: true)
                         Button("Record again", action: model.recordAgain)
                             .buttonStyle(.bumpSecondary)
@@ -278,9 +276,8 @@ private struct IntroStep: View {
             }
 
             if recorder.state != .recording {
-                Button("Type instead") { recorder.discard(); model.typing = true }
-                    .font(BumpFont.bodyEmphasis)
-                    .foregroundStyle(BumpColor.action)
+                Button("Type instead", systemImage: "keyboard") { recorder.discard(); model.typing = true }
+                    .buttonStyle(.bumpText)
             }
         }
         .frame(maxWidth: .infinity)
@@ -294,11 +291,10 @@ private struct IntroStep: View {
                 .focused($focused)
             HStack {
                 Text("Transcribed by xAI speech-to-text")
-                    .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
+                    .font(BumpFont.bodySmall).foregroundStyle(BumpColor.onSurfaceVariant)
                 Spacer()
                 Button("Record again", action: model.recordAgain)
-                    .font(BumpFont.caption)
-                    .foregroundStyle(BumpColor.action)
+                    .buttonStyle(.bumpText)
             }
         }
     }
@@ -311,12 +307,11 @@ private struct IntroStep: View {
                 .focused($focused)
             HStack {
                 Text(model.cloudAllowed ? "Grok will suggest a card from this." : "Stays on this phone. Your phone suggests a card from this.")
-                    .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
+                    .font(BumpFont.bodySmall).foregroundStyle(BumpColor.onSurfaceVariant)
                 Spacer()
                 if model.cloudAllowed {
-                    Button("Record instead") { model.typing = false; focused = false }
-                        .font(BumpFont.caption)
-                        .foregroundStyle(BumpColor.action)
+                    Button("Record instead", systemImage: "mic") { model.typing = false; focused = false }
+                        .buttonStyle(.bumpText)
                 }
             }
         }
@@ -336,21 +331,30 @@ private struct CloudConsentCard: View {
     var body: some View {
         Card(padding: Space.l) {
             VStack(alignment: .leading, spacing: Space.m) {
-                Label("Before anything leaves your phone", systemImage: "lock.shield")
-                    .font(BumpFont.bodyEmphasis)
-                    .foregroundStyle(BumpColor.navy)
+                HStack(spacing: Space.sm) {
+                    Image(systemName: "lock.shield.fill")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(BumpColor.primary)
+                        .frame(width: 40, height: 40)
+                        .background(Circle().fill(BumpColor.primaryContainer))
+                    Text("Before anything leaves your phone")
+                        .font(BumpFont.titleLarge)
+                        .foregroundStyle(BumpColor.onSurface)
+                }
                 Text("To transcribe your intro and suggest a card, BUMP sends your recording, anything you type here, and your answers to the BUMP server, which passes them to xAI's Grok.")
-                    .font(BumpFont.caption).foregroundStyle(BumpColor.navy)
+                    .font(BumpFont.bodyMedium).foregroundStyle(BumpColor.onSurface)
                     .fixedSize(horizontal: false, vertical: true)
                 Text("The BUMP server doesn't store your audio or text. xAI's documentation says API requests are kept for up to 30 days for auditing. Later, if you and the person you bump both allow it, your shared interests are sent the same way to write talking points.")
-                    .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
+                    .font(BumpFont.bodySmall).foregroundStyle(BumpColor.onSurfaceVariant)
                     .fixedSize(horizontal: false, vertical: true)
-                Button("Allow cloud processing") { model.chooseCloud(true) }
-                    .buttonStyle(.bumpPrimary)
-                Button("Keep everything on this phone") { model.chooseCloud(false) }
-                    .buttonStyle(.bumpSecondary)
+                VStack(spacing: Space.sm) {
+                    Button("Allow cloud processing") { model.chooseCloud(true) }
+                        .buttonStyle(.bumpPrimary)
+                    Button("Keep everything on this phone") { model.chooseCloud(false) }
+                        .buttonStyle(.bumpSecondary)
+                }
                 Text("On this phone you type instead of speak. You can change this any time in You.")
-                    .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
+                    .font(BumpFont.bodySmall).foregroundStyle(BumpColor.onSurfaceVariant)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -368,29 +372,30 @@ private struct QuestionsStep: View {
             VStack(alignment: .leading, spacing: Space.l) {
                 VStack(alignment: .leading, spacing: Space.s) {
                     Text("A little more")
-                        .font(BumpFont.screenTitle)
-                        .foregroundStyle(BumpColor.navy)
+                        .font(BumpFont.headlineLarge)
+                        .foregroundStyle(BumpColor.onSurface)
                     Text("Up to three quick questions. Skip anything.")
-                        .font(BumpFont.body)
-                        .foregroundStyle(BumpColor.secondaryText)
+                        .font(BumpFont.bodyLarge)
+                        .foregroundStyle(BumpColor.onSurfaceVariant)
                 }
 
                 if model.busy == .thinking {
                     WorkingCard(title: "Thinking of a good question…", detail: nil, onCancel: model.finishQuestions)
                 } else if let question = model.current {
                     VStack(alignment: .leading, spacing: Space.s) {
-                        Text("Question \(model.questionNumber) of up to \(OnboardingModel.maxQuestions)")
-                            .font(BumpFont.caption)
-                            .foregroundStyle(BumpColor.secondaryText)
-                        Card {
-                            VStack(alignment: .leading, spacing: Space.s) {
+                        Eyebrow(text: "Question \(model.questionNumber) of up to \(OnboardingModel.maxQuestions)")
+                        Card(style: .primaryTonal, padding: Space.l) {
+                            VStack(alignment: .leading, spacing: Space.sm) {
+                                Image(systemName: "quote.opening")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundStyle(BumpColor.primary)
                                 Text(question.text)
-                                    .font(BumpFont.sectionTitle)
-                                    .foregroundStyle(BumpColor.navy)
+                                    .font(BumpFont.headlineSmall)
+                                    .foregroundStyle(BumpColor.onPrimaryContainer)
                                     .fixedSize(horizontal: false, vertical: true)
                                 Text(question.origin == .grok ? "Question from Grok" : "Question from your phone")
-                                    .font(BumpFont.caption)
-                                    .foregroundStyle(BumpColor.secondaryText)
+                                    .font(BumpFont.labelMedium)
+                                    .foregroundStyle(BumpColor.onPrimaryContainer.opacity(0.7))
                             }
                         }
                         .id(question.text)
@@ -405,7 +410,7 @@ private struct QuestionsStep: View {
                     Card {
                         VStack(alignment: .leading, spacing: Space.s) {
                             Text("That's everything we wanted to ask.")
-                                .font(BumpFont.bodyEmphasis).foregroundStyle(BumpColor.navy)
+                                .font(BumpFont.titleMedium).foregroundStyle(BumpColor.onSurface)
                             Button("See your card", action: model.finishQuestions)
                                 .buttonStyle(.bumpPrimary)
                         }
@@ -420,13 +425,13 @@ private struct QuestionsStep: View {
                     VStack(alignment: .leading, spacing: Space.xs) {
                         ForEach(model.answered) { qa in
                             HStack(alignment: .top, spacing: Space.s) {
-                                Image(systemName: qa.answer == nil ? "arrow.uturn.right" : "checkmark")
+                                Image(systemName: qa.answer == nil ? "arrow.uturn.right" : "checkmark.circle.fill")
                                     .font(.caption.weight(.semibold))
-                                    .foregroundStyle(BumpColor.secondaryText)
+                                    .foregroundStyle(qa.answer == nil ? BumpColor.onSurfaceVariant : BumpColor.positive)
                                     .padding(.top, 2)
                                 Text(qa.answer == nil ? "Skipped: \(qa.question.text)" : qa.question.text)
-                                    .font(BumpFont.caption)
-                                    .foregroundStyle(BumpColor.secondaryText)
+                                    .font(BumpFont.bodySmall)
+                                    .foregroundStyle(BumpColor.onSurfaceVariant)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
@@ -434,7 +439,7 @@ private struct QuestionsStep: View {
                     .accessibilityElement(children: .combine)
                 }
             }
-            .animation(.easeInOut(duration: 0.2), value: model.current)
+            .animation(Motion.effects, value: model.current)
         }
         .safeAreaInset(edge: .bottom) {
             if model.busy == .idle && model.current != nil {
@@ -447,9 +452,7 @@ private struct QuestionsStep: View {
                         Spacer()
                         Button("Done with questions", action: model.finishQuestions)
                     }
-                    .font(BumpFont.caption)
-                    .foregroundStyle(BumpColor.secondaryText)
-                    .padding(.top, Space.xs)
+                    .buttonStyle(.bumpText(BumpColor.onSurfaceVariant))
                 }
             }
         }
@@ -475,11 +478,11 @@ private struct CardStep: View {
             VStack(alignment: .leading, spacing: Space.l) {
                 VStack(alignment: .leading, spacing: Space.s) {
                     Text("Your Bump card")
-                        .font(BumpFont.screenTitle)
-                        .foregroundStyle(BumpColor.navy)
+                        .font(BumpFont.headlineLarge)
+                        .foregroundStyle(BumpColor.onSurface)
                     Text("Confirmed partners receive this card. Keep what's right, fix what isn't, and uncheck anything you'd rather not share.")
-                        .font(BumpFont.body)
-                        .foregroundStyle(BumpColor.secondaryText)
+                        .font(BumpFont.bodyLarge)
+                        .foregroundStyle(BumpColor.onSurfaceVariant)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -496,7 +499,7 @@ private struct CardStep: View {
                                                              set: { model.bio = $0; model.bioEdited() }))
                     if model.bioOrigin == .grok {
                         Text("Suggested by Grok from your intro. Edit freely.")
-                            .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
+                            .font(BumpFont.bodySmall).foregroundStyle(BumpColor.onSurfaceVariant)
                     }
                 }
 
@@ -505,8 +508,8 @@ private struct CardStep: View {
                 }
 
                 Text("Only your name, photo, bio and the checked items are shared, and only with someone you've both confirmed after a bump. Your recording, transcript and answers are never saved or shared.")
-                    .font(BumpFont.caption)
-                    .foregroundStyle(BumpColor.secondaryText)
+                    .font(BumpFont.bodySmall)
+                    .foregroundStyle(BumpColor.onSurfaceVariant)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -517,8 +520,8 @@ private struct CardStep: View {
                     .disabled(!model.canFinish)
                 if !model.canFinish {
                     Text("Add your name and check at least one thing to continue.")
-                        .font(BumpFont.caption)
-                        .foregroundStyle(BumpColor.secondaryText)
+                        .font(BumpFont.bodySmall)
+                        .foregroundStyle(BumpColor.onSurfaceVariant)
                 }
             }
         }
@@ -556,33 +559,30 @@ private struct CardStep: View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack {
                 Text(kind.title)
-                    .font(BumpFont.sectionTitle)
-                    .foregroundStyle(BumpColor.navy)
+                    .font(BumpFont.titleLarge)
+                    .foregroundStyle(BumpColor.onSurface)
                 Spacer()
                 Button {
                     addText = ""
                     adding = kind
                 } label: {
                     Label("Add", systemImage: "plus")
-                        .font(BumpFont.caption.weight(.semibold))
-                        .foregroundStyle(BumpColor.action)
                 }
+                .buttonStyle(.bumpText)
                 .accessibilityLabel("Add \(kind.title.lowercased())")
             }
 
             let items = model.items(kind)
             if items.isEmpty {
                 Text(emptyText(kind))
-                    .font(BumpFont.caption)
-                    .foregroundStyle(BumpColor.secondaryText)
+                    .font(BumpFont.bodySmall)
+                    .foregroundStyle(BumpColor.onSurfaceVariant)
             } else {
-                VStack(spacing: 0) {
+                ListGroup {
                     ForEach(items) { item in
                         row(item)
-                        if item.id != items.last?.id { Divider().padding(.leading, 44) }
                     }
                 }
-                .background(RoundedRectangle(cornerRadius: Space.corner, style: .continuous).fill(BumpColor.surface))
             }
 
             if kind == .interest {
@@ -591,21 +591,30 @@ private struct CardStep: View {
                         .padding(.top, Space.s)
                 } label: {
                     Text("Browse interests")
-                        .font(BumpFont.caption.weight(.semibold))
-                        .foregroundStyle(BumpColor.action)
+                        .font(BumpFont.labelLarge)
+                        .foregroundStyle(BumpColor.primary)
                 }
-                .tint(BumpColor.action)
+                .tint(BumpColor.primary)
             }
         }
     }
 
     private func row(_ item: OnboardingModel.Item) -> some View {
         HStack(alignment: .top, spacing: Space.s) {
-            Button { model.toggle(item.id) } label: {
-                Image(systemName: item.included ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22))
-                    .foregroundStyle(item.included ? BumpColor.action : BumpColor.secondaryText)
-                    .frame(width: 32, height: 32)
+            Button { withAnimation(Motion.spatialFast) { model.toggle(item.id) } } label: {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(item.included ? BumpColor.primary : .clear)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(item.included ? .clear : BumpColor.outline, lineWidth: 2)
+                    if item.included {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(BumpColor.onPrimary)
+                    }
+                }
+                .frame(width: 22, height: 22)
+                .frame(width: 40, height: 40)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(item.included ? "Shared: \(item.text)" : "Not shared: \(item.text)")
@@ -613,32 +622,34 @@ private struct CardStep: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.text)
-                    .font(BumpFont.body)
-                    .foregroundStyle(item.included ? BumpColor.navy : BumpColor.secondaryText)
-                    .strikethrough(!item.included, color: BumpColor.secondaryText)
+                    .font(BumpFont.bodyLarge)
+                    .foregroundStyle(item.included ? BumpColor.onSurface : BumpColor.onSurfaceVariant)
+                    .strikethrough(!item.included, color: BumpColor.onSurfaceVariant)
                     .fixedSize(horizontal: false, vertical: true)
                 if let evidence = item.evidence {
                     Text("From “\(evidence)”")
-                        .font(BumpFont.caption)
-                        .foregroundStyle(BumpColor.secondaryText)
+                        .font(BumpFont.bodySmall)
+                        .foregroundStyle(BumpColor.onSurfaceVariant)
                         .lineLimit(2)
                 }
                 Text(item.origin.label)
                     .font(.caption2)
-                    .foregroundStyle(BumpColor.secondaryText)
+                    .foregroundStyle(BumpColor.onSurfaceVariant)
             }
             Spacer(minLength: 0)
             Menu {
-                Button("Edit") { editText = item.text; editing = item }
-                Button("Remove", role: .destructive) { model.remove(item.id) }
+                Button("Edit", systemImage: "pencil") { editText = item.text; editing = item }
+                Button("Remove", systemImage: "trash", role: .destructive) { model.remove(item.id) }
             } label: {
                 Image(systemName: "ellipsis")
-                    .foregroundStyle(BumpColor.secondaryText)
-                    .frame(width: 32, height: 32)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(BumpColor.onSurfaceVariant)
+                    .frame(width: 40, height: 40)
+                    .contentShape(Circle())
             }
             .accessibilityLabel("More for \(item.text)")
         }
-        .padding(.horizontal, Space.s)
+        .padding(.horizontal, Space.sm)
         .padding(.vertical, Space.s)
     }
 
@@ -653,37 +664,25 @@ private struct CardStep: View {
 
 // MARK: - Shared bits
 
-private struct BottomBar<Content: View>: View {
-    @ViewBuilder var content: Content
-    var body: some View {
-        VStack(spacing: Space.xs) { content }
-            .padding(.horizontal, Space.gutter)
-            .padding(.top, Space.s)
-            .padding(.bottom, Space.s)
-            .background(BumpColor.background.ignoresSafeArea(edges: .bottom))
-    }
-}
-
 private struct WorkingCard: View {
     let title: String
     let detail: String?
     var onCancel: (() -> Void)?
 
     var body: some View {
-        Card(padding: Space.l) {
+        Card(style: .filled, padding: Space.l) {
             HStack(alignment: .top, spacing: Space.m) {
-                ProgressView().tint(BumpColor.action)
+                LoadingIndicator(size: 28)
                 VStack(alignment: .leading, spacing: Space.xs) {
-                    Text(title).font(BumpFont.bodyEmphasis).foregroundStyle(BumpColor.navy)
+                    Text(title).font(BumpFont.titleMedium).foregroundStyle(BumpColor.onSurface)
                     if let detail {
-                        Text(detail).font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
+                        Text(detail).font(BumpFont.bodySmall).foregroundStyle(BumpColor.onSurfaceVariant)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if let onCancel {
                         Button("Cancel", action: onCancel)
-                            .font(BumpFont.caption.weight(.semibold))
-                            .foregroundStyle(BumpColor.action)
-                            .padding(.top, Space.xs)
+                            .buttonStyle(.bumpText)
+                            .padding(.leading, -12)
                     }
                 }
             }
@@ -692,38 +691,49 @@ private struct WorkingCard: View {
     }
 }
 
-private struct NoticeText: View {
-    let text: String
-    var body: some View {
-        HStack(alignment: .top, spacing: Space.s) {
-            Image(systemName: "info.circle").foregroundStyle(BumpColor.warning)
-            Text(text).font(BumpFont.caption).foregroundStyle(BumpColor.navy)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(Space.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Space.corner, style: .continuous).fill(BumpColor.paleBlue))
-    }
-}
-
 private struct RecordButton: View {
     let recording: Bool
     let action: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulse = false
 
     var body: some View {
         Button(action: action) {
             ZStack {
-                Circle().fill(BumpColor.action).frame(width: 88, height: 88)
                 if recording {
-                    RoundedRectangle(cornerRadius: 6).fill(.white).frame(width: 28, height: 28)
+                    Circle()
+                        .fill(BumpColor.negative.opacity(0.18))
+                        .frame(width: 120, height: 120)
+                        .scaleEffect(pulse ? 1.15 : 0.9)
+                        .opacity(pulse ? 0.3 : 0.8)
+                }
+                RoundedRectangle(cornerRadius: recording ? Radius.extraLarge : 48, style: .continuous)
+                    .fill(recording ? BumpColor.negative : BumpColor.primary)
+                    .frame(width: 96, height: 96)
+                    .shadow(color: (recording ? BumpColor.negative : BumpColor.primary).opacity(0.25), radius: 14, y: 6)
+                if recording {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.white).frame(width: 30, height: 30)
                 } else {
-                    Image(systemName: "mic.fill").font(.system(size: 32, weight: .semibold)).foregroundStyle(.white)
+                    Image(systemName: "mic.fill").font(.system(size: 34, weight: .semibold)).foregroundStyle(.white)
                 }
             }
+            .frame(width: 120, height: 120)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(RecordPressStyle())
+        .animation(reduceMotion ? nil : Motion.spatial, value: recording)
+        .animation(reduceMotion || !recording ? nil : .easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
+        .onAppear { pulse = recording && !reduceMotion }
+        .onChange(of: recording) { _, on in pulse = on && !reduceMotion }
         .accessibilityLabel(recording ? "Stop recording" : "Start recording")
-        .padding(.top, Space.m)
+        .padding(.top, Space.s)
+    }
+}
+
+private struct RecordPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .animation(Motion.spatialFast, value: configuration.isPressed)
     }
 }
 
@@ -731,19 +741,19 @@ private struct LevelMeter: View {
     let level: Float
     var body: some View {
         GeometryReader { geo in
-            Capsule().fill(BumpColor.paleBlue)
+            Capsule().fill(BumpColor.surfaceContainerHighest)
                 .overlay(alignment: .leading) {
-                    Capsule().fill(BumpColor.brand)
+                    Capsule().fill(BumpColor.primary)
                         .frame(width: max(8, geo.size.width * CGFloat(level)))
                         .animation(.linear(duration: 0.1), value: level)
                 }
         }
-        .frame(width: 180, height: 8)
+        .frame(width: 200, height: 10)
         .accessibilityHidden(true)
     }
 }
 
-// MARK: - Previews (SAMPLE DATA — not real people)
+// MARK: - Previews (SAMPLE DATA: not real people)
 
 #if DEBUG
 #Preview("1 · Name") {

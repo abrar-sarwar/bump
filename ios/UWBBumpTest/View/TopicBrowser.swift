@@ -23,26 +23,25 @@ struct TopicBrowser: View {
             }
 
             ForEach(InterestCatalog.groups.filter { isOpen($0.category, $0.children) }, id: \.category.id) { group in
-                VStack(alignment: .leading, spacing: Space.s) {
-                    Text("\(group.category.label): anything more specific?")
-                        .font(BumpFont.caption)
-                        .foregroundStyle(BumpColor.secondaryText)
-                    FlowLayout {
-                        ForEach(group.children) { interest in
-                            InterestChip(title: interest.label, selected: isSelected(interest)) {
-                                toggle(interest)
-                                Haptics.tap()
+                Card(style: .filled) {
+                    VStack(alignment: .leading, spacing: Space.sm) {
+                        Text("\(group.category.label): anything more specific?")
+                            .font(BumpFont.labelLarge)
+                            .foregroundStyle(BumpColor.onSurfaceVariant)
+                        FlowLayout {
+                            ForEach(group.children) { interest in
+                                InterestChip(title: interest.label, selected: isSelected(interest)) {
+                                    toggle(interest)
+                                    Haptics.tap()
+                                }
                             }
                         }
                     }
                 }
-                .padding(Space.m)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: Space.corner, style: .continuous).fill(BumpColor.surface))
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: opened)
+        .animation(reduceMotion ? nil : Motion.spatial, value: opened)
     }
 
     private func isOpen(_ topic: Interest, _ children: [Interest]) -> Bool {

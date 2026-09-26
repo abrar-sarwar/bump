@@ -4,7 +4,7 @@ import Foundation
 ///
 /// These are obviously fictional people. They are never used at runtime, never
 /// presented as nearby phones, never presented as live sensor readings, and a
-/// connection built from them is never recorded as a successful physical test —
+/// connection built from them is never recorded as a successful physical test.
 /// nothing here touches `Store`'s on-disk files unless a preview asks for an
 /// in-memory store.
 enum PreviewFixtures {
@@ -80,7 +80,7 @@ enum PreviewFixtures {
         return store
     }
 
-    // MARK: Onboarding (SAMPLE DATA — clearly fictional, never sent anywhere)
+    // MARK: Onboarding (SAMPLE DATA: clearly fictional, never sent anywhere)
     #if DEBUG
 
     static let sampleIntro = "Hi, I'm Sam. I play jazz piano and I've been getting into climbing. I work at a robotics lab. I'd love to meet people building hardware."

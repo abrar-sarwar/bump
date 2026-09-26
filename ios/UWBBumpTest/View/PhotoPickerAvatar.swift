@@ -28,8 +28,8 @@ struct PhotoPickerAvatar: View {
                         .font(.system(size: size * 0.16, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: size * 0.34, height: size * 0.34)
-                        .background(Circle().fill(BumpColor.action))
-                        .overlay(Circle().strokeBorder(BumpColor.background, lineWidth: 2))
+                        .background(Circle().fill(BumpColor.primary))
+                        .overlay(Circle().strokeBorder(BumpColor.surface, lineWidth: 2))
                 }
             }
             .buttonStyle(.plain)
@@ -41,8 +41,8 @@ struct PhotoPickerAvatar: View {
                     .foregroundStyle(BumpColor.negative)
             } else if photo != nil {
                 Button("Remove") { photo = nil }
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(BumpColor.secondaryText)
+                    .font(BumpFont.labelSmall)
+                    .foregroundStyle(BumpColor.onSurfaceVariant)
                     .accessibilityLabel("Remove profile photo")
             }
         }

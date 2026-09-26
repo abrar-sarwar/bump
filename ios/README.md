@@ -42,7 +42,7 @@ Each box is one file, with a real boundary between them.
 
 ```
 View/            SwiftUI screens only. No sensors, no sockets.
-Design/          Theme.swift (colour/type/spacing) + Components.swift
+Design/          Theme.swift (M3-style colour roles, shape, type, motion) + Components.swift (buttons, fields, chips, cards, list rows, navigation bar)
 Model/           Profile, SharedProfile, SavedConnection, Interest catalogue
 Service/
   MotionDetector   CoreMotion → SpikeGate

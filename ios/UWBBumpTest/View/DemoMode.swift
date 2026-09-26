@@ -33,7 +33,7 @@ enum DemoMode: String {
 struct DemoBadge: View {
     var body: some View {
         Text("DEMO DATA: not a real person or measurement")
-            .font(.system(size: 11, weight: .semibold))
+            .font(BumpFont.labelSmall)
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 5)

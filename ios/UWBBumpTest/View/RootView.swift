@@ -6,6 +6,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var stage: Stage
+    @State private var tab: BumpTabBar.Tab = .bump
     /// DEBUG demo only: a pre-seeded onboarding model with sample data.
     @State private var demoOnboarding: OnboardingModel?
 
@@ -42,15 +43,16 @@ struct RootView: View {
                 .transition(.opacity)
 
             case .main:
-                TabView {
-                    BumpScreen(engine: engine, store: store)
-                        .tabItem { Label("Bump", systemImage: "hand.tap.fill") }
-                    ConnectionsScreen(store: store)
-                        .tabItem { Label("Connections", systemImage: "person.2.fill") }
-                    YouScreen(store: store, engine: engine)
-                        .tabItem { Label("You", systemImage: "person.crop.circle") }
+                // All three destinations stay alive (like a TabView) so their
+                // navigation state survives switching; the M3 navigation bar
+                // below swaps which one is visible with a fade-through.
+                ZStack {
+                    tabContent(.bump) { BumpScreen(engine: engine, store: store) }
+                    tabContent(.connections) { ConnectionsScreen(store: store) }
+                    tabContent(.you) { YouScreen(store: store, engine: engine) }
                 }
-                .tint(BumpColor.action)
+                .safeAreaInset(edge: .bottom, spacing: 0) { BumpTabBar(selection: $tab) }
+                .tint(BumpColor.primary)
             }
         }
         .animation(.easeInOut(duration: 0.25), value: stage)
@@ -61,6 +63,17 @@ struct RootView: View {
             stage = .welcome
         }
         .preferredColorScheme(.light)   // the brand is a warm light palette
+    }
+
+    @ViewBuilder
+    private func tabContent<V: View>(_ which: BumpTabBar.Tab, @ViewBuilder _ view: () -> V) -> some View {
+        let shown = tab == which
+        view()
+            .opacity(shown ? 1 : 0)
+            .scaleEffect(shown ? 1 : 0.985)
+            .allowsHitTesting(shown)
+            .accessibilityHidden(!shown)
+            .animation(Motion.effects, value: tab)
     }
 
     /// DEBUG-only seeding so every screen can be inspected in the Simulator.
@@ -100,7 +113,8 @@ struct RootView: View {
                            members: [sample])
         case .connections, .you, .tools, .home, .tutorial:
             store.profile = PreviewFixtures.profile
-            if demo == .connections { PreviewFixtures.seed(store) }
+            if demo == .connections { PreviewFixtures.seed(store); tab = .connections }
+            if demo == .you || demo == .tools { tab = .you }
             stage = .main
         }
         #endif
