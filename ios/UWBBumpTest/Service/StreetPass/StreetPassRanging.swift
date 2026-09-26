@@ -42,7 +42,12 @@ final class StreetPassRanging: NSObject, ObservableObject {
         }
         let session = sessions[peerID] ?? makeSession(for: peerID)
         guard let token = session.discoveryToken else { return nil }
-        return try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true)
+        do {
+            return try NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true)
+        } catch {
+            log("StreetPass could not archive local token: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     private func makeSession(for peerID: String) -> NISession {
@@ -88,6 +93,7 @@ final class StreetPassRanging: NSObject, ObservableObject {
     func pauseAll() {
         sessions.values.forEach { $0.pause() }
         measurements.removeAll()
+        log("StreetPass ranging paused (app left the foreground)")
     }
 
     func resumeAll() {
@@ -95,6 +101,7 @@ final class StreetPassRanging: NSObject, ObservableObject {
             guard let token = peerTokens[peerID] else { continue }
             session.run(NINearbyPeerConfiguration(peerToken: token))
         }
+        if !sessions.isEmpty { log("StreetPass ranging resumed") }
     }
 
     private func startStaleTimer() {
@@ -107,7 +114,9 @@ final class StreetPassRanging: NSObject, ObservableObject {
     private func stopStaleTimer() { staleTimer?.invalidate(); staleTimer = nil }
 
     private func expireStale() {
+        let before = measurements.count
         measurements = measurements.filter { $0.value.age <= config.measurementFreshness }
+        if measurements.count != before { log("StreetPass cleared stale measurement(s)") }
     }
 
     private func log(_ s: String) { onLog?(s) }
@@ -165,6 +174,12 @@ extension StreetPassRanging: NISessionDelegate {
                 self.peerTokens[peerID] = nil
             }
             self.peerForSession[ObjectIdentifier(session)] = nil
+
+            if let niError = error as? NIError, niError.code == .userDidNotAllow {
+                self.log("Nearby Interaction permission denied")
+            } else {
+                self.log("StreetPass ranging session ended: \(error.localizedDescription)")
+            }
         }
     }
 }
