@@ -184,18 +184,30 @@ The result is deliberately simple: **a few real reasons these two people might h
 
 ## Tech stack
 
-| Area | What's used |
-|---|---|
-| iOS app | Swift + SwiftUI, deployment target iOS 17, Xcode 26+ |
-| Sensing | CoreMotion (tap detection), Nearby Interaction / `NISession` (UWB distance) |
-| Transport | MultipeerConnectivity, encrypted, behind a swappable `PeerTransport` |
-| Wire format | Versioned, bounded, idempotent messages (`WireProtocol`) |
-| On-device AI | Apple Foundation Models, optional, with a deterministic local drafter behind it |
-| Design | `Theme.swift` colour roles / shape / type / motion + `Components.swift` |
-| Backend | Zero-dependency Node.js ≥ 20, plain `node:http`, contract in [`backend/CONTRACT.md`](backend/CONTRACT.md) |
-| Models | xAI Grok (`grok-4.3`) for drafting and talking points, `grok-voice-transcribe-2.0` for speech |
-| Marketing site | React 19 + TypeScript 5.9 + Vite 7, one scrubbed GSAP/ScrollTrigger sequence |
-| Testing | XCTest (100 unit tests), `node --test` (42 mocked), live smoke script, Playwright for the site |
+Bump is built as a native iOS experience, with nearby communication and sensor processing happening on the phones and optional cloud AI routed through a small backend.
+
+| Layer | Technology | Role |
+|---|---|---|
+| **App** | Swift + SwiftUI | Native iOS interface and application logic |
+| **Bump detection** | Core Motion | Detects the physical bump gesture from device acceleration |
+| **Peer ranging** | Nearby Interaction + Ultra Wideband | Provides peer-specific distance evidence when supported |
+| **Nearby communication** | MultipeerConnectivity | Discovers nearby devices and carries peer-to-peer session data |
+| **StreetPass** | MultipeerConnectivity + Nearby Interaction | Detects close encounters and surfaces a single shared-interest teaser |
+| **Profile + matching AI** | xAI Grok | Transcription, profile drafting, and grounded conversation-starter phrasing |
+| **On-device fallback** | Apple Foundation Models + deterministic templates | Keeps matching usable when cloud AI is unavailable or disabled |
+| **Backend** | Node.js | Proxies xAI requests and keeps API credentials off-device |
+| **Local state** | JSON on device | Stores the editable user profile and prototype state |
+| **Landing page** | React + TypeScript + Vite + GSAP | Project website and product presentation |
+
+### Architecture at a glance
+
+**The phones handle the encounter. The server handles optional intelligence.**
+
+Core Motion, Nearby Interaction, and MultipeerConnectivity run the real-world discovery and pairing flow directly on iOS. Approved profile data is exchanged between the confirmed devices.
+
+The backend is deliberately small. It keeps the xAI API key off the phone and provides cloud transcription and Grok-assisted generation when users opt into it.
+
+Bump does not depend on the cloud to recognize a physical bump or establish a nearby peer connection.
 
 ## Roadmap
 
