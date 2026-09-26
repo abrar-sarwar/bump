@@ -11,11 +11,19 @@ struct StreetPassSheet: View {
     var onNotNow: () -> Void
 
     @ScaledMetric(relativeTo: .body) private var avatarSize: CGFloat = 104
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// One clock for both loops, so the rings and the button share a start.
+    @State private var animating = false
 
     var body: some View {
         VStack(spacing: Space.m) {
             // Hero: the person, the way the AirPods card leads with the device.
+            // The radar sits in a fixed-size frame behind the avatar, so the
+            // rings never change the card's height as they expand.
             Avatar(name: encounter.displayName, size: avatarSize, photo: encounter.avatarThumbnail)
+                .background {
+                    PassRadar(diameter: avatarSize, animating: animating && !reduceMotion)
+                }
                 .padding(.top, Space.s)
 
             VStack(spacing: Space.xs) {
@@ -41,6 +49,13 @@ struct StreetPassSheet: View {
             VStack(spacing: Space.xs) {
                 Button("Bump them", action: onBumpThem)
                     .buttonStyle(.bumpPrimary)
+                    // A slow breath on the CTA itself. Scale only — a glow
+                    // would fight the button's own M3 chrome — and offset
+                    // from the radar's period so they never pulse in lockstep.
+                    .scaleEffect(animating && !reduceMotion ? 1.03 : 1)
+                    .animation(reduceMotion ? nil
+                               : .easeInOut(duration: 1.6).repeatForever(autoreverses: true),
+                               value: animating)
                 Button("Not now", action: onNotNow)
                     .buttonStyle(.bumpText)
             }
@@ -50,6 +65,39 @@ struct StreetPassSheet: View {
         .padding(.top, Space.m)
         .padding(.bottom, Space.s)
         .accessibilityElement(children: .contain)
+        .onAppear { if !reduceMotion { animating = true } }
+    }
+}
+
+/// StreetPass-style radar: rings that expand out from behind the avatar and
+/// fade. Decorative only, and static under Reduce Motion — the caller passes
+/// `animating: false` in that case, so nothing ever starts.
+private struct PassRadar: View {
+    let diameter: CGFloat
+    let animating: Bool
+
+    private static let ringCount = 3
+    private static let period: TimeInterval = 2.4
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<Self.ringCount, id: \.self) { index in
+                Circle()
+                    .strokeBorder(BumpColor.brand, lineWidth: 1.5)
+                    .frame(width: diameter, height: diameter)
+                    .scaleEffect(animating ? 1.9 : 1)
+                    .opacity(animating ? 0 : 0.35)
+                    .animation(animating
+                               ? .easeOut(duration: Self.period)
+                                   .repeatForever(autoreverses: false)
+                                   .delay(Self.period / Double(Self.ringCount) * Double(index))
+                               : nil,
+                               value: animating)
+            }
+        }
+        // Room for the largest ring, so the layout never moves with the motion.
+        .frame(width: diameter * 1.9, height: diameter * 1.9)
+        .accessibilityHidden(true)
     }
 }
 
