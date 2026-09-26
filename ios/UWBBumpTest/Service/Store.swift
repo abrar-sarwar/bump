@@ -11,6 +11,10 @@ final class Store: ObservableObject {
     @Published private(set) var connections: [SavedConnection] {
         didSet { persist(connections, to: Self.connectionsURL) }
     }
+    /// People seen nearby without a bump, newest first. Local only.
+    @Published private(set) var streetpasses: [StreetpassEvent] {
+        didSet { persist(streetpasses, to: Self.streetpassesURL) }
+    }
     /// Developer/testing settings, persisted so a tuning session survives a relaunch.
     @Published var settings: Settings {
         didSet { persist(settings, to: Self.settingsURL) }
@@ -33,6 +37,22 @@ final class Store: ObservableObject {
         /// Overrides the build's `BumpAPIBaseURL` (e.g. your Mac's LAN address
         /// when testing on a phone). Optional, so older settings files still load.
         var apiBaseURL: String?
+        /// How phones reach each other. nil means automatic: the BUMP server's
+        /// relay when it answers, Multipeer otherwise. Optional so older
+        /// settings files still load.
+        var transport: TransportPreference?
+
+        enum TransportPreference: String, Codable, CaseIterable, Identifiable {
+            case automatic, server, nearby
+            var id: String { rawValue }
+            var label: String {
+                switch self {
+                case .automatic: return "Automatic"
+                case .server: return "Server only"
+                case .nearby: return "Nearby only"
+                }
+            }
+        }
 
         enum DetectionMode: String, Codable, CaseIterable, Identifiable {
             case motionOnly, uwbOnly, combined
@@ -57,16 +77,19 @@ final class Store: ObservableObject {
     private static let connectionsURL = directory.appendingPathComponent("connections.json")
     private static let settingsURL = directory.appendingPathComponent("settings.json")
     private static let privacyURL = directory.appendingPathComponent("privacy.json")
+    private static let streetpassesURL = directory.appendingPathComponent("streetpasses.json")
 
     init(inMemory: Bool = false) {
         if inMemory {
             profile = Profile(); connections = []; settings = Settings(); privacy = PrivacyPreferences()
+            streetpasses = []
             return
         }
         profile = Self.load(Profile.self, from: Self.profileURL) ?? Profile()
         connections = Self.load([SavedConnection].self, from: Self.connectionsURL) ?? []
         settings = Self.load(Settings.self, from: Self.settingsURL) ?? Settings()
         privacy = Self.load(PrivacyPreferences.self, from: Self.privacyURL) ?? PrivacyPreferences()
+        streetpasses = Self.load([StreetpassEvent].self, from: Self.streetpassesURL) ?? []
     }
 
     /// Whether the bump tutorial has been shown (a UI convenience, kept in
@@ -102,6 +125,37 @@ final class Store: ObservableObject {
 
     func deleteConnections(at offsets: IndexSet) {
         connections.remove(atOffsets: offsets)
+    }
+
+    // MARK: Streetpasses
+
+    /// How many passers-by we keep. Old ones are not interesting, and the file
+    /// stays small enough to load synchronously at launch.
+    static let streetpassLimit = 100
+    /// A repeat of the same person inside this window is the same encounter.
+    /// Multipeer drops and re-advertises constantly; without this, one person
+    /// standing next to you fills the whole feed.
+    static let streetpassDedupeWindow: TimeInterval = 30 * 60
+
+    /// Records a person seen nearby. `now` is injectable so the window is testable.
+    func recordStreetpass(name: String, roomName: String,
+                          at now: Date = Date(),
+                          within window: TimeInterval = Store.streetpassDedupeWindow) {
+        let name = name.trimmed()
+        guard !name.isEmpty else { return }
+        let isRepeat = streetpasses.contains {
+            $0.peerName == name && now.timeIntervalSince($0.seenAt) < window
+        }
+        guard !isRepeat else { return }
+        streetpasses.insert(StreetpassEvent(peerName: name, seenAt: now, roomName: roomName), at: 0)
+        if streetpasses.count > Self.streetpassLimit {
+            streetpasses.removeLast(streetpasses.count - Self.streetpassLimit)
+        }
+    }
+
+    func clearStreetpasses() {
+        guard !streetpasses.isEmpty else { return }
+        streetpasses = []
     }
 
     // MARK: Disk

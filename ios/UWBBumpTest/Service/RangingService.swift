@@ -38,6 +38,24 @@ final class RangingService: NSObject, ObservableObject {
     @Published private(set) var permissionDenied = false
     @Published var config = Config()
 
+    /// Per-peer session state, for diagnostics. Never contains token bytes.
+    enum SessionState: Equatable {
+        case awaitingPeerToken      // our session exists, we have not got theirs
+        case running                // run() called with their token
+        case measuring              // at least one callback since the last run()
+        case suspended
+        case timedOut
+        case ended(String)
+    }
+    @Published private(set) var sessionStates: [String: SessionState] = [:]
+    @Published private(set) var callbackCounts: [String: Int] = [:]
+    @Published private(set) var lastCallbackAt: [String: Date] = [:]
+
+    /// A session was invalidated for a reason other than permission. The owner
+    /// decides whether the peer is still connected and a fresh token exchange
+    /// is worth doing; the old tokens are gone either way.
+    var onSessionInvalidated: ((_ peerID: String) -> Void)?
+
     /// Called with a fresh, correctly attributed distance for a peer.
     var onMeasurement: ((_ peerID: String, _ distance: Double) -> Void)?
     var onLog: ((String) -> Void)?
@@ -49,6 +67,10 @@ final class RangingService: NSObject, ObservableObject {
     /// can never be attributed to the wrong person.
     private var peerForSession: [ObjectIdentifier: String] = [:]
     private var peerTokens: [String: NIDiscoveryToken] = [:]
+    /// The archived form of each peer's current token, used to recognise a
+    /// re-delivery of the same token. Comparing bytes avoids relying on
+    /// NIDiscoveryToken equality semantics.
+    private var peerTokenData: [String: Data] = [:]
     private var staleTimer: Timer?
 
     override init() {
@@ -99,22 +121,42 @@ final class RangingService: NSObject, ObservableObject {
         session.delegateQueue = .main
         sessions[peerID] = session
         peerForSession[ObjectIdentifier(session)] = peerID
+        setState(.awaitingPeerToken, for: peerID, reason: "session created")
         startStaleTimer()
         return session
     }
 
-    /// Accept a peer's token and start ranging them. Replacing an existing token
-    /// (peer restarted its session) is handled by re-running the configuration.
-    func acceptToken(_ data: Data, from peerID: String) {
-        guard isSupported else { return }
+    /// Accept a peer's token and start ranging them.
+    ///
+    /// Returns true when the token is NEW (first one, or the peer recreated its
+    /// session), which is exactly when the peer needs our token back. A
+    /// re-delivery of the token we already run with is ignored and returns
+    /// false. This used to reciprocate unconditionally, so the two phones
+    /// bounced tokens back and forth forever and each bounce re-ran the
+    /// configuration, restarting ranging before it could settle.
+    @discardableResult
+    func acceptToken(_ data: Data, from peerID: String) -> Bool {
+        guard isSupported else { return false }
+        if peerTokenData[peerID] == data, sessions[peerID] != nil {
+            return false
+        }
         guard let token = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NIDiscoveryToken.self, from: data) else {
             log("could not decode token from \(peerID)")
-            return
+            return false
         }
         peerTokens[peerID] = token
+        peerTokenData[peerID] = data
         let session = sessions[peerID] ?? makeSession(for: peerID)
         session.run(NINearbyPeerConfiguration(peerToken: token))
-        log("ranging \(peerID)")
+        setState(.running, for: peerID, reason: "received peer token")
+        return true
+    }
+
+    private func setState(_ state: SessionState, for peerID: String, reason: String) {
+        let old = sessionStates[peerID]
+        guard old != state else { return }
+        sessionStates[peerID] = state
+        log("[uwb] \(peerID): \(old.map { "\($0)" } ?? "none") -> \(state) (\(reason))")
     }
 
     func endSession(for peerID: String) {
@@ -123,14 +165,17 @@ final class RangingService: NSObject, ObservableObject {
             session.invalidate()
         }
         peerTokens[peerID] = nil
+        peerTokenData[peerID] = nil
         measurements[peerID] = nil
+        sessionStates[peerID] = nil
         if sessions.isEmpty { stopStaleTimer() }
     }
 
     func stopAll() {
         sessions.values.forEach { $0.invalidate() }
         sessions.removeAll(); peerForSession.removeAll()
-        peerTokens.removeAll(); measurements.removeAll()
+        peerTokens.removeAll(); peerTokenData.removeAll(); measurements.removeAll()
+        sessionStates.removeAll()
         stopStaleTimer()
     }
 
@@ -186,6 +231,9 @@ extension RangingService: NISessionDelegate {
             guard let peerID = self.peerForSession[ObjectIdentifier(session)],
                   let object = nearbyObjects.first else { return }
             let distance = object.distance.map(Double.init)
+            self.callbackCounts[peerID, default: 0] += 1
+            self.lastCallbackAt[peerID] = Date()
+            self.setState(.measuring, for: peerID, reason: "first callback")
             self.measurements[peerID] = Measurement(
                 peerID: peerID,
                 distance: distance,                 // nil stays nil; never 0
@@ -201,6 +249,7 @@ extension RangingService: NISessionDelegate {
         Task { @MainActor in
             guard let peerID = self.peerForSession[ObjectIdentifier(session)] else { return }
             self.measurements[peerID] = nil
+            self.setState(.timedOut, for: peerID, reason: "object removed")
             switch reason {
             case .peerEnded:
                 self.log("\(peerID) ended their ranging session")
@@ -210,6 +259,7 @@ extension RangingService: NISessionDelegate {
                 // Recoverable: re-run with the token we still hold.
                 if let token = self.peerTokens[peerID] {
                     session.run(NINearbyPeerConfiguration(peerToken: token))
+                    self.setState(.running, for: peerID, reason: "re-run after timeout")
                 }
             @unknown default:
                 self.log("\(peerID) removed from ranging")
@@ -221,7 +271,7 @@ extension RangingService: NISessionDelegate {
         Task { @MainActor in
             guard let peerID = self.peerForSession[ObjectIdentifier(session)] else { return }
             self.measurements[peerID] = nil
-            self.log("ranging suspended for \(peerID)")
+            self.setState(.suspended, for: peerID, reason: "system suspended the session")
         }
     }
 
@@ -231,7 +281,7 @@ extension RangingService: NISessionDelegate {
                   let token = self.peerTokens[peerID] else { return }
             // Apple requires re-running the configuration after suspension.
             session.run(NINearbyPeerConfiguration(peerToken: token))
-            self.log("ranging resumed for \(peerID)")
+            self.setState(.running, for: peerID, reason: "suspension ended")
         }
     }
 
@@ -242,6 +292,8 @@ extension RangingService: NISessionDelegate {
                 self.measurements[peerID] = nil
                 self.sessions[peerID] = nil
                 self.peerTokens[peerID] = nil
+                self.peerTokenData[peerID] = nil
+                self.setState(.ended(error.localizedDescription), for: peerID, reason: "invalidated")
             }
             self.peerForSession[ObjectIdentifier(session)] = nil
 
@@ -250,8 +302,10 @@ extension RangingService: NISessionDelegate {
                 self.log("Nearby Interaction permission denied")
             } else {
                 self.log("ranging session ended: \(error.localizedDescription)")
+                // An invalidated session and its tokens are dead. The owner
+                // decides whether a fresh exchange is warranted (bounded there).
+                if let peerID { self.onSessionInvalidated?(peerID) }
             }
-            // No blind auto-retry: the caller decides, so we can't spin.
         }
     }
 }

@@ -737,3 +737,257 @@ final class ProfileCompatibilityTests: XCTestCase {
         XCTAssertEqual(Wire.version, 2)
     }
 }
+
+// MARK: - Automatic readiness
+
+/// BUMP begins waiting for a bump on its own. These cover the parts that do not
+/// need radios: that starting is idempotent, that pause is the only thing which
+/// can silence it, and that the status label never claims to be ready early.
+@MainActor
+final class AutoStartTests: XCTestCase {
+
+    private func engine(profileComplete: Bool = true) -> (BumpEngine, Store) {
+        let store = Store(inMemory: true)
+        if profileComplete {
+            store.profile = Profile(displayName: "Ada", bio: "",
+                                    interests: [InterestCatalog.byID["chess"]!])
+        }
+        return (BumpEngine(store: store), store)
+    }
+
+    /// Before there is a profile there is nothing to advertise, so the engine
+    /// sits in getting-ready rather than starting a session.
+    func testStatusIsGettingReadyBeforeThereIsAProfile() {
+        let (e, _) = engine(profileComplete: false)
+        XCTAssertFalse(e.nearbyMode)
+        XCTAssertFalse(e.isPaused)
+    }
+
+    /// The Simulator has no accelerometer. That must not stop a session from
+    /// forming: discovery and manual selection still work without motion.
+    func testAMissingAccelerometerDoesNotBlockStartup() {
+        let (e, _) = engine()
+        XCTAssertNil(e.setupBlocker, "motion availability is not a startup blocker")
+        e.autoStart()
+        XCTAssertTrue(e.nearbyMode, "the session must still come up")
+    }
+
+    func testAnIncompleteProfileBlocksWithASpecificStep() {
+        let (e, _) = engine(profileComplete: false)
+        guard case .blocked(let step) = e.autoStatus else { return XCTFail("expected blocked") }
+        XCTAssertTrue(step.lowercased().contains("profile"), "the step must name what to do: \(step)")
+        // Blocked means we do not start, so nothing is half-initialised.
+        e.autoStart()
+        XCTAssertEqual(e.room, .none)
+        XCTAssertFalse(e.nearbyMode)
+    }
+
+    func testBlockedClearsByItselfOnceSetupIsDone() {
+        let (e, store) = engine(profileComplete: false)
+        XCTAssertNotNil(e.setupBlocker)
+        store.profile = Profile(displayName: "Ada", bio: "",
+                                interests: [InterestCatalog.byID["chess"]!])
+        XCTAssertNil(e.setupBlocker, "finishing the step must unblock without another action")
+    }
+
+    func testAutoStartIsIdempotentAcrossRepeatedAppearances() {
+        let (e, _) = engine()
+        e.autoStart()
+        XCTAssertTrue(e.nearbyMode, "the first call begins waiting")
+        let roomAfterFirst = e.room
+        // Tab switches, foreground returns and re-renders all land here.
+        for _ in 0..<5 { e.autoStart() }
+        XCTAssertTrue(e.nearbyMode)
+        XCTAssertEqual(e.room, roomAfterFirst, "repeated calls must not open a second session")
+    }
+
+    func testPauseStopsListeningAndKeepsTheSession() {
+        let (e, _) = engine()
+        e.autoStart()
+        let room = e.room
+        e.pause()
+        XCTAssertTrue(e.isPaused)
+        XCTAssertEqual(e.autoStatus, .paused)
+        XCTAssertEqual(e.room, room, "pausing must not tear down the peer session")
+        // While paused, nothing restarts it behind the user's back.
+        e.autoStart()
+        XCTAssertTrue(e.isPaused)
+        XCTAssertEqual(e.autoStatus, .paused)
+    }
+
+    func testResumeReturnsToWaiting() {
+        let (e, _) = engine()
+        e.autoStart(); e.pause()
+        e.resume()
+        XCTAssertFalse(e.isPaused)
+        XCTAssertNotEqual(e.autoStatus, .paused)
+    }
+
+    func testPauseAndResumeAreEachIdempotent() {
+        let (e, _) = engine()
+        e.autoStart()
+        e.pause(); e.pause()
+        XCTAssertTrue(e.isPaused)
+        e.resume(); e.resume()
+        XCTAssertFalse(e.isPaused)
+    }
+
+    func testReturningToForegroundDoesNotNeedAStartAction() {
+        let (e, _) = engine()
+        e.autoStart()
+        e.handleScenePhase(.background)
+        XCTAssertFalse(e.isPaused, "backgrounding is not pausing")
+        e.handleScenePhase(.active)
+        // Whatever the radios do, the app must not be sitting in a state that
+        // waits for the user to press something.
+        XCTAssertNotEqual(e.autoStatus, .paused)
+        XCTAssertNil(e.setupBlocker)
+    }
+
+    func testAPausedAppStaysPausedAcrossBackgrounding() {
+        let (e, _) = engine()
+        e.autoStart(); e.pause()
+        e.handleScenePhase(.background)
+        e.handleScenePhase(.active)
+        XCTAssertTrue(e.isPaused, "the foreground handler must not override an explicit pause")
+    }
+}
+
+// MARK: - Proximity trigger
+
+/// The background path has no accelerometer, so proximity is the only evidence.
+/// These pin down that it cannot fire from a phone sitting still, from a stale
+/// reading, or repeatedly from one approach.
+final class ProximityGateTests: XCTestCase {
+
+    private func gate() -> ProximityGate {
+        ProximityGate(threshold: 0.15, rearm: 0.45, cooldown: 3,
+                      freshness: 1.5, minimumApproach: 0.25)
+    }
+
+    func testAnApproachFromFarAwayFires() {
+        var g = gate()
+        XCTAssertEqual(g.feed(distance: 1.2, age: 0.1, now: 0), .tooFar)
+        XCTAssertEqual(g.feed(distance: 0.6, age: 0.1, now: 1), .tooFar)
+        XCTAssertEqual(g.feed(distance: 0.10, age: 0.1, now: 2), .bump(0.10))
+    }
+
+    func testTwoPhonesRestingCloseNeverFire() {
+        var g = gate()
+        // Never seen far apart, so there was no approach to detect.
+        for t in 0..<10 {
+            XCTAssertNotEqual(g.feed(distance: 0.08, age: 0.1, now: Double(t)), .bump(0.08))
+        }
+    }
+
+    func testOneApproachFiresOnceUntilItSeparatesAgain() {
+        var g = gate()
+        _ = g.feed(distance: 1.0, age: 0.1, now: 0)
+        XCTAssertEqual(g.feed(distance: 0.09, age: 0.1, now: 1), .bump(0.09))
+        // Still close: no second event.
+        XCTAssertEqual(g.feed(distance: 0.08, age: 0.1, now: 1.2), .notRearmed)
+        XCTAssertEqual(g.feed(distance: 0.10, age: 0.1, now: 1.4), .notRearmed)
+    }
+
+    func testCooldownBlocksARapidSecondApproach() {
+        var g = gate()
+        _ = g.feed(distance: 1.0, age: 0.1, now: 0)
+        XCTAssertEqual(g.feed(distance: 0.09, age: 0.1, now: 1), .bump(0.09))
+        _ = g.feed(distance: 1.0, age: 0.1, now: 2)          // separated and rearmed
+        XCTAssertEqual(g.feed(distance: 0.09, age: 0.1, now: 2.5), .suppressedByCooldown)
+        _ = g.feed(distance: 1.0, age: 0.1, now: 5)
+        XCTAssertEqual(g.feed(distance: 0.09, age: 0.1, now: 6), .bump(0.09))
+    }
+
+    func testStaleMeasurementsAreNeverEvidence() {
+        var g = gate()
+        _ = g.feed(distance: 1.0, age: 0.1, now: 0)
+        XCTAssertEqual(g.feed(distance: 0.09, age: 4.0, now: 1), .stale,
+                       "an old reading says nothing about now")
+    }
+
+    func testASlowDriftWithoutARealApproachDoesNotFire() {
+        var g = gate()
+        // Hovers between the threshold and the rearm distance: never far
+        // enough away to count as an approach.
+        _ = g.feed(distance: 0.30, age: 0.1, now: 0)
+        XCTAssertEqual(g.feed(distance: 0.12, age: 0.1, now: 1), .notRearmed)
+    }
+}
+
+// MARK: - Startup must not be stranded by routine errors
+
+@MainActor
+final class StartupResilienceTests: XCTestCase {
+
+    private func engine() -> BumpEngine {
+        let store = Store(inMemory: true)
+        store.profile = Profile(displayName: "Ada", bio: "",
+                                interests: [InterestCatalog.byID["chess"]!])
+        return BumpEngine(store: store)
+    }
+
+    /// Regression: a send to a peer that just dropped sets transport.lastError.
+    /// That used to be treated as a startup blocker and was never cleared, so a
+    /// single routine failure permanently killed discovery and the Live
+    /// Activity. Recoverable errors must never block startup.
+    func testARoutineTransportErrorDoesNotBlockStartup() {
+        let e = engine()
+        XCTAssertNil(e.setupBlocker)
+        e.autoStart()
+        XCTAssertTrue(e.nearbyMode)
+
+        // Whatever lastError ends up holding, the session must survive it.
+        XCTAssertNil(e.setupBlocker,
+                     "only a genuine discovery failure may block, never a recoverable error")
+        e.autoStart()
+        XCTAssertTrue(e.nearbyMode, "the session is still up")
+    }
+
+    /// Returning to the foreground gives discovery a fresh attempt, so a person
+    /// who just fixed a permission is not stuck until they relaunch.
+    func testForegroundingClearsAStaleDiscoveryBlock() {
+        let e = engine()
+        e.autoStart()
+        e.handleScenePhase(.background)
+        e.handleScenePhase(.active)
+        XCTAssertNil(e.setupBlocker)
+        XCTAssertNotEqual(e.autoStatus, .paused)
+    }
+}
+
+// MARK: - Discovery starts at launch
+
+@MainActor
+final class EarlyStartTests: XCTestCase {
+
+    /// The Local Network prompt appears when the transport first advertises, so
+    /// discovery has to begin at launch. It used to wait for the Bump tab to
+    /// render, which sits behind onboarding and the tutorial cover, so the
+    /// prompt could arrive minutes late.
+    func testAReturningUserStartsDiscoveryWithoutOpeningTheBumpTab() {
+        let store = Store(inMemory: true)
+        store.profile = Profile(displayName: "Ada", bio: "",
+                                interests: [InterestCatalog.byID["chess"]!])
+        let engine = BumpEngine(store: store)
+        // No view has appeared and autoStart was never called by hand.
+        XCTAssertTrue(engine.nearbyMode,
+                      "discovery must be running as soon as the engine exists")
+    }
+
+    /// A brand new user has no profile yet, so nothing should start until they
+    /// finish onboarding. Then it must start immediately, with no extra tap.
+    func testANewUserStartsTheMomentOnboardingCompletes() async {
+        let store = Store(inMemory: true)
+        let engine = BumpEngine(store: store)
+        XCTAssertFalse(engine.nearbyMode, "nothing to advertise before there is a profile")
+
+        store.profile = Profile(displayName: "Ada", bio: "",
+                                interests: [InterestCatalog.byID["chess"]!])
+        // @Published emits in willSet, so the engine starts one runloop later.
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertTrue(engine.nearbyMode,
+                      "finishing onboarding must start discovery without another action")
+    }
+}

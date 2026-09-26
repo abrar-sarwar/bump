@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import './sections.css'
 import Shapes, { type ShapeSpec } from './Shapes'
+import SharedBadge, { type BadgeTone } from './SharedBadge'
 
 /**
  * An ILLUSTRATIVE preview of what appears after two people connect.
@@ -55,6 +56,9 @@ const SHAPES: ShapeSpec[] = [
   { shape: 'circle', at: { right: '7%', top: '9%' }, size: 90, fill: true, drift: -90, tone: 'tertiary' },
   { shape: 'cookie', at: { right: '3%', bottom: '6%' }, size: 130, turn: -14, drift: -60, tone: 'secondary' },
 ]
+
+// Each example gets its own colour pair in the shared-interest badge.
+const TONES: BadgeTone[] = ['primary', 'tertiary', 'night']
 
 export default function SharedInterestsPreview() {
   const [index, setIndex] = useState(0)
@@ -117,14 +121,14 @@ export default function SharedInterestsPreview() {
               <md-icon aria-hidden="true">chat_bubble</md-icon>
               Something to talk about
             </p>
-            <div className="thread">
-              {/* aria-live so switching examples is announced, not silent */}
-              <p className="bubble bubble--them" aria-live="polite">
-                You’re both into {ex.shared.toLowerCase()}.
-              </p>
-              <blockquote className="bubble bubble--me">{ex.opener}</blockquote>
+            <div className="overlap__pair">
+              <SharedBadge interest={ex.shared} tone={TONES[index % TONES.length]} />
+              {/* Your reply: the opener, as something you'd actually say. */}
+              <blockquote className="overlap__reply">
+                <span className="overlap__reply-who">You</span>
+                “{ex.opener}”
+              </blockquote>
             </div>
-            <p className="folk-bento__title">One real thing<br />to open with.</p>
           </div>
         </div>
 

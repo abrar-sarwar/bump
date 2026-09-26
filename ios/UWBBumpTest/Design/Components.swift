@@ -341,6 +341,7 @@ struct FlowLayout: Layout {
 
 /// A frosted card (the site's .folk-card).
 struct Card<Content: View>: View {
+    var style: CardStyle = .frosted
     var padding: CGFloat = 18
     @ViewBuilder var content: Content
 
@@ -348,9 +349,18 @@ struct Card<Content: View>: View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frostedCard()
+            .background {
+                if style == .tertiaryTonal {
+                    RoundedRectangle(cornerRadius: Space.corner, style: .continuous)
+                        .fill(BumpColor.tertiaryContainer)
+                } else {
+                    FrostedBackground(shape: RoundedRectangle(cornerRadius: Space.corner, style: .continuous))
+                }
+            }
     }
 }
+
+enum CardStyle { case frosted, filled, tertiaryTonal }
 
 /// Pastel washes for bentos (the site's --folk-wash-*).
 enum Wash {
@@ -439,10 +449,16 @@ enum StatusTone { case neutral, active, good, warn, bad
 struct StatusPill: View {
     let text: String
     var tone: StatusTone = .neutral
+    var icon: String? = nil
 
     var body: some View {
         HStack(spacing: Space.s) {
-            Circle().fill(tone.color).frame(width: 8, height: 8)
+            if let icon {
+                Image(systemName: icon).font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(tone.color)
+            } else {
+                Circle().fill(tone.color).frame(width: 8, height: 8)
+            }
             Text(text)
                 .font(BumpFont.captionEmphasis)
                 .foregroundStyle(BumpColor.secondaryText)

@@ -11,12 +11,14 @@ import SwiftUI
 /// real sensor reading, a real peer connection, or a saved physical-test result.
 enum DemoMode: String {
     case onboarding, ready, confirm, reveal, connections, you, tools, home, tutorial
+    case notifications
     case onboardingIntro = "onboardingintro"
     case onboardingQuestion = "onboardingquestion"
     case onboardingCard = "onboardingcard"
     case timedOut = "timedout"
     case ambiguous
     case unsupported
+    case streetpass
 
     static var active: DemoMode? {
         #if DEBUG
@@ -33,7 +35,7 @@ enum DemoMode: String {
 struct DemoBadge: View {
     var body: some View {
         Text("DEMO DATA: not a real person or measurement")
-            .font(.system(size: 11, weight: .semibold))
+            .font(BumpFont.labelSmall)
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 5)
@@ -47,6 +49,14 @@ extension BumpEngine {
     /// Force a UI state for screenshots. DEBUG only, never called at runtime.
     func demoSet(_ phase: Phase, members: [Wire.Member] = []) {
         applyDemo(phase: phase, members: members)
+    }
+}
+
+extension StreetPassEngine {
+    /// Force a pending encounter for screenshots. DEBUG only, never called
+    /// at runtime — real encounters only ever come from StreetPassRanging.
+    func demoSet(_ encounter: StreetPassEncounter) {
+        applyDemo(encounter: encounter)
     }
 }
 #endif

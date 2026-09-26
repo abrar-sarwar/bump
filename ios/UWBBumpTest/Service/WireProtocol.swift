@@ -82,6 +82,12 @@ enum Wire {
 
     // MARK: Coding
 
+    /// The message's case name only, for logs. Never includes the payload, so a
+    /// token, profile or insight cannot leak into an exported log.
+    static func kind(of body: Body) -> String {
+        String(describing: body).prefix { $0 != "(" }.description
+    }
+
     static func encode(_ body: Body) throws -> Data {
         let data = try JSONEncoder().encode(Envelope(body: body))
         guard data.count <= maxFrame else { throw WireError.tooLarge(data.count) }

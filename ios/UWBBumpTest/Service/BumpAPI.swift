@@ -53,6 +53,8 @@ struct BumpAPIClient: Sendable {
         let ok: Bool
         let grokConfigured: Bool
         let model: String?
+        /// True when this server has the room relay (older servers omit it).
+        let relay: Bool?
     }
 
     struct Generator: Decodable, Equatable, Sendable {

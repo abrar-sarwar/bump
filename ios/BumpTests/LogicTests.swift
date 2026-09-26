@@ -302,6 +302,25 @@ final class InterestMatcherTests: XCTestCase {
         XCTAssertEqual(first.map(\.interestID), second.map(\.interestID),
                        "both phones must compute the same order")
     }
+
+    func testInterestArrayOverlapMatchesSharedProfileOverlap() {
+        let mine = ["Jazz", "Photography"].compactMap { InterestCatalog.canonical(from: $0) }
+        let theirs = ["Jazz", "Climbing"].compactMap { InterestCatalog.canonical(from: $0) }
+        let out = InterestMatcher.overlap(mine, theirs, limit: 1)
+        XCTAssertEqual(out.map(\.interestID), ["jazz"])
+    }
+
+    func testInterestArrayOverlapNeverExceedsLimit() {
+        let labels = ["Jazz", "Photography", "Climbing", "Baking", "Chess"]
+        let mine = labels.compactMap { InterestCatalog.canonical(from: $0) }
+        XCTAssertEqual(InterestMatcher.overlap(mine, mine, limit: 1).count, 1)
+    }
+
+    func testInterestArrayOverlapEmptyWhenNoOverlap() {
+        let mine = [InterestCatalog.canonical(from: "Jazz piano")!]
+        let theirs = [InterestCatalog.canonical(from: "Bouldering")!]
+        XCTAssertTrue(InterestMatcher.overlap(mine, theirs, limit: 1).isEmpty)
+    }
 }
 
 // MARK: - Conversation
@@ -436,5 +455,294 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(manual.pairingEvidence.label, "Picked manually")
         XCTAssertNotEqual(manual.pairingEvidence, .motionOnly)
         XCTAssertNotEqual(manual.pairingEvidence, .motionAndUWB)
+    }
+}
+
+// MARK: - Streetpass log
+
+@MainActor
+final class StreetpassStoreTests: XCTestCase {
+
+    func testNewestFirst() {
+        let store = Store(inMemory: true)
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        store.recordStreetpass(name: "Ada", roomName: "nearby", at: t0)
+        store.recordStreetpass(name: "Grace", roomName: "nearby", at: t0 + 3_600)
+        XCTAssertEqual(store.streetpasses.map(\.peerName), ["Grace", "Ada"])
+    }
+
+    func testRepeatInsideTheWindowIsTheSameEncounter() {
+        let store = Store(inMemory: true)
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        store.recordStreetpass(name: "Ada", roomName: "nearby", at: t0)
+        // A Multipeer reconnect a minute later is not a second encounter.
+        store.recordStreetpass(name: "Ada", roomName: "nearby", at: t0 + 60)
+        XCTAssertEqual(store.streetpasses.count, 1)
+    }
+
+    func testRepeatOutsideTheWindowIsANewEncounter() {
+        let store = Store(inMemory: true)
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        store.recordStreetpass(name: "Ada", roomName: "nearby", at: t0)
+        store.recordStreetpass(name: "Ada", roomName: "nearby",
+                               at: t0 + Store.streetpassDedupeWindow + 1)
+        XCTAssertEqual(store.streetpasses.count, 2)
+    }
+
+    func testBlankNameIsIgnored() {
+        let store = Store(inMemory: true)
+        store.recordStreetpass(name: "   ", roomName: "nearby")
+        XCTAssertTrue(store.streetpasses.isEmpty)
+    }
+
+    func testTheLogIsCapped() {
+        let store = Store(inMemory: true)
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        for i in 0..<(Store.streetpassLimit + 25) {
+            store.recordStreetpass(name: "Person \(i)", roomName: "nearby",
+                                   at: t0 + Double(i))
+        }
+        XCTAssertEqual(store.streetpasses.count, Store.streetpassLimit)
+        // The oldest rows are the ones dropped.
+        XCTAssertEqual(store.streetpasses.first?.peerName,
+                       "Person \(Store.streetpassLimit + 24)")
+    }
+
+    func testClearingRemovesOnlyPassersBy() {
+        let store = Store(inMemory: true)
+        store.save(SavedConnection(partnerName: "Ada", partnerBio: "", metOn: Date(), roomName: "r",
+                                   insight: ConnectionInsight(highlights: [], opener: "?", openerSource: .fallbackTemplate),
+                                   pairingEvidence: .motionOnly))
+        store.recordStreetpass(name: "Grace", roomName: "nearby")
+        store.clearStreetpasses()
+        XCTAssertTrue(store.streetpasses.isEmpty)
+        XCTAssertEqual(store.connections.count, 1)
+    }
+}
+
+// MARK: - Reliability regressions (two-phone field failures)
+
+@MainActor
+final class ReliabilityTests: XCTestCase {
+
+    private func engine() -> BumpEngine {
+        let store = Store(inMemory: true)
+        store.settings.transport = .nearby    // these exercise the offline path
+        store.profile = Profile(displayName: "Ada", bio: "",
+                                interests: [InterestCatalog.byID["chess"]!])
+        let e = BumpEngine(store: store)
+        // The Simulator has no accelerometer; pretend it does so the sensing
+        // path can be exercised.
+        e.motion.availabilityOverride = true
+        e.resetAndReconnect()
+        return e
+    }
+
+    typealias R = BumpEngine.ReadinessInputs
+
+    func testReadyRequiresAConnectedPeerNotJustAStartedService() {
+        var i = R(phase: .ready, room: .joined(code: "nearby"), motionRunning: true)
+        XCTAssertEqual(BumpEngine.readiness(i), .lookingForPhones(hint: nil))
+        i.joinInFlight = true
+        XCTAssertEqual(BumpEngine.readiness(i), .connecting)
+        i.connectedPeers = 1
+        XCTAssertEqual(BumpEngine.readiness(i), .listening)
+    }
+
+    func testReadyRequiresMotionActuallyRunning() {
+        let i = R(phase: .ready, room: .hosting(code: "nearby"), connectedPeers: 1, motionRunning: false)
+        XCTAssertNotEqual(BumpEngine.readiness(i), .listening,
+                          "phase .ready with the accelerometer off must not read as ready")
+    }
+
+    func testALongSearchExplainsLocalNetworkInsteadOfSpinning() {
+        let i = R(room: .joined(code: "nearby"), searchStalled: true)
+        guard case .lookingForPhones(let hint?) = BumpEngine.readiness(i) else { return XCTFail() }
+        XCTAssertTrue(hint.contains("Local Network"))
+        XCTAssertFalse(hint.contains("\u{2014}"), "no em dashes in user-facing copy")
+    }
+
+    func testHostLossReadsAsReconnectingAndBackgroundNeedsFreshRanging() {
+        XCTAssertEqual(BumpEngine.readiness(R(room: .hostLost(code: "nearby"))), .reconnecting)
+        var bg = R(phase: .ready, room: .joined(code: "nearby"), connectedPeers: 1,
+                   motionRunning: false, backgrounded: true, freshUWB: false)
+        XCTAssertEqual(BumpEngine.readiness(bg), .reconnecting,
+                       "a Live Activity alone is not proof that sensing is alive")
+        bg.freshUWB = true
+        XCTAssertEqual(BumpEngine.readiness(bg), .listening)
+    }
+
+    func testMotionUnavailableDoesNotBlockWhenUWBIsMissingAndViceVersa() {
+        // UWB missing is not an input at all in the motion path.
+        let i = R(phase: .ready, room: .joined(code: "nearby"), connectedPeers: 1,
+                  motionRunning: true, freshUWB: false)
+        XCTAssertEqual(BumpEngine.readiness(i), .listening)
+    }
+
+    /// Field failure: a permission prompt made the app inactive, that stopped
+    /// motion, and with a Live Activity running nothing restarted it.
+    func testAPermissionPromptInactivityDoesNotStopSensing() {
+        let e = engine()
+        XCTAssertTrue(e.motion.isRunning)
+        e.handleScenePhase(.inactive)
+        XCTAssertFalse(e.isBackgrounded, "inactive is not backgrounded")
+        XCTAssertTrue(e.motion.isRunning, "a system prompt must not stop the accelerometer")
+        e.handleScenePhase(.active)
+        XCTAssertTrue(e.motion.isRunning)
+    }
+
+    func testForegroundRestartsMotionThatStoppedWhilePhaseSaidReady() {
+        let e = engine()
+        XCTAssertEqual(e.phase, .ready)
+        e.motion.stop()                       // the stranded state
+        e.handleScenePhase(.active)
+        XCTAssertTrue(e.motion.isRunning, "returning to the app must restart sensing")
+    }
+
+    func testBackgroundThenForegroundResumesSensingWithoutATap() {
+        let e = engine()
+        e.handleScenePhase(.background)
+        XCTAssertFalse(e.motion.isRunning)
+        e.handleScenePhase(.active)
+        XCTAssertTrue(e.motion.isRunning)
+        XCTAssertEqual(e.phase, .ready)
+    }
+
+    func testRetryIsNotADeadEnd() {
+        let e = engine()
+        e.retry()
+        XCTAssertEqual(e.phase, .ready, "retry used to park the phase at .notReady forever")
+        XCTAssertTrue(e.motion.isRunning)
+    }
+
+    func testRepeatedAutoStartDoesNotRestartMotionOrRoom() {
+        let e = engine()
+        let room = e.room
+        for _ in 0..<5 { e.autoStart(); e.handleScenePhase(.active) }
+        XCTAssertEqual(e.room, room)
+        XCTAssertTrue(e.motion.isRunning)
+    }
+
+    /// Only one phone felt it, or nobody is connected: say so, do not wait and
+    /// blame the network.
+    func testABumpWithNoConnectedPhoneIsReportedAsSuch() {
+        let e = engine()
+        e.motion.onSpike?(30)
+        XCTAssertEqual(e.counters.bumpsDetected, 1)
+        XCTAssertEqual(e.counters.bumpsNotSent, 1)
+        guard case .needsRetry(let why) = e.phase else { return XCTFail("\(e.phase)") }
+        XCTAssertTrue(why.contains("no other phone is connected"))
+    }
+
+    func testARestingOutcomeReturnsToListeningOnItsOwn() async throws {
+        let e = engine()
+        e.motion.onSpike?(30)                 // -> needsRetry
+        guard case .needsRetry = e.phase else { return XCTFail() }
+        try await Task.sleep(nanoseconds: UInt64((BumpEngine.restingOutcomeDuration + 0.8) * 1e9))
+        XCTAssertEqual(e.phase, .ready, "a repeat trial must not need a tap or a restart")
+    }
+
+    func testASpikeWhileNotReadyIsCountedAsSuppressedNotLost() {
+        let e = engine()
+        e.pause()
+        e.motion.onSpike?(30)
+        XCTAssertEqual(e.counters.bumpsSuppressed, 1)
+        XCTAssertEqual(e.counters.bumpsDetected, 0)
+    }
+
+    func testSettingsChangeAppliesToARunningDetector() {
+        let e = engine()
+        e.motion.config.threshold = 12
+        XCTAssertTrue(e.motion.isRunning, "a live threshold change restarts, not stops, sensing")
+        XCTAssertEqual(e.motion.config.threshold, 12)
+    }
+
+    func testCooldownRearmsAfterAQuietPeriod() {
+        var gate = SpikeGate(threshold: 20, rearmFactor: 0.5, cooldown: 1.5)
+        XCTAssertEqual(gate.feed(magnitude: 25, now: 100), .spike(25))
+        _ = gate.feed(magnitude: 1, now: 100.1)
+        // Long after: nothing latched.
+        XCTAssertEqual(gate.feed(magnitude: 25, now: 500), .spike(25))
+    }
+
+    func testLogKindNeverIncludesPayload() {
+        let kind = Wire.kind(of: .discoveryToken(Data([1, 2, 3, 4])))
+        XCTAssertEqual(kind, "discoveryToken")
+        XCTAssertEqual(Wire.kind(of: .bumpTimedOut), "bumpTimedOut")
+    }
+
+    func testDiagnosticsRowsExcludeProfileContent() {
+        let e = engine()
+        let text = e.diagnosticsRows().map { "\($0.0) \($0.1)" }.joined(separator: "\n")
+        XCTAssertFalse(text.contains("chess"))
+        XCTAssertTrue(text.contains("Readiness"))
+    }
+}
+
+// MARK: - Server relay, end to end (needs `npm start` in backend/)
+
+@MainActor
+final class RelayEndToEndTests: XCTestCase {
+
+    private func phone(_ name: String, server: String) -> BumpEngine {
+        let store = Store(inMemory: true)
+        store.settings.apiBaseURL = server
+        store.settings.transport = .server
+        store.profile = Profile(displayName: name, bio: "",
+                                interests: [InterestCatalog.byID["chess"]!])
+        let e = BumpEngine(store: store)
+        e.motion.availabilityOverride = true
+        e.resetAndReconnect()
+        return e
+    }
+
+    private func until(_ what: String, timeout: TimeInterval = 15, _ cond: () -> Bool) async throws {
+        let end = Date().addingTimeInterval(timeout)
+        while !cond() {
+            guard Date() < end else { return XCTFail("timed out waiting for \(what)") }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+    }
+
+    func testTwoPhonesBumpConfirmAndConnectThroughTheServer() async throws {
+        let server = "http://127.0.0.1:8787"
+        guard await BumpEngine.relayAvailable(BumpAPIClient(baseURL: URL(string: server)!), timeout: 2) else {
+            throw XCTSkip("backend not running on \(server)")
+        }
+        let a = phone("Ada", server: server)
+        let b = phone("Bea", server: server)
+        defer { a.stopNearby(); b.stopNearby() }
+
+        try await until("both connected and listening") { a.autoStatus == .listening && b.autoStatus == .listening }
+        XCTAssertNotEqual(a.isCoordinator, b.isCoordinator, "exactly one coordinator")
+
+        // Both feel the bump at (nearly) the same moment.
+        a.motion.onSpike?(30); b.motion.onSpike?(28)
+        try await until("a proposal on both") {
+            if case .confirming = a.phase, case .confirming = b.phase { return true }
+            return false
+        }
+        guard case .confirming(let pa) = a.phase, case .confirming(let pb) = b.phase else { return }
+        XCTAssertEqual(pa.id, pb.id, "one authoritative proposal")
+        XCTAssertEqual(pa.evidence, .motionOnly, "no UWB in the Simulator; must not claim it")
+
+        a.confirmCurrent(); b.confirmCurrent()
+        try await until("connected on both", timeout: 20) {
+            if case .connected = a.phase, case .connected = b.phase { return true }
+            return false
+        }
+
+        // A second encounter needs no restart.
+        a.bumpAgain(); b.bumpAgain()
+        try await until("listening again") { a.autoStatus == .listening && b.autoStatus == .listening }
+        a.motion.onSpike?(30); b.motion.onSpike?(30)
+        try await until("second proposal") {
+            if case .confirming = a.phase, case .confirming = b.phase { return true }
+            return false
+        }
+        a.declineCurrent()
+        try await until("both back to listening after a rejection", timeout: 12) {
+            a.phase == .ready && b.phase == .ready
+        }
     }
 }

@@ -197,17 +197,15 @@
 }
 .statement__word { display: inline; }
 
-.statement__orbs {
-  display: inline-flex;
-  vertical-align: middle;
-  margin: -0.2em 0.1em 0 0;
+/* The wordmark set inline as a word: its artwork is all caps with no
+   descenders, so it sits on the baseline at roughly cap height. */
+.statement__logo img {
+  display: inline-block;
+  height: 0.72em;
+  width: auto;
+  vertical-align: baseline;
+  margin: 0 0.06em;
 }
-.statement__orbs .folk-orb {
-  --orb: 1.25em;
-  margin-left: -0.28em;
-  --md-icon-size: 0.62em;
-}
-.statement__orbs .folk-orb:first-child { margin-left: 0; }
 
 .statement__aside {
   margin: clamp(28px, 4vw, 44px) auto 0;
@@ -312,18 +310,82 @@
 
 .overlap__result { min-height: 100%; }
 
-.thread { display: grid; gap: 10px; }
-.bubble {
+.overlap__result { justify-content: flex-start; gap: clamp(20px, 2.6vw, 30px); }
+
+/* The shared-interest badge (SharedBadge.tsx): an oval container with a
+   turning, morphing MD3 shape inside, text fixed on top. */
+.shared-badge {
   position: relative;
-  max-width: min(100%, 380px);
-  margin: 0;
-  padding: 11px 16px;
-  border-radius: 20px;
-  font-size: 1.05rem;
-  line-height: 1.35;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: clamp(180px, 17vw, 236px);
+  aspect-ratio: 1;
 }
-.bubble--them { justify-self: start; background: var(--folk-bubble-them); color: var(--folk-ink); border-bottom-left-radius: 6px; }
-.bubble--me { justify-self: end; background: var(--folk-bubble-me); color: var(--md-sys-color-on-primary); border-bottom-right-radius: 6px; }
+.shared-badge__art { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+/* One colour pair per example (MD3 container + its accent), cross-faded. */
+.shared-badge--primary { --badge-c: var(--md-sys-color-primary-container); --badge: var(--md-sys-color-primary); --on-badge: var(--md-sys-color-on-primary); }
+.shared-badge--secondary { --badge-c: var(--md-sys-color-secondary-container); --badge: var(--md-sys-color-secondary); --on-badge: var(--md-sys-color-on-secondary); }
+.shared-badge--tertiary { --badge-c: var(--md-sys-color-tertiary-container); --badge: var(--md-sys-color-tertiary); --on-badge: var(--md-sys-color-on-tertiary); }
+.shared-badge__oval,
+.shared-badge__form { transition: fill var(--md-sys-motion-duration-long2) var(--md-sys-motion-easing-standard); }
+.shared-badge__oval { fill: var(--badge-c); }
+/* Night: dark blue sky, darker shape, white stars. */
+.shared-badge--night {
+  --badge-c: color-mix(in srgb, var(--md-sys-color-primary) 62%, var(--md-sys-color-shadow));
+  --badge: var(--md-sys-color-on-primary-container);
+  --on-badge: var(--md-sys-color-on-primary);
+}
+.shared-badge__star { fill: var(--md-sys-color-on-primary); }
+.shared-badge__stars {
+  opacity: 0;
+  transition: opacity var(--md-sys-motion-duration-long2) var(--md-sys-motion-easing-standard);
+}
+.shared-badge--night .shared-badge__stars { opacity: 1; }
+.shared-badge__form { fill: var(--badge); }
+.shared-badge__text {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  max-width: 78%;
+  text-align: center;
+  color: var(--on-badge);
+}
+.shared-badge__kicker { white-space: nowrap; font-size: clamp(0.66rem, 0.6rem + 0.2vw, 0.76rem); font-weight: 600; opacity: 0.85; }
+.shared-badge__interest { font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.3rem); font-weight: 700; line-height: 1.15; }
+
+/* Circle on the left, the quoted reply beside it. */
+.overlap__pair {
+  display: flex;
+  align-items: center;
+  gap: clamp(20px, 2.6vw, 36px);
+  margin-block: auto;
+}
+@media (max-width: 560px) {
+  .overlap__pair { flex-direction: column; align-items: flex-start; }
+  .overlap__pair .shared-badge { align-self: center; }
+}
+
+/* Your reply, in quotation marks. */
+.overlap__reply {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  font-size: clamp(1.35rem, 1rem + 1.2vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--folk-ink);
+  text-wrap: balance;
+}
+.overlap__reply-who {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--folk-ink-faint);
+}
 
 .overlap__evidence {
   max-width: 62ch;

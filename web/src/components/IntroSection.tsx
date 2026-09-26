@@ -1,21 +1,16 @@
 import { useLayoutEffect, useRef } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import Wordmark from './Wordmark'
 import './sections.css'
 import Shapes, { type ShapeSpec } from './Shapes'
 
 gsap.registerPlugin(ScrollTrigger)
 
-// The statement, split so each word can be revealed by scroll. `orbs` marks
-// where the inline icon orbs sit, the way folk sets app icons into its line.
-const BEFORE = 'You already have something in common. BUMP'
+// The statement, split so each word can be revealed by scroll. The brand
+// name is set as the wordmark artwork, inline, between the two halves.
+const BEFORE = 'You already have something in common.'
 const AFTER = 'finds it, so a first hello turns into a real conversation.'
-
-const ORBS = [
-  { icon: 'vibration', tone: 'primary' },
-  { icon: 'handshake', tone: 'secondary' },
-  { icon: 'chat_bubble', tone: 'tertiary' },
-]
 
 const words = (s: string) => s.split(' ').map((w, i) => (
   <span className="statement__word" key={i}>{w} </span>
@@ -38,7 +33,7 @@ export default function IntroSection() {
   useLayoutEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const ctx = gsap.context(() => {
-      gsap.fromTo('.statement__word, .statement__orbs',
+      gsap.fromTo('.statement__word',
         { opacity: 0.16 },
         {
           opacity: 1,
@@ -67,13 +62,7 @@ export default function IntroSection() {
         <p className="folk-eyebrow">The idea</p>
         <h2 className="statement__text">
           {words(BEFORE)}
-          <span className="statement__orbs" aria-hidden="true">
-            {ORBS.map((o) => (
-              <span key={o.icon} className={`folk-orb folk-orb--${o.tone}`}>
-                <md-icon>{o.icon}</md-icon>
-              </span>
-            ))}
-          </span>{' '}
+          <Wordmark className="statement__word statement__logo" />{' '}
           {words(AFTER)}
         </h2>
         <p className="statement__aside">

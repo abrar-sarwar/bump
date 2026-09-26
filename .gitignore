@@ -14,5 +14,5 @@ xcuserdata/
 *.ipa
 *.dSYM.zip
 
-# Local AI agent context, shared between tools on this machine. Never committed.
-.agents/
+# Local scratch workspaces for subagent work.
+.superpowers/

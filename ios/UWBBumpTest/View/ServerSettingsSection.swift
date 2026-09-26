@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Testing tools: point the app at a BUMP server and check it. On a physical
-/// iPhone, "localhost" is the phone itself — use the Mac's LAN address instead.
+/// iPhone, "localhost" is the phone itself, so use the Mac's LAN address instead.
 struct ServerSettingsSection: View {
     @ObservedObject var store: Store
     @ObservedObject var engine: BumpEngine
@@ -26,12 +26,12 @@ struct ServerSettingsSection: View {
                 .onSubmit(save)
             HStack(spacing: Space.s) {
                 Button("Save & check", action: save)
-                    .buttonStyle(.bumpSecondary)
+                    .buttonStyle(.bumpSecondary(.small))
                 Button("Use build default") { draft = ""; save() }
-                    .buttonStyle(.bumpSecondary)
+                    .buttonStyle(.bumpOutlined(.small))
             }
             if checking {
-                ProgressView().tint(BumpColor.action)
+                LoadingIndicator(size: 22)
             } else if let status {
                 StatusPill(text: status, tone: tone)
             }

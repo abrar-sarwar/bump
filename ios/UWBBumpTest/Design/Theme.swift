@@ -18,7 +18,11 @@ enum BumpColor {
     static let primaryContainer = Color(hex: 0xD4E3FF)
     static let onPrimaryContainer = Color(hex: 0x001C3A)
     static let secondary = Color(hex: 0x545F71)
+    static let secondaryContainer = Color(hex: 0xD8E3F8)
+    static let onSecondaryContainer = Color(hex: 0x111C2B)
     static let tertiary = Color(hex: 0x6D5676)
+    static let tertiaryContainer = Color(hex: 0xF7D8FF)
+    static let onTertiaryContainer = Color(hex: 0x291430)
     static let error = Color(hex: 0xBA1A1A)
     static let errorContainer = Color(hex: 0xFFDAD6)
     static let surfaceMD = Color(hex: 0xFDFCFF)
@@ -27,6 +31,7 @@ enum BumpColor {
     static let outline = Color(hex: 0x74777F)
     static let outlineVariant = Color(hex: 0xC3C6CF)
     static let surfaceContainerHighest = Color(hex: 0xE3E2E6)
+    static let surfaceContainerLowest = Color.white
 
     /// Slate ink the site's cards use for dark accents (its back-to-top button).
     static let ink = Color(hex: 0x1F2A2F)
@@ -50,6 +55,7 @@ enum BumpColor {
     static let paleBlue = track
     static let hairline = Color(hex: 0x1F2A2F, opacity: 0.08)
     static let positive = Color(hex: 0x2E7D5B)
+    static let positiveContainer = Color(hex: 0xD7F0E3)
     static let warning = Color(hex: 0x8A5A00)
     static let negative = error
 }
@@ -99,6 +105,17 @@ enum BumpFont {
     static let captionMedium = archivo(Archivo.medium, 14, relativeTo: .subheadline)
     static let caption2 = archivo(Archivo.medium, 12, relativeTo: .caption)
     static let button = archivo(Archivo.semibold, 16, relativeTo: .body)
+    // Roles used by the new main-branch screens, expressed in the existing
+    // Archivo family so they keep this branch's typography.
+    static let headlineSmall = sectionTitle
+    static let titleLarge = sectionTitle
+    static let titleMedium = bodyEmphasis
+    static let bodyLarge = body
+    static let bodyMedium = caption
+    static let bodySmall = caption2
+    static let labelLarge = captionEmphasis
+    static let labelMedium = captionMedium
+    static let labelSmall = caption2
     /// The site's "SCROLL TO BUMP" line: uppercase, letter-spaced. Pair with
     /// `.textCase(.uppercase)` and `.tracking(Tracking.eyebrow)`.
     static let eyebrow = archivo(Archivo.semibold, 12.5, relativeTo: .caption)
@@ -116,6 +133,7 @@ enum Tracking {
 enum Space {
     static let xs: CGFloat = 4
     static let s: CGFloat = 8
+    static let sm: CGFloat = 12
     static let m: CGFloat = 16
     static let l: CGFloat = 24
     static let xl: CGFloat = 32
@@ -141,4 +159,19 @@ enum BumpMotion {
     /// Shared badge timing lives with its maths (ScallopGeometry, testable).
     static let badgeLoop: Double = ScallopGeometry.badgeLoop
     static let badgeInterestHold: Double = ScallopGeometry.badgeInterestHold
+}
+
+// Names used by main's new interactions. Their timing follows this branch's
+// restrained motion rather than changing the established visual language.
+enum Motion {
+    static let spatial = BumpMotion.standard
+    static let spatialFast = Animation.easeOut(duration: 0.2)
+    static let spatialSlow = BumpMotion.emphasizedIn
+    static let expressive = BumpMotion.emphasizedIn
+    static let effects = Animation.easeOut(duration: 0.2)
+}
+
+enum Radius {
+    static let extraLarge: CGFloat = Space.cornerLarge
+    static let extraLargeIncreased: CGFloat = 32
 }
