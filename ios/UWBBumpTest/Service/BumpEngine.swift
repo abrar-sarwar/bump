@@ -72,7 +72,10 @@ final class BumpEngine: ObservableObject {
     }
     @Published private(set) var room: RoomState = .none
     @Published private(set) var members: [Wire.Member] = [] {
-        didSet { if members.count != oldValue.count { syncPresentation() } }
+        didSet {
+            if members.count != oldValue.count { syncPresentation() }
+            recordStreetpasses()
+        }
     }
     @Published private(set) var capacityNote: String?
     @Published private(set) var log: [LogLine] = []
@@ -98,6 +101,9 @@ final class BumpEngine: ObservableObject {
     private var proposals: [String: LiveProposal] = [:]
     private var membersByID: [String: Wire.Member] = [:]
     private var aiCapable: Set<String> = []
+    /// Transient peer ids already written to the streetpass log this session, so
+    /// one roster rebroadcast doesn't log the same person again.
+    private var streetpassLogged: Set<String> = []
 
     private struct LiveProposal {
         let id: String
@@ -421,6 +427,7 @@ final class BumpEngine: ObservableObject {
         ranging.stopAll()
         matcher.reset()
         proposals.removeAll(); membersByID.removeAll(); aiCapable.removeAll()
+        streetpassLogged.removeAll()
         cancelGeneration()
         myProposal = nil; partnerProfile = nil
         room = .none
@@ -1241,6 +1248,19 @@ final class BumpEngine: ObservableObject {
         phaseDeadline?.invalidate()
         phaseDeadline = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { _ in
             Task { @MainActor in action() }
+        }
+    }
+
+    /// Logs each newly-appeared nearby phone as a streetpass. Every appearance
+    /// counts, bump or no bump; `Store` collapses repeats of the same person.
+    private func recordStreetpasses() {
+        #if DEBUG
+        guard DemoMode.active == nil else { return }
+        #endif
+        for member in members where !streetpassLogged.contains(member.id) {
+            streetpassLogged.insert(member.id)
+            store.recordStreetpass(name: member.displayName,
+                                   roomName: room.code ?? Self.nearbyRoom)
         }
     }
 
