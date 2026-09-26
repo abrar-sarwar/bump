@@ -71,6 +71,9 @@ struct BumpField: View {
     let label: String
     var placeholder: String = ""
     var axis: Axis = .horizontal
+    /// Visible line range for a vertical field. Applied to the text field only,
+    /// so the label never reserves extra lines.
+    var lines: ClosedRange<Int>? = nil
     @Binding var text: String
 
     var body: some View {
@@ -79,6 +82,7 @@ struct BumpField: View {
                 .font(BumpFont.caption)
                 .foregroundStyle(BumpColor.secondaryText)
             TextField(placeholder, text: $text, axis: axis)
+                .lineLimit(lines ?? 1...(axis == .vertical ? 8 : 1))
                 .font(BumpFont.body)
                 .foregroundStyle(BumpColor.navy)
                 .textInputAutocapitalization(axis == .horizontal ? .words : .sentences)
@@ -213,28 +217,41 @@ struct StatusPill: View {
 
 // MARK: - Avatar
 
-/// Initials only — we never ask for photo access.
+/// A profile photo when there is one, otherwise initials. Photos come from the
+/// system photo picker, which needs no photo-library permission.
 struct Avatar: View {
     let name: String
     var size: CGFloat = 56
     var tint: Color = BumpColor.brand
+    /// Profile photo, if the person added one. Falls back to initials.
+    var photo: Data? = nil
 
     private var initials: String {
         let parts = name.split(separator: " ").prefix(2)
-        let letters = parts.compactMap { $0.first }.map(String.init).joined()
+        let letters = parts.compactMap { $0.first(where: \.isLetter) }.map(String.init).joined()
         return letters.isEmpty ? "?" : letters.uppercased()
     }
 
     var body: some View {
-        Circle()
-            .fill(tint.opacity(0.22))
-            .overlay(
-                Text(initials)
-                    .font(.system(size: size * 0.38, weight: .bold))
-                    .foregroundStyle(BumpColor.navy)
-            )
-            .frame(width: size, height: size)
-            .accessibilityHidden(true)
+        Group {
+            if let photo, let image = UIImage(data: photo) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size, height: size)
+                    .clipShape(Circle())
+            } else {
+                Circle()
+                    .fill(tint.opacity(0.22))
+                    .overlay(
+                        Text(initials)
+                            .font(.system(size: size * 0.38, weight: .bold))
+                            .foregroundStyle(BumpColor.navy)
+                    )
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 

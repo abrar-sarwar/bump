@@ -9,7 +9,7 @@ struct YouScreen: View {
             Screen {
                 VStack(alignment: .leading, spacing: Space.l) {
                     HStack(spacing: Space.m) {
-                        Avatar(name: store.profile.displayName, size: 64)
+                        PhotoPickerAvatar(photo: $store.profile.photo, name: store.profile.displayName, size: 64)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(store.profile.displayName.isEmpty ? "You" : store.profile.displayName)
                                 .font(BumpFont.screenTitle)
@@ -35,6 +35,23 @@ struct YouScreen: View {
                         }
                     }
 
+                    ForEach([ProfileFact.Kind.experience, .goal], id: \.self) { kind in
+                        let facts = store.profile.details.filter { $0.kind == kind }
+                        if !facts.isEmpty {
+                            VStack(alignment: .leading, spacing: Space.xs) {
+                                Text(kind.title)
+                                    .font(BumpFont.caption)
+                                    .foregroundStyle(BumpColor.secondaryText)
+                                ForEach(facts) { fact in
+                                    Text("· \(fact.text)")
+                                        .font(BumpFont.body)
+                                        .foregroundStyle(BumpColor.navy)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                    }
+
                     NavigationLink {
                         ProfileEditor(profile: $store.profile, isOnboarding: false, onDone: {})
                     } label: {
@@ -45,6 +62,25 @@ struct YouScreen: View {
                             .padding(.vertical, 15)
                             .background(RoundedRectangle(cornerRadius: Space.corner, style: .continuous)
                                 .fill(BumpColor.action))
+                    }
+
+                    SectionHeading(title: "Cloud processing",
+                                   subtitle: "Voice transcription, profile drafting and Grok talking points go through the BUMP server to xAI. Talking points use Grok only when you AND the person you bump both allow it.")
+                    Card {
+                        VStack(alignment: .leading, spacing: Space.s) {
+                            Toggle(isOn: Binding(
+                                get: { store.privacy.allowsCloud },
+                                set: { store.privacy.cloud = $0 ? .allowed : .localOnly; engine.refreshCloudStatus() })) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Allow cloud processing")
+                                        .font(BumpFont.bodyEmphasis).foregroundStyle(BumpColor.navy)
+                                    Text(cloudStatusText)
+                                        .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .tint(BumpColor.action)
+                        }
                     }
 
                     SectionHeading(title: "Permissions & help")
@@ -62,7 +98,7 @@ struct YouScreen: View {
                                           engine.ranging.isSupported ? .good : .warn)
                             Divider()
                             permissionRow("Nearby Interaction permission",
-                                          engine.ranging.permissionDenied ? "Denied — enable in Settings" : "OK",
+                                          engine.ranging.permissionDenied ? "Denied. Turn it on in Settings" : "OK",
                                           engine.ranging.permissionDenied ? .bad : .good)
                             Divider()
                             permissionRow("On-device AI", ConversationService.availabilityDescription,
@@ -70,7 +106,7 @@ struct YouScreen: View {
                         }
                     }
 
-                    Text("BUMP needs Local Network and Nearby Interaction access to find the phone next to you. Nothing leaves your phone except what you share with a confirmed partner, and there is no account or server.")
+                    Text("BUMP needs Local Network and Nearby Interaction access to find the phone next to you. Your card goes only to a partner you've both confirmed, directly between the two phones. There's no account. With cloud processing off, nothing goes to the BUMP server or xAI.")
                         .font(BumpFont.caption)
                         .foregroundStyle(BumpColor.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -99,6 +135,14 @@ struct YouScreen: View {
             }
             .navigationTitle("You")
             .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private var cloudStatusText: String {
+        switch store.privacy.cloud {
+        case .undecided: return "Not chosen yet, so nothing is sent."
+        case .localOnly: return "Off. Nothing goes to the BUMP server or xAI, and you type instead of speak."
+        case .allowed: return engine.grokReady ? "On. The BUMP server is reachable and Grok is ready." : "On, but the BUMP server isn't reachable right now, so BUMP uses on-phone suggestions."
         }
     }
 

@@ -161,6 +161,25 @@ Did anyone ever get proposed to the **wrong** person? ____
 | Quality of fallback opener |  |
 | With AI unavailable on one phone — did the other generate? |  |
 | No-overlap case — was the wording warm and honest? |  |
+| Talking points: shared vs "worth asking about" correctly separated? |  |
+| Talking point evidence reads correctly on **both** phones ("You" = that phone's owner)? |  |
+| Both allowed cloud → source shows "Written by Grok (xAI) via the BUMP server"? |  |
+| One person local-only → **no** Grok request made (check bump-api log shows no `/v1/talking-points`)? |  |
+| BUMP server stopped mid-event → fallback within ~9 s, labelled honestly? |  |
+
+## A9b. Pre-event onboarding (voice + Grok)
+
+| Question | Answer |
+|---|---|
+| Onboarding time, voice path (target ≈ 1 min) |  |
+| Onboarding time, typed / local-only path |  |
+| Transcript accuracy (noisy room?) |  |
+| Any suggested fact NOT supported by what was said? (should be zero) |  |
+| Follow-up questions repeated something already said? |  |
+| Mic permission denied → clear message + Type instead? |  |
+| Phone call during recording → take stopped, message shown? |  |
+| Airplane mode → local draft, notice shown, nothing labelled Grok? |  |
+| Profile saved before this update still loads after upgrading? |  |
 
 ## A10. Decision — native MVP
 

@@ -263,7 +263,7 @@ extension PeerTransport: MCNearbyServiceAdvertiserDelegate {
                 self.log("accepting \(peerID.displayName)")
                 invitationHandler(true, session)
             } else {
-                self.log(roomIsFull ? "room full — refused \(peerID.displayName)"
+                self.log(roomIsFull ? "room full, refused \(peerID.displayName)"
                                     : "refused unexpected invitation from \(peerID.displayName)")
                 invitationHandler(false, nil)
             }

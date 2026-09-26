@@ -8,6 +8,8 @@ struct ProfileEditor: View {
 
     @State private var customEntry = ""
     @FocusState private var customFocused: Bool
+    @State private var detailEntry = ""
+    @State private var detailKind: ProfileFact.Kind = .experience
 
     private var selectedIDs: Set<String> { Set(profile.interests.map(\.id)) }
 
@@ -23,8 +25,11 @@ struct ProfileEditor: View {
                     )
                 }
 
-                BumpField(label: "Display name", placeholder: "What should people call you?",
-                          text: $profile.displayName)
+                HStack(alignment: .top, spacing: Space.m) {
+                    PhotoPickerAvatar(photo: $profile.photo, name: profile.displayName, size: 64)
+                    BumpField(label: "Display name", placeholder: "What should people call you?",
+                              text: $profile.displayName)
+                }
 
                 BumpField(label: "Short bio (optional)", placeholder: "One line about you",
                           axis: .vertical, text: $profile.bio)
@@ -32,25 +37,10 @@ struct ProfileEditor: View {
                 VStack(alignment: .leading, spacing: Space.s) {
                     SectionHeading(
                         title: "What are you into?",
-                        subtitle: "Specific beats broad. “Jazz piano” starts a better conversation than “music”."
+                        subtitle: "Start with a topic, then pick anything more specific. “Cold brew” starts a better conversation than “Coffee”."
                     )
 
-                    ForEach(InterestCatalog.groups, id: \.category.id) { group in
-                        VStack(alignment: .leading, spacing: Space.s) {
-                            Text(group.category.label)
-                                .font(BumpFont.bodyEmphasis)
-                                .foregroundStyle(BumpColor.navy)
-                                .padding(.top, Space.s)
-                            FlowLayout {
-                                ForEach([group.category] + group.children) { interest in
-                                    InterestChip(title: interest.label,
-                                                 selected: selectedIDs.contains(interest.id)) {
-                                        toggle(interest)
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    TopicBrowser(isSelected: { selectedIDs.contains($0.id) }, toggle: toggle)
                 }
 
                 VStack(alignment: .leading, spacing: Space.s) {
@@ -78,12 +68,45 @@ struct ProfileEditor: View {
                     }
                 }
 
+                VStack(alignment: .leading, spacing: Space.s) {
+                    SectionHeading(title: "Experiences & goals",
+                                   subtitle: "Shared with confirmed partners, like your interests.")
+                    ForEach(profile.details) { fact in
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(fact.text).font(BumpFont.body).foregroundStyle(BumpColor.navy)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Text(fact.kind == .goal ? "Goal" : "Experience")
+                                    .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
+                            }
+                            Spacer()
+                            Button {
+                                profile.details.removeAll { $0.id == fact.id }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill").foregroundStyle(BumpColor.secondaryText)
+                            }
+                            .accessibilityLabel("Remove \(fact.text)")
+                        }
+                    }
+                    Picker("Kind", selection: $detailKind) {
+                        Text("Experience").tag(ProfileFact.Kind.experience)
+                        Text("Goal").tag(ProfileFact.Kind.goal)
+                    }
+                    .pickerStyle(.segmented)
+                    BumpField(label: "Add one", placeholder: detailKind == .goal ? "e.g. Find a climbing partner" : "e.g. Built a weather station",
+                              text: $detailEntry)
+                        .onSubmit(addDetail)
+                    Button("Add", action: addDetail)
+                        .buttonStyle(.bumpSecondary)
+                        .disabled(detailEntry.trimmed().isEmpty)
+                }
+
                 Button(isOnboarding ? "Start bumping" : "Save", action: onDone)
                     .buttonStyle(.bumpPrimary)
                     .disabled(!profile.isComplete)
 
                 if !profile.isComplete {
-                    Text("Add a name and at least one interest to continue.")
+                    Text("Add a name and at least one interest, experience or goal to continue.")
                         .font(BumpFont.caption)
                         .foregroundStyle(BumpColor.secondaryText)
                 }
@@ -100,6 +123,13 @@ struct ProfileEditor: View {
             profile.interests.append(interest)
             Haptics.tap()
         }
+    }
+
+    private func addDetail() {
+        let text = String(detailEntry.trimmed().prefix(60))
+        guard !text.isEmpty else { return }
+        profile.details.append(ProfileFact(kind: detailKind, text: text))
+        detailEntry = ""
     }
 
     private func addCustom() {

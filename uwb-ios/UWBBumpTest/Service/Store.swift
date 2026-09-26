@@ -1,7 +1,7 @@
 import Foundation
 
 /// Local persistence: profile + saved connections as JSON in Application
-/// Support. No cloud, no account, no database dependency.
+/// Support. No account, no database dependency, nothing synced anywhere.
 @MainActor
 final class Store: ObservableObject {
 
@@ -15,6 +15,11 @@ final class Store: ObservableObject {
     @Published var settings: Settings {
         didSet { persist(settings, to: Self.settingsURL) }
     }
+    /// Cloud-processing choice. Local only: it is never part of the profile and
+    /// only a yes/no capability ever reaches a confirmed partner.
+    @Published var privacy: PrivacyPreferences {
+        didSet { persist(privacy, to: Self.privacyURL) }
+    }
 
     struct Settings: Codable, Equatable {
         var motionThreshold: Double = 20.0
@@ -25,6 +30,9 @@ final class Store: ObservableObject {
         var uwbProximity: Double = 0.15
         var uwbFreshness: TimeInterval = 1.5
         var detectionMode: DetectionMode = .combined
+        /// Overrides the build's `BumpAPIBaseURL` (e.g. your Mac's LAN address
+        /// when testing on a phone). Optional, so older settings files still load.
+        var apiBaseURL: String?
 
         enum DetectionMode: String, Codable, CaseIterable, Identifiable {
             case motionOnly, uwbOnly, combined
@@ -48,15 +56,28 @@ final class Store: ObservableObject {
     private static let profileURL = directory.appendingPathComponent("profile.json")
     private static let connectionsURL = directory.appendingPathComponent("connections.json")
     private static let settingsURL = directory.appendingPathComponent("settings.json")
+    private static let privacyURL = directory.appendingPathComponent("privacy.json")
 
     init(inMemory: Bool = false) {
         if inMemory {
-            profile = Profile(); connections = []; settings = Settings()
+            profile = Profile(); connections = []; settings = Settings(); privacy = PrivacyPreferences()
             return
         }
         profile = Self.load(Profile.self, from: Self.profileURL) ?? Profile()
         connections = Self.load([SavedConnection].self, from: Self.connectionsURL) ?? []
         settings = Self.load(Settings.self, from: Self.settingsURL) ?? Settings()
+        privacy = Self.load(PrivacyPreferences.self, from: Self.privacyURL) ?? PrivacyPreferences()
+    }
+
+    /// Bumped by `resetOnboarding()` so the root view can return to Welcome.
+    @Published private(set) var onboardingResets = 0
+
+    /// Testing: forget the profile and the cloud choice so onboarding runs
+    /// again from the start. Saved connections and settings are kept.
+    func resetOnboarding() {
+        profile = Profile()
+        privacy = PrivacyPreferences()
+        onboardingResets += 1
     }
 
     // MARK: Connections

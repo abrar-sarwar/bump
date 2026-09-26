@@ -22,48 +22,67 @@ struct Interest: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
-/// The starter catalogue. Deliberately mixes broad categories with the kind of
-/// specific interest that actually produces a conversation.
+/// The browsable catalogue: broad topics people actually talk about, each
+/// opening into common variations ("Coffee" → espresso, pour-over, cold brew…).
+/// A broad topic and its variations never match each other as "shared"; they
+/// become complementary talking points instead.
 enum InterestCatalog {
 
     static let groups: [(category: Interest, children: [Interest])] = [
         group("music", "Music", [
-            ("jazz-piano", "Jazz piano"), ("vinyl", "Collecting vinyl"),
-            ("producing", "Making beats"), ("choir", "Singing in a choir"),
-            ("concerts", "Live shows"),
+            ("jazz", "Jazz"), ("hip-hop", "Hip-hop"), ("indie", "Indie"), ("electronic", "Electronic music"),
+            ("kpop", "K-pop"), ("rnb", "R&B"), ("concerts", "Live music"), ("festivals", "Festivals"),
+            ("instrument", "Playing an instrument"), ("producing", "Making music"), ("singing", "Singing"),
+        ]),
+        group("coffee", "Coffee", [
+            ("espresso", "Espresso"), ("pour-over", "Pour-over"), ("cold-brew", "Cold brew"),
+            ("lattes", "Lattes"), ("cafes", "Café hopping"), ("home-coffee", "Brewing coffee at home"),
+        ]),
+        group("food", "Food & drink", [
+            ("cooking", "Cooking"), ("baking", "Baking"), ("restaurants", "Trying new restaurants"),
+            ("spicy-food", "Spicy food"), ("street-food", "Street food"), ("brunch", "Brunch"),
+            ("tea", "Tea"), ("matcha", "Matcha"), ("boba", "Boba"),
+        ]),
+        group("movement", "Sports & fitness", [
+            ("gym", "Gym"), ("running", "Running"), ("climbing", "Climbing"), ("basketball", "Basketball"),
+            ("soccer", "Soccer"), ("tennis", "Tennis"), ("yoga", "Yoga"), ("martial-arts", "Martial arts"),
+            ("cycling", "Cycling"), ("dance", "Dancing"),
+        ]),
+        group("games", "Gaming", [
+            ("rpgs", "RPGs"), ("shooters", "Shooters"), ("cozy-games", "Cozy games"), ("esports", "Esports"),
+            ("retro-games", "Retro games"), ("board-games", "Board games"), ("chess", "Chess"),
+            ("tabletop-rpgs", "Tabletop RPGs"),
+        ]),
+        group("screen", "Movies & TV", [
+            ("movies", "Movies"), ("anime", "Anime"), ("horror", "Horror"), ("reality-tv", "Reality TV"),
+            ("documentaries", "Documentaries"), ("youtube", "YouTube"),
+        ]),
+        group("collecting", "Collecting", [
+            ("vinyl", "Vinyl records"), ("figures", "Figures"), ("trading-cards", "Trading cards"),
+            ("sneakers", "Sneakers"), ("rocks", "Rocks & minerals"), ("coins", "Coins"), ("lego", "LEGO"),
+            ("thrifting", "Thrifting"),
         ]),
         group("outdoors", "Outdoors", [
-            ("night-hiking", "Night hiking"), ("bouldering", "Bouldering"),
-            ("birding", "Birding"), ("sea-kayaking", "Sea kayaking"),
-            ("camping", "Camping"),
+            ("hiking", "Hiking"), ("camping", "Camping"), ("beach", "Beach days"), ("surfing", "Surfing"),
+            ("fishing", "Fishing"), ("plants", "Plants"), ("stargazing", "Stargazing"),
         ]),
-        group("games", "Games", [
-            ("speedrunning", "Speedrunning"), ("board-games", "Board games"),
-            ("chess", "Chess"), ("game-jams", "Game jams"),
-            ("roguelikes", "Roguelikes"),
+        group("building", "Tech", [
+            ("coding", "Coding"), ("ai", "AI"), ("startups", "Startups"), ("hardware", "Hardware"),
+            ("robotics", "Robotics"), ("3d-printing", "3D printing"),
+            ("mechanical-keyboards", "Mechanical keyboards"), ("game-dev", "Game dev"),
         ]),
-        group("food", "Food", [
-            ("sourdough", "Baking sourdough"), ("hot-sauce", "Making hot sauce"),
-            ("espresso", "Espresso"), ("ramen", "Hunting good ramen"),
-            ("fermenting", "Fermenting things"),
+        group("design", "Art & design", [
+            ("drawing", "Drawing"), ("painting", "Painting"), ("photography", "Photography"),
+            ("graphic-design", "Graphic design"), ("fashion", "Fashion"), ("crafts", "Crafts"),
+            ("filmmaking", "Filmmaking"),
         ]),
-        group("design", "Design", [
-            ("typography", "Typography"), ("industrial-design", "Industrial design"),
-            ("zines", "Making zines"), ("ux", "UX research"),
+        group("words", "Books & stories", [
+            ("fiction", "Fiction"), ("scifi", "Sci-fi"), ("fantasy", "Fantasy"), ("manga", "Manga"),
+            ("comics", "Comics"), ("poetry", "Poetry"), ("podcasts", "Podcasts"), ("writing", "Writing"),
         ]),
-        group("building", "Building things", [
-            ("3d-printing", "3D printing"), ("mechanical-keyboards", "Mechanical keyboards"),
-            ("retro-computing", "Retro computing"), ("robotics", "Robotics"),
-            ("home-lab", "Home labs"),
-        ]),
-        group("words", "Reading & writing", [
-            ("scifi", "Science fiction"), ("poetry", "Poetry"),
-            ("journaling", "Journaling"), ("history-podcasts", "History podcasts"),
-        ]),
-        group("movement", "Movement", [
-            ("climbing", "Climbing"), ("running", "Distance running"),
-            ("swing-dance", "Swing dancing"), ("martial-arts", "Martial arts"),
-            ("cycling", "Cycling"),
+        group("travel", "Travel", [
+            ("road-trips", "Road trips"), ("backpacking", "Backpacking"), ("languages", "Learning languages"),
+            ("city-trips", "City trips"), ("food-trips", "Food trips"),
         ]),
     ]
 
@@ -78,29 +97,74 @@ enum InterestCatalog {
     static let byID: [String: Interest] = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
 
     /// A small, readable synonym map so free text lands on a canonical interest
-    /// where we can be confident. Anything not listed keeps its own normalized
-    /// id and can still match another user who typed the same thing.
+    /// where we can be confident. Only TRUE equivalents belong here: a synonym
+    /// must never narrow a broad interest ("coffee" is not "espresso", "jazz" is
+    /// not "jazz piano") or broaden a specific one ("karate" is not every martial
+    /// art). Anything not listed keeps its own normalized id and can still match
+    /// another user who typed the same thing.
     static let synonyms: [String: String] = [
-        "piano jazz": "jazz-piano", "jazz": "jazz-piano", "jazz pianist": "jazz-piano",
-        "records": "vinyl", "record collecting": "vinyl", "lps": "vinyl",
-        "beatmaking": "producing", "music production": "producing", "producer": "producing",
-        "hiking at night": "night-hiking", "moonlight hiking": "night-hiking",
-        "climbing gym": "bouldering", "boulder": "bouldering",
-        "bird watching": "birding", "birdwatching": "birding",
-        "kayaking": "sea-kayaking",
-        "speed running": "speedrunning", "speed runs": "speedrunning", "any%": "speedrunning",
-        "boardgames": "board-games", "tabletop": "board-games",
-        "sourdough": "sourdough", "bread baking": "sourdough", "baking bread": "sourdough",
-        "coffee": "espresso", "latte art": "espresso", "pour over": "espresso",
-        "type design": "typography", "fonts": "typography", "lettering": "typography",
-        "3d print": "3d-printing", "3dprinting": "3d-printing",
-        "keyboards": "mechanical-keyboards", "keycaps": "mechanical-keyboards",
-        "retro computers": "retro-computing", "vintage computing": "retro-computing",
-        "sci-fi": "scifi", "science fiction": "scifi", "scifi books": "scifi",
-        "lindy hop": "swing-dance", "swing dancing": "swing-dance",
-        "marathon": "running", "5k": "running", "jogging": "running",
-        "bjj": "martial-arts", "jiu jitsu": "martial-arts", "karate": "martial-arts",
-        "biking": "cycling", "road cycling": "cycling",
+        // music
+        "hip hop": "hip-hop", "rap": "hip-hop", "edm": "electronic", "electronic": "electronic",
+        "kpop": "kpop", "k pop": "kpop", "rnb": "rnb", "r and b": "rnb",
+        "concerts": "concerts", "live shows": "concerts", "gigs": "concerts", "jazz music": "jazz",
+        "music production": "producing", "making beats": "producing", "beatmaking": "producing",
+        // coffee & food
+        "cafes": "cafes", "cafe hopping": "cafes", "coffee shops": "cafes",
+        "restaurants": "restaurants", "eating out": "restaurants", "bubble tea": "boba",
+        // sports
+        "the gym": "gym", "working out": "gym", "going to the gym": "gym", "rock climbing": "climbing",
+        "biking": "cycling", "bicycling": "cycling", "dance": "dance",
+        // games & screen
+        "boardgames": "board-games", "dnd": "tabletop-rpgs", "d d": "tabletop-rpgs",
+        "dungeons and dragons": "tabletop-rpgs", "films": "movies",
+        // collecting (older profiles said "Collecting vinyl")
+        "collecting vinyl": "vinyl", "vinyl": "vinyl", "records": "vinyl", "record collecting": "vinyl",
+        "lps": "vinyl", "legos": "lego", "thrift shopping": "thrifting", "thrift": "thrifting",
+        // outdoors, tech, words, travel
+        "houseplants": "plants", "house plants": "plants", "programming": "coding",
+        "artificial intelligence": "ai", "3d print": "3d-printing", "3dprinting": "3d-printing",
+        "mechanical keyboard": "mechanical-keyboards",
+        "sci fi": "scifi", "science fiction": "scifi", "comic books": "comics", "podcast": "podcasts",
+        "language learning": "languages", "road trip": "road-trips",
+    ]
+
+    /// Things that are NOT equivalent to any catalogue entry but clearly belong
+    /// to one of its broad topics. They keep their own id (so "karate" never
+    /// matches "jiu jitsu" as a shared interest) and only gain a parent, which
+    /// lets two related-but-different interests become a complementary talking
+    /// point. Also keeps interests from older profiles (e.g. "Jazz piano") in
+    /// the right family.
+    static let parentHints: [String: String] = [
+        // music
+        "jazz piano": "music", "piano": "music", "guitar": "music", "drums": "music", "violin": "music",
+        "keyboards": "music", "singing in a choir": "music", "choir": "music",
+        // coffee & food
+        "latte art": "coffee", "sourdough": "food", "baking sourdough": "food", "bread baking": "food",
+        "baking bread": "food", "fermenting": "food", "fermenting things": "food", "hot sauce": "food",
+        "making hot sauce": "food", "ramen": "food", "hunting good ramen": "food", "sushi": "food",
+        // sports
+        "bouldering": "movement", "karate": "movement", "bjj": "movement", "jiu jitsu": "movement",
+        "judo": "movement", "boxing": "movement", "jogging": "movement", "distance running": "movement",
+        "weightlifting": "movement", "pilates": "movement", "swimming": "movement", "golf": "movement",
+        "volleyball": "movement", "skateboarding": "movement", "snowboarding": "movement",
+        "skiing": "movement", "swing dancing": "movement", "climbing gym": "movement",
+        // games & screen
+        "video games": "games", "minecraft": "games", "nintendo": "games", "pokemon": "games",
+        "speedrunning": "games", "roguelikes": "games", "game jams": "games", "tabletop": "games",
+        "tv shows": "screen", "k dramas": "screen", "sitcoms": "screen", "netflix": "screen",
+        // collecting
+        "pokemon cards": "collecting", "action figures": "collecting", "anime figures": "collecting",
+        "stamps": "collecting", "plushies": "collecting", "crystals": "collecting",
+        // outdoors
+        "night hiking": "outdoors", "kayaking": "outdoors", "sea kayaking": "outdoors",
+        "birding": "outdoors", "bird watching": "outdoors", "gardening": "outdoors",
+        // tech
+        "retro computing": "building", "home labs": "building", "electronics": "building",
+        // art
+        "typography": "design", "lettering": "design", "calligraphy": "design", "ux research": "design",
+        "industrial design": "design", "making zines": "design", "woodworking": "design",
+        // words
+        "reading": "words", "audiobooks": "words", "journaling": "words", "history podcasts": "words",
     ]
 
     /// Normalize free text to a canonical interest.
@@ -119,8 +183,10 @@ enum InterestCatalog {
         if let known = all.first(where: { normalize($0.label) == key }) { return known }
 
         // Unknown: a custom, specific interest. Not invented — it is exactly what
-        // the user typed, just normalized.
-        return Interest(id: "custom:\(key)", label: raw.trimmed(), parent: nil, specificity: 2, custom: true)
+        // the user typed, just normalized. A parent hint only groups it for
+        // complementary talking points; it never changes what it matches.
+        return Interest(id: "custom:\(key)", label: raw.trimmed(), parent: parentHints[key],
+                        specificity: 2, custom: true)
     }
 
     static func normalize(_ raw: String) -> String {

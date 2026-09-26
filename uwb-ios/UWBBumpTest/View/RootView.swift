@@ -6,6 +6,8 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var stage: Stage
+    /// DEBUG demo only: a pre-seeded onboarding model with sample data.
+    @State private var demoOnboarding: OnboardingModel?
 
     enum Stage { case welcome, onboarding, main }
 
@@ -33,12 +35,9 @@ struct RootView: View {
                     .transition(.opacity)
 
             case .onboarding:
-                NavigationStack {
-                    ProfileEditor(profile: $store.profile, isOnboarding: true) {
-                        guard store.profile.isComplete else { return }
-                        Haptics.success()
-                        stage = .main
-                    }
+                OnboardingFlow(store: store, model: demoOnboarding) {
+                    guard store.profile.isComplete else { return }
+                    stage = .main
                 }
                 .transition(.opacity)
 
@@ -57,6 +56,10 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.25), value: stage)
         .onChange(of: scenePhase) { _, phase in engine.handleScenePhase(phase) }
         .onChange(of: store.settings) { _, _ in engine.applySettings() }
+        .onChange(of: store.onboardingResets) { _, _ in
+            demoOnboarding = nil
+            stage = .welcome
+        }
         .preferredColorScheme(.light)   // the brand is a warm light palette
     }
 
@@ -68,6 +71,12 @@ struct RootView: View {
         switch demo {
         case .onboarding:
             store.profile = Profile(); stage = .onboarding
+        case .onboardingIntro, .onboardingQuestion, .onboardingCard:
+            store.profile = Profile()
+            let step: OnboardingModel.Step = demo == .onboardingIntro ? .intro
+                : demo == .onboardingQuestion ? .questions : .card
+            demoOnboarding = PreviewFixtures.onboarding(step)
+            stage = .onboarding
         case .ready:
             store.profile = PreviewFixtures.profile; stage = .main
             engine.demoSet(.ready, members: [sample])

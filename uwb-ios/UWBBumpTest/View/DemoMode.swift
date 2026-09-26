@@ -11,6 +11,9 @@ import SwiftUI
 /// real sensor reading, a real peer connection, or a saved physical-test result.
 enum DemoMode: String {
     case onboarding, ready, confirm, reveal, connections, you, tools
+    case onboardingIntro = "onboardingintro"
+    case onboardingQuestion = "onboardingquestion"
+    case onboardingCard = "onboardingcard"
     case timedOut = "timedout"
     case ambiguous
     case unsupported
@@ -29,7 +32,7 @@ enum DemoMode: String {
 /// A badge the demo screens carry so demo data is never mistaken for live data.
 struct DemoBadge: View {
     var body: some View {
-        Text("DEMO DATA — not a real person or measurement")
+        Text("DEMO DATA: not a real person or measurement")
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)

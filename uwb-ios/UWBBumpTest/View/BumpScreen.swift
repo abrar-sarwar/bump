@@ -138,7 +138,7 @@ struct BumpScreen: View {
 
         case .checking:
             statusCard(
-                title: "Felt that — finding who you bumped",
+                title: "Felt that. Finding who you bumped…",
                 body: "Hold still for a moment.",
                 tone: .active, busy: true,
                 actions: [("Cancel", { engine.setReady(false) }, false)]
@@ -270,6 +270,7 @@ struct BumpScreen: View {
                     RevealView(
                     result: result,
                     myName: store.profile.displayName,
+                    myPhoto: store.profile.photo,
                     onSave: { engine.saveCurrentConnection(); engine.bumpAgain() },
                     onAgain: { engine.bumpAgain() }
                 )

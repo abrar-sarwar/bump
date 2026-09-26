@@ -13,28 +13,33 @@ enum PreviewFixtures {
         displayName: "Jared",
         bio: "Building things at 2am.",
         interests: [
-            InterestCatalog.byID["jazz-piano"]!,
-            InterestCatalog.byID["sourdough"]!,
-            InterestCatalog.byID["typography"]!,
-            InterestCatalog.byID["speedrunning"]!,
+            InterestCatalog.byID["jazz"]!,
+            InterestCatalog.byID["baking"]!,
+            InterestCatalog.byID["photography"]!,
+            InterestCatalog.byID["rpgs"]!,
+            InterestCatalog.byID["coffee"]!,
         ]
     )
 
     static let partner = SharedProfile(
         displayName: "Sample Partner (demo)",
-        bio: "Demo data — not a real person.",
+        bio: "Demo data. Not a real person.",
         interests: [
-            InterestCatalog.byID["jazz-piano"]!,
-            InterestCatalog.byID["typography"]!,
-            InterestCatalog.byID["birding"]!,
-        ]
+            InterestCatalog.byID["jazz"]!,
+            InterestCatalog.byID["photography"]!,
+            InterestCatalog.byID["hiking"]!,
+            InterestCatalog.byID["espresso"]!,
+        ],
+        details: [SharedFact(id: "demo-goal", kind: .goal, text: "Learn to bake bread")]
     )
 
     static var insight: ConnectionInsight {
         ConnectionInsight(
             highlights: InterestMatcher.overlap(profile.shareable, partner),
-            opener: "What's one jazz standard you never get tired of playing?",
-            openerSource: .fallbackTemplate
+            opener: "What's one jazz record you never get tired of?",
+            openerSource: .fallbackTemplate,
+            talkingPoints: TalkingPointMatcher.templatePoints(
+                TalkingPointMatcher.candidates(profile.shareable, partner))
         )
     }
 
@@ -53,7 +58,7 @@ enum PreviewFixtures {
                                    insight: insight,
                                    pairingEvidence: .motionAndUWB))
         store.save(SavedConnection(partnerName: "Second Sample (demo)",
-                                   partnerBio: "Demo data — not a real person.",
+                                   partnerBio: "Demo data. Not a real person.",
                                    metOn: Date().addingTimeInterval(-3 * 86_400),
                                    roomName: "demo",
                                    insight: ConnectionInsight(highlights: [], opener: "What brought you here tonight?",
@@ -74,4 +79,48 @@ enum PreviewFixtures {
                                    pairingEvidence: .motionAndUWB))
         return store
     }
+
+    // MARK: Onboarding (SAMPLE DATA — clearly fictional, never sent anywhere)
+    #if DEBUG
+
+    static let sampleIntro = "Hi, I'm Sam. I play jazz piano and I've been getting into climbing. I work at a robotics lab. I'd love to meet people building hardware."
+
+    @MainActor
+    static func onboardingStore() -> Store {
+        let store = Store(inMemory: true)
+        store.privacy.cloud = .allowed
+        return store
+    }
+
+    @MainActor
+    static func onboarding(_ step: OnboardingModel.Step) -> OnboardingModel {
+        let model = OnboardingModel(store: onboardingStore(), cloud: { nil })
+        model.name = "Sam (sample)"
+        typealias Item = OnboardingModel.Item
+        let items: [Item] = [
+            Item(id: "s1", kind: .interest, text: "Jazz piano", evidence: "I play jazz piano", origin: .grok, fromIntro: true),
+            Item(id: "s2", kind: .interest, text: "Climbing", evidence: "I've been getting into climbing", origin: .grok, fromIntro: true),
+            Item(id: "s3", kind: .experience, text: "Works at a robotics lab", evidence: "I work at a robotics lab", origin: .grok, fromIntro: true),
+            Item(id: "s4", kind: .goal, text: "Meet people building hardware", evidence: "meet people building hardware", origin: .grok, fromIntro: true),
+            Item(id: "s5", kind: .interest, text: "Coffee", evidence: "pour-over coffee", origin: .grok, included: false),
+        ]
+        let q = OnboardingModel.Question(text: "You mentioned climbing. Where do you usually go?", origin: .grok)
+        switch step {
+        case .name:
+            break
+        case .intro:
+            model.seedSample(step: .intro, transcript: sampleIntro, bio: "", items: [], answered: [],
+                             current: nil, fromVoice: true)
+        case .questions:
+            model.seedSample(step: .questions, transcript: sampleIntro, bio: "Jazz pianist, new boulderer, robotics by day.",
+                             items: Array(items.prefix(4)),
+                             answered: [.init(question: .init(text: "What kind of hardware are you building?", origin: .grok), answer: "Small legged robots")],
+                             current: q, fromVoice: true)
+        case .card:
+            model.seedSample(step: .card, transcript: sampleIntro, bio: "Jazz pianist, new boulderer, robotics by day.",
+                             items: items, answered: [], current: nil, fromVoice: true)
+        }
+        return model
+    }
+    #endif
 }

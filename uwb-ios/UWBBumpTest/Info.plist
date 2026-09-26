@@ -20,6 +20,15 @@
     <string>1</string>
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>BumpAPIBaseURL</key>
+	<string>$(BUMP_API_BASE_URL)</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>BUMP records a short spoken intro (up to 45 seconds) so it can be transcribed into your profile, only if you choose to record. The audio is deleted from your phone after transcription.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>BUMP uses the motion sensor to feel the moment you tap phones with someone. Motion data stays on your iPhone.</string>
 	<key>NSBonjourServices</key>
