@@ -12,7 +12,7 @@ struct RootView: View {
     @State private var demoOnboarding: OnboardingModel?
     /// Height of the StreetPass pass card's single detent. @ScaledMetric so the
     /// card grows with Dynamic Type instead of clipping its buttons.
-    @ScaledMetric(relativeTo: .body) private var passCardHeight: CGFloat = 380
+    @ScaledMetric(relativeTo: .body) private var passCardHeight: CGFloat = 470
 
     enum Stage { case welcome, onboarding, main }
 
@@ -153,7 +153,9 @@ struct RootView: View {
             store.profile = PreviewFixtures.profile; stage = .main
             streetPassEngine.demoSet(.init(id: "demo#0002", displayName: "Priya (demo)",
                                            avatarThumbnail: nil,
-                                           mutualInterestStatement: "You're both into photography."))
+                                           mutualInterestStatement: "You're both into photography.",
+                                           teasedMutualStatements: ["You're both into bouldering.",
+                                                                    "You both like espresso."]))
         case .connections, .you, .tools, .home, .tutorial, .notifications:
             store.profile = PreviewFixtures.profile
             if demo == .connections { PreviewFixtures.seed(store); tab = .connections }

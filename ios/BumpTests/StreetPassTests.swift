@@ -219,3 +219,44 @@ final class StreetPassNotifierTests: XCTestCase {
         XCTAssertFalse(StreetPassNotifier.copy(for: encounter()).body.contains("both"))
     }
 }
+
+// MARK: - Teaser split
+
+/// The card shows one mutual interest in the clear and blurs the rest. These
+/// cover the split itself: which statement is revealed, which are teased, and
+/// that nothing is ever invented to fill the blurred rows.
+final class StreetPassTeaserTests: XCTestCase {
+    private func interests(_ labels: [String]) -> [Interest] {
+        labels.compactMap { InterestCatalog.canonical(from: $0) }
+    }
+
+    func testFirstMatchIsRevealedAndTheRestAreTeased() {
+        let teaser = StreetPassEncounter.teaser(mine: interests(["Jazz", "Photography", "Bouldering"]),
+                                                theirs: interests(["Jazz", "Photography", "Bouldering"]))
+        let all = InterestMatcher.overlap(interests(["Jazz", "Photography", "Bouldering"]),
+                                          interests(["Jazz", "Photography", "Bouldering"]),
+                                          limit: 3).map(\.statement)
+        XCTAssertEqual(teaser.statement, all.first)
+        XCTAssertEqual(teaser.teased, Array(all.dropFirst()))
+    }
+
+    func testASingleMatchTeasesNothing() {
+        let teaser = StreetPassEncounter.teaser(mine: interests(["Jazz", "Bouldering"]),
+                                                theirs: interests(["Jazz", "Vinyl"]))
+        XCTAssertNotNil(teaser.statement)
+        XCTAssertTrue(teaser.teased.isEmpty, "one match must never be padded out with invented rows")
+    }
+
+    func testNoOverlapRevealsAndTeasesNothing() {
+        let teaser = StreetPassEncounter.teaser(mine: interests(["Jazz piano"]),
+                                                theirs: interests(["Bouldering"]))
+        XCTAssertNil(teaser.statement)
+        XCTAssertTrue(teaser.teased.isEmpty)
+    }
+
+    func testAtMostTwoRowsAreTeased() {
+        let many = interests(["Jazz", "Photography", "Bouldering", "Espresso", "Vinyl"])
+        let teaser = StreetPassEncounter.teaser(mine: many, theirs: many)
+        XCTAssertLessThanOrEqual(teaser.teased.count, 2)
+    }
+}

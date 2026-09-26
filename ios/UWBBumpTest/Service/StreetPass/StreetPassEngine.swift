@@ -131,10 +131,11 @@ final class StreetPassEngine: ObservableObject {
         gates[peer] = gate
 
         guard verdict == .qualified, let profile = peerProfiles[peer] else { return }
-        let mutual = InterestMatcher.overlap(store.profile.interests, profile.interests, limit: 1).first
+        let teaser = StreetPassEncounter.teaser(mine: store.profile.interests, theirs: profile.interests)
         let encounter = StreetPassEncounter(id: peer, displayName: profile.displayName,
                                             avatarThumbnail: profile.avatarThumbnail,
-                                            mutualInterestStatement: mutual?.statement)
+                                            mutualInterestStatement: teaser.statement,
+                                            teasedMutualStatements: teaser.teased)
         pendingEncounter = encounter
         // Only the narrow app-not-active window gets a system notification —
         // while foregrounded, setting pendingEncounter above is enough to

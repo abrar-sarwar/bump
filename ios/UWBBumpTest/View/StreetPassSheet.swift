@@ -40,8 +40,21 @@ struct StreetPassSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if let statement = encounter.mutualInterestStatement {
-                StatusPill(text: statement, tone: .good)
+            VStack(spacing: Space.xs) {
+                if let statement = encounter.mutualInterestStatement {
+                    StatusPill(text: statement, tone: .good)
+                }
+                // The tease: real further matches, blurred. Each row recedes a
+                // little more than the last, so they read as "there's more
+                // here" rather than as broken text.
+                ForEach(Array(encounter.teasedMutualStatements.enumerated()), id: \.offset) { index, statement in
+                    StatusPill(text: statement, tone: .good)
+                        .blur(radius: 7 + CGFloat(index) * 2)
+                        .opacity(0.75 - Double(index) * 0.15)
+                        .scaleEffect(1 - CGFloat(index + 1) * 0.04)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
             }
 
             Spacer(minLength: 0)
@@ -97,7 +110,9 @@ private struct PassRadar: View {
 #Preview("With mutual interest") {
     StreetPassSheet(
         encounter: .init(id: "demo#0002", displayName: "Priya (demo)", avatarThumbnail: nil,
-                         mutualInterestStatement: "You're both into photography."),
+                         mutualInterestStatement: "You're both into photography.",
+                         teasedMutualStatements: ["You're both into bouldering.",
+                                                  "You both like espresso."]),
         onBumpThem: {}, onNotNow: {}
     )
     .background(BumpColor.surfaceContainerLowest)
