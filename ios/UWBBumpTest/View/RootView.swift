@@ -111,9 +111,10 @@ struct RootView: View {
             store.profile = PreviewFixtures.profile; stage = .main
             engine.demoSet(.unavailable("This iPhone isn't reporting motion data, so BUMP can't feel a bump. You can still connect by picking someone from the room."),
                            members: [sample])
-        case .connections, .you, .tools, .home, .tutorial:
+        case .connections, .you, .tools, .home, .tutorial, .notifications:
             store.profile = PreviewFixtures.profile
             if demo == .connections { PreviewFixtures.seed(store); tab = .connections }
+            if demo == .notifications { PreviewFixtures.seed(store); tab = .bump }
             if demo == .you || demo == .tools { tab = .you }
             stage = .main
         }

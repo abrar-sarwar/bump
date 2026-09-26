@@ -48,22 +48,45 @@ enum PreviewFixtures {
                           evidence: .motionAndUWB, roomName: "demo", metOn: Date())
     }
 
+    /// Stable ids for the two demo connections, so re-running a demo re-seeds
+    /// the same two rows instead of stacking up another copy every launch
+    /// (`Store.save` is idempotent by id).
+    private static let firstConnectionID = UUID(uuidString: "00000000-0000-0000-0000-00000000dec0")!
+    private static let secondConnectionID = UUID(uuidString: "00000000-0000-0000-0000-00000000dec1")!
+
+    /// Clearly-labelled passers-by, for the notifications feed.
+    static var streetpasses: [StreetpassEvent] {
+        [
+            StreetpassEvent(peerName: "Passer-by One (demo)",
+                            seenAt: Date().addingTimeInterval(-40 * 60), roomName: "nearby"),
+            StreetpassEvent(peerName: "Passer-by Two (demo)",
+                            seenAt: Date().addingTimeInterval(-6 * 3_600), roomName: "nearby"),
+            StreetpassEvent(peerName: "Passer-by Three (demo)",
+                            seenAt: Date().addingTimeInterval(-2 * 86_400), roomName: "demo"),
+        ]
+    }
+
     /// Add clearly-labelled demo rows to a store, for simulator screenshots.
     @MainActor
     static func seed(_ store: Store) {
-        store.save(SavedConnection(partnerName: partner.displayName,
+        store.save(SavedConnection(id: firstConnectionID,
+                                   partnerName: partner.displayName,
                                    partnerBio: partner.bio,
                                    metOn: Date().addingTimeInterval(-86_400),
                                    roomName: "demo",
                                    insight: insight,
                                    pairingEvidence: .motionAndUWB))
-        store.save(SavedConnection(partnerName: "Second Sample (demo)",
+        store.save(SavedConnection(id: secondConnectionID,
+                                   partnerName: "Second Sample (demo)",
                                    partnerBio: "Demo data. Not a real person.",
                                    metOn: Date().addingTimeInterval(-3 * 86_400),
                                    roomName: "demo",
                                    insight: ConnectionInsight(highlights: [], opener: "What brought you here tonight?",
                                                               openerSource: .fallbackTemplate),
                                    pairingEvidence: .manualSelection))
+        for pass in streetpasses {
+            store.recordStreetpass(name: pass.peerName, roomName: pass.roomName, at: pass.seenAt)
+        }
     }
 
     /// An in-memory store so a preview never writes over a real profile.
@@ -71,12 +94,16 @@ enum PreviewFixtures {
     static func populatedStore() -> Store {
         let store = Store(inMemory: true)
         store.profile = profile
-        store.save(SavedConnection(partnerName: partner.displayName,
+        store.save(SavedConnection(id: firstConnectionID,
+                                   partnerName: partner.displayName,
                                    partnerBio: partner.bio,
                                    metOn: Date().addingTimeInterval(-86_400),
                                    roomName: "demo",
                                    insight: insight,
                                    pairingEvidence: .motionAndUWB))
+        for pass in streetpasses {
+            store.recordStreetpass(name: pass.peerName, roomName: pass.roomName, at: pass.seenAt)
+        }
         return store
     }
 

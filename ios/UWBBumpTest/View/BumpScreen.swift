@@ -8,7 +8,10 @@ struct BumpScreen: View {
     @State private var showManualPicker = false
     @State private var showEventCode = false
     @State private var showTutorial = false
+    @State private var showNotifications = false
     @AppStorage(Store.tutorialSeenKey) private var tutorialSeen = false
+    /// When the feed was last opened, so the bell can show a dot for what's new.
+    @AppStorage("bump.notificationsSeenAt") private var notificationsSeenAt = 0.0
 
     var body: some View {
         NavigationStack {
@@ -26,6 +29,7 @@ struct BumpScreen: View {
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showManualPicker) { manualPicker }
             .sheet(isPresented: $showEventCode) { eventCodeSheet }
+            .sheet(isPresented: $showNotifications) { NotificationsScreen(store: store) }
             .fullScreenCover(isPresented: .constant(isRevealing)) { revealCover }
             .fullScreenCover(isPresented: $showTutorial) {
                 BumpTutorial { tutorialSeen = true; showTutorial = false }
@@ -37,17 +41,28 @@ struct BumpScreen: View {
                 // idempotent, so tab switches and repeated appearances never
                 // open a second session.
                 if DemoMode.active == nil { engine.autoStart() }
+                // DEBUG demo: land straight on the feed so it can be inspected.
+                if DemoMode.active == .notifications { showNotifications = true }
             }
         }
     }
 
     // MARK: Top bar
 
-    /// M3 small top app bar, drawn in the page: wordmark plus two icon actions.
+    /// M3 small top app bar, drawn in the page: wordmark plus three icon actions.
     private var topBar: some View {
         HStack(spacing: Space.xs) {
             Wordmark()
             Spacer()
+            Button {
+                notificationsSeenAt = Date().timeIntervalSince1970
+                showNotifications = true
+            } label: {
+                Image(systemName: unreadCount > 0 ? "bell.badge.fill" : "bell")
+            }
+            .buttonStyle(.bumpIcon)
+            .accessibilityLabel("Notifications")
+            .accessibilityValue(unreadCount > 0 ? "\(unreadCount) new" : "Nothing new")
             Button { showTutorial = true } label: { Image(systemName: "questionmark.circle") }
                 .buttonStyle(.bumpIcon)
                 .accessibilityLabel("How BUMP works")
@@ -56,6 +71,13 @@ struct BumpScreen: View {
                 .accessibilityLabel("Event code")
         }
         .padding(.top, -Space.s)
+    }
+
+    /// Bumps and passers-by since the feed was last opened.
+    private var unreadCount: Int {
+        let seen = Date(timeIntervalSince1970: notificationsSeenAt)
+        return store.connections.filter { $0.metOn > seen }.count
+            + store.streetpasses.filter { $0.seenAt > seen }.count
     }
 
     // MARK: Header
