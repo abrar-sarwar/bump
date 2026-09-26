@@ -67,9 +67,13 @@ final class BumpEngine: ObservableObject {
         }
     }
 
-    @Published private(set) var phase: Phase = .notReady
+    @Published private(set) var phase: Phase = .notReady {
+        didSet { if phase != oldValue { syncPresentation() } }
+    }
     @Published private(set) var room: RoomState = .none
-    @Published private(set) var members: [Wire.Member] = []
+    @Published private(set) var members: [Wire.Member] = [] {
+        didSet { if members.count != oldValue.count { syncPresentation() } }
+    }
     @Published private(set) var capacityNote: String?
     @Published private(set) var log: [LogLine] = []
 
@@ -81,6 +85,8 @@ final class BumpEngine: ObservableObject {
 
     // MARK: Collaborators
 
+    /// Owns the Live Activity for the whole session, not for a screen.
+    let liveActivity = LiveActivityController()
     let motion = MotionDetector()
     let ranging = RangingService()
     let transport = PeerTransport()
@@ -154,6 +160,20 @@ final class BumpEngine: ObservableObject {
             .sink { [weak self] peers in self?.rosterChanged(peers) }
             .store(in: &cancellables)
 
+        liveActivity.onLog = { [weak self] line in self?.note(line) }
+        // A crash or force quit can leave an activity behind. Adopt or clear it
+        // before we start anything new, so there is only ever one.
+        liveActivity.reconcileOnLaunch()
+
+        // Confirm / Not them / Stop arrive here from the Dynamic Island. They
+        // run in this process, so they act on the same authoritative state as
+        // the in-app buttons.
+        BumpIntentBridge.shared.handler = { [weak self] action in
+            // The bridge is nonisolated, so hop explicitly and capture the
+            // engine inside the hop rather than across it.
+            await MainActor.run { [weak self] in self?.handleIntent(action) }
+        }
+
         transport.$discoveredRooms
             .sink { [weak self] rooms in self?.resolveDuplicateNearbyHost(rooms) }
             .store(in: &cancellables)
@@ -226,7 +246,9 @@ final class BumpEngine: ObservableObject {
 
     /// True only while the user has explicitly paused. Nothing else sets this,
     /// so backgrounding or a finished match can never leave BUMP silently off.
-    @Published private(set) var isPaused = false
+    @Published private(set) var isPaused = false {
+        didSet { if isPaused != oldValue { syncPresentation() } }
+    }
 
     /// What the Bump tab should show while waiting. Derived from the real state
     /// of the services rather than stored, so the label can never claim the app
@@ -942,6 +964,106 @@ final class BumpEngine: ObservableObject {
         membersByID[id]?.displayName ?? transport.displayName(of: id)
     }
 
+    // MARK: Live Activity
+
+    /// Stable for the life of a session, so an intent fired from the Dynamic
+    /// Island can be checked against the session it was rendered for.
+    private(set) var sessionID = UUID().uuidString
+
+    /// Actions from the Live Activity. Every one is validated against current
+    /// state: a stale session, an expired proposal or one already consumed is
+    /// refused rather than acted on.
+    func handleIntent(_ action: BumpIntentAction) {
+        switch action {
+        case .confirm(let session, let proposal):
+            guard session == sessionID else { return note("ignored confirm from an old session") }
+            guard let mine = myProposal, mine.id == proposal else {
+                return note("ignored confirm for a proposal that is no longer current")
+            }
+            confirmCurrent()
+        case .reject(let session, let proposal):
+            guard session == sessionID, let mine = myProposal, mine.id == proposal else {
+                return note("ignored reject for a proposal that is no longer current")
+            }
+            declineCurrent()
+        case .stop(let session):
+            guard session == sessionID else { return }
+            note("stopped from the Live Activity")
+            endSession()
+        }
+    }
+
+    /// Begin the session activity once there is a real session to describe.
+    private func startLiveActivityIfNeeded() {
+        guard !liveActivity.isRunning, room != .none else { return }
+        liveActivity.start(sessionID: sessionID, initial: .preparing)
+        refreshLiveActivity()
+    }
+
+    /// End the session entirely: no room, no sensing, no activity.
+    func endSession() {
+        var final = BumpActivityAttributes.ContentState.preparing()
+        final.state = .ended
+        liveActivity.end(final: final)
+        isPaused = true
+        leaveRoom()
+    }
+
+    /// Map the engine's state onto what a person reads in the Dynamic Island.
+    /// Derived every time rather than stored, so the two cannot drift.
+    private var activityContent: BumpActivityAttributes.ContentState {
+        var c = BumpActivityAttributes.ContentState.preparing()
+        c.nearbyCount = members.count
+
+        switch phase {
+        case .confirming(let proposal):
+            c.state = .candidate
+            c.peerName = proposal.partner.displayName
+            c.proposalID = proposal.id
+            c.proposalExpiresAt = Date().addingTimeInterval(Self.confirmationTimeout)
+            return c
+        case .waitingForPartner, .exchanging:
+            c.state = .awaitingPeer
+            c.peerName = myProposal?.partner.displayName
+            return c
+        case .connected(let result):
+            c.state = .connected
+            c.peerName = result.partner.displayName
+            c.connectionID = store.connections.first?.id.uuidString
+            return c
+        default:
+            break
+        }
+
+        switch autoStatus {
+        case .paused:
+            c.state = .paused
+        case .blocked(let why):
+            c.state = .unavailable
+            c.unavailableReason = why
+        case .gettingReady:
+            c.state = room == .none ? .preparing : .discovering
+        case .listening:
+            c.state = members.isEmpty ? .discovering : .ready
+        }
+        return c
+    }
+
+    /// Push the current state. Cheap: the controller drops updates that would
+    /// not change anything on screen.
+    func refreshLiveActivity() {
+        guard liveActivity.isRunning else { return }
+        if liveActivity.hasExpired {
+            note("session deadline reached")
+            endSession()
+            return
+        }
+        let content = activityContent
+        // Only a new decision deserves to interrupt whatever the person is doing.
+        let alert = content.state == .candidate && liveActivity.lastPushedState != .candidate
+        liveActivity.update(content, alert: alert)
+    }
+
     // MARK: Lifecycle
 
     func handleScenePhase(_ scenePhase: ScenePhase) {
@@ -949,16 +1071,35 @@ final class BumpEngine: ObservableObject {
         case .active:
             ranging.resumeAll()
             if room != .none { refreshCloudStatus() }
+            // Validate the deadline here rather than trusting an in-memory
+            // timer to have fired while the process was suspended.
+            if liveActivity.isRunning && liveActivity.hasExpired {
+                note("session expired while backgrounded")
+                endSession()
+                return
+            }
             // Pick straight back up. No Start action, no reconnect prompt.
             autoStart()
+            syncPresentation()
         case .background, .inactive:
-            // Foreground only: stop sensing and clear stale values. A bump that
-            // was mid-flight is simply dropped back to resting, so returning to
-            // the app starts listening again on its own.
+            // Core Motion gets no background execution, so the accelerometer
+            // stops either way. A bump that was mid-flight drops back to
+            // resting, and returning to the app starts listening again on its
+            // own.
             motion.stop()
-            ranging.pauseAll()
+
+            if liveActivity.isRunning && !liveActivity.hasExpired {
+                // A valid session with a Live Activity keeps ranging. Documented
+                // from iOS 18.4 with the nearby-interaction background mode.
+                // NOTE: this is documented platform support, not something we
+                // have observed on hardware yet.
+                note("backgrounded with a live session, keeping UWB ranging")
+            } else {
+                ranging.pauseAll()
+            }
             if case .ready = phase { phase = .notReady }
             if case .checking = phase { phase = .notReady }
+            refreshLiveActivity()
         @unknown default: break
         }
     }
@@ -999,6 +1140,12 @@ final class BumpEngine: ObservableObject {
         phaseDeadline = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { _ in
             Task { @MainActor in action() }
         }
+    }
+
+    /// Called after any state change that a person could see.
+    private func syncPresentation() {
+        startLiveActivityIfNeeded()
+        refreshLiveActivity()
     }
 
     func note(_ text: String) {

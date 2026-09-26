@@ -100,6 +100,29 @@ struct TestingToolsScreen: View {
                 slider("Buffer before committing", value: $store.settings.pairingBuffer,
                        range: 0.05...0.8, step: 0.05, unit: "s")
 
+                // MARK: Live Activity
+                SectionHeading(title: "Live Activity",
+                               subtitle: "Dynamic Island session. Interface state only. It never influences matching.")
+                Card {
+                    VStack(alignment: .leading, spacing: Space.s) {
+                        metric("Supported", engine.liveActivity.isAvailable ? "yes" : (engine.liveActivity.unavailableExplanation ?? "no"))
+                        metric("Running", engine.liveActivity.isRunning ? "yes" : "no")
+                        metric("Showing", engine.liveActivity.lastPushedState?.rawValue ?? "nothing")
+                        if let ends = engine.liveActivity.expiresAt {
+                            metric("Session ends", ends.formatted(date: .omitted, time: .shortened))
+                        }
+                        if let why = engine.liveActivity.unavailableReason {
+                            Text(why).font(BumpFont.caption).foregroundStyle(BumpColor.warning)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Text("Backgrounding keeps UWB ranging while a session is live. That is documented platform support from iOS 18.4, not something verified on hardware here.")
+                            .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Button("End session and Live Activity") { engine.endSession() }
+                    .buttonStyle(.bumpSecondary)
+
                 // MARK: Log
                 SectionHeading(title: "Event log", subtitle: "Newest first, capped at 200 lines.")
                 Card {

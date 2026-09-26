@@ -6,14 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		CAFE00000000000000000050 /* BumpWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000041 /* BumpWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
-		CAFE00000000000000000052 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = CAFE00000000000000000009 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = CAFE00000000000000000040;
-			remoteInfo = BumpWidgets;
-		};
 		CAFE00000000000000000030 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = CAFE00000000000000000009 /* Project object */;
@@ -21,7 +18,28 @@
 			remoteGlobalIDString = CAFE00000000000000000002;
 			remoteInfo = UWBBumpTest;
 		};
+		CAFE00000000000000000052 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CAFE00000000000000000009 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CAFE00000000000000000040;
+			remoteInfo = BumpWidgets;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		CAFE00000000000000000049 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				CAFE00000000000000000050 /* BumpWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		CAFE00000000000000000001 /* UWBBumpTest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = UWBBumpTest.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -30,19 +48,19 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		CAFE00000000000000000057 /* Exceptions for "BumpWidgets" folder in "BumpWidgets" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = CAFE00000000000000000040 /* BumpWidgets */;
-		};
 		CAFE00000000000000000010 /* Exceptions for "UWBBumpTest" folder in "UWBBumpTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
 			target = CAFE00000000000000000002 /* UWBBumpTest */;
+		};
+		CAFE00000000000000000057 /* Exceptions for "BumpWidgets" folder in "BumpWidgets" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = CAFE00000000000000000040 /* BumpWidgets */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -283,34 +301,16 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXCopyFilesBuildPhase section */
-		CAFE00000000000000000049 /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				CAFE00000000000000000050 /* BumpWidgets.appex in Embed Foundation Extensions */,
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
-
-/* Begin PBXBuildFile section */
-		CAFE00000000000000000050 /* BumpWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000041 /* BumpWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-/* End PBXBuildFile section */
-
 /* Begin PBXTargetDependency section */
-		CAFE00000000000000000051 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = CAFE00000000000000000040 /* BumpWidgets */;
-			targetProxy = CAFE00000000000000000052 /* PBXContainerItemProxy */;
-		};
 		CAFE00000000000000000029 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = CAFE00000000000000000002 /* UWBBumpTest */;
 			targetProxy = CAFE00000000000000000030 /* PBXContainerItemProxy */;
+		};
+		CAFE00000000000000000051 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CAFE00000000000000000040 /* BumpWidgets */;
+			targetProxy = CAFE00000000000000000052 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
