@@ -18,6 +18,7 @@ enum DemoMode: String {
     case timedOut = "timedout"
     case ambiguous
     case unsupported
+    case streetpass
 
     static var active: DemoMode? {
         #if DEBUG
@@ -48,6 +49,14 @@ extension BumpEngine {
     /// Force a UI state for screenshots. DEBUG only, never called at runtime.
     func demoSet(_ phase: Phase, members: [Wire.Member] = []) {
         applyDemo(phase: phase, members: members)
+    }
+}
+
+extension StreetPassEngine {
+    /// Force a pending encounter for screenshots. DEBUG only, never called
+    /// at runtime — real encounters only ever come from StreetPassRanging.
+    func demoSet(_ encounter: StreetPassEncounter) {
+        applyDemo(encounter: encounter)
     }
 }
 #endif

@@ -302,6 +302,25 @@ final class InterestMatcherTests: XCTestCase {
         XCTAssertEqual(first.map(\.interestID), second.map(\.interestID),
                        "both phones must compute the same order")
     }
+
+    func testInterestArrayOverlapMatchesSharedProfileOverlap() {
+        let mine = ["Jazz", "Photography"].compactMap { InterestCatalog.canonical(from: $0) }
+        let theirs = ["Jazz", "Climbing"].compactMap { InterestCatalog.canonical(from: $0) }
+        let out = InterestMatcher.overlap(mine, theirs, limit: 1)
+        XCTAssertEqual(out.map(\.interestID), ["jazz"])
+    }
+
+    func testInterestArrayOverlapNeverExceedsLimit() {
+        let labels = ["Jazz", "Photography", "Climbing", "Baking", "Chess"]
+        let mine = labels.compactMap { InterestCatalog.canonical(from: $0) }
+        XCTAssertEqual(InterestMatcher.overlap(mine, mine, limit: 1).count, 1)
+    }
+
+    func testInterestArrayOverlapEmptyWhenNoOverlap() {
+        let mine = [InterestCatalog.canonical(from: "Jazz piano")!]
+        let theirs = [InterestCatalog.canonical(from: "Bouldering")!]
+        XCTAssertTrue(InterestMatcher.overlap(mine, theirs, limit: 1).isEmpty)
+    }
 }
 
 // MARK: - Conversation

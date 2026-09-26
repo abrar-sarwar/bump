@@ -29,6 +29,37 @@ enum ProfilePhoto {
         return nil
     }
 
+    /// Budget for `prepareThumbnail`. Far smaller than `maxBytes`: StreetPass's
+    /// ambient `.hello` frame is capped at `StreetPassWire.maxFrame` (16 KB, a
+    /// quarter of `Wire.maxFrame`), and JSON base64 adds a third on top, so the
+    /// encoded avatar has to stay well under half that cap to leave room for the
+    /// envelope, the display name and up to five `Interest`s.
+    static let thumbnailMaxBytes = 4_000
+    static let thumbnailSide: CGFloat = 96
+
+    /// A much smaller thumbnail for payloads that must stay tiny — StreetPass's
+    /// ambient broadcast, bounded by `StreetPassWire.maxFrame`, rather than the
+    /// profile card's far roomier 64 KB wire frame. Same crop/scale/compress
+    /// discipline as `prepare`, just a much tighter budget. nil if unreadable
+    /// or if even the smallest attempt can't fit.
+    static func prepareThumbnail(_ data: Data,
+                                 maxBytes: Int = thumbnailMaxBytes,
+                                 side: CGFloat = thumbnailSide) -> Data? {
+        guard let image = UIImage(data: data), image.size.width > 0, image.size.height > 0 else { return nil }
+        let square = cropSquare(image)
+        var currentSide = side
+        while currentSide >= 48 {
+            let scaled = resize(square, to: currentSide)
+            for quality in stride(from: 0.8, through: 0.35, by: -0.15) {
+                if let jpeg = scaled.jpegData(compressionQuality: quality), jpeg.count <= maxBytes {
+                    return jpeg
+                }
+            }
+            currentSide -= 16
+        }
+        return nil
+    }
+
     /// Drop a partner's photo if it's too big or isn't an image.
     static func sanitized(_ data: Data?) -> Data? {
         guard let data, data.count <= maxIncomingBytes, UIImage(data: data) != nil else { return nil }

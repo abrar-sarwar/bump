@@ -51,6 +51,8 @@
 	<array>
 		<string>_bump-uwb._tcp</string>
 		<string>_bump-uwb._udp</string>
+		<string>_bump-streetpass._tcp</string>
+		<string>_bump-streetpass._udp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>BUMP uses the local network to find the phones in your event so you can bump with someone standing next to you.</string>

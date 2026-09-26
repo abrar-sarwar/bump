@@ -17,9 +17,17 @@ import Foundation
 enum InterestMatcher {
 
     static func overlap(_ a: SharedProfile, _ b: SharedProfile, limit: Int = 3) -> [SharedHighlight] {
+        overlap(a.interests, b.interests, limit: limit)
+    }
+
+    /// Same grounded-overlap logic, taking raw interest lists directly — lets a
+    /// caller compute overlap without constructing a SharedProfile just to
+    /// hold an interest list. StreetPass's ambient peer payload is not a
+    /// SharedProfile (it carries no bio, no experiences/goals, no evidence).
+    static func overlap(_ mine: [Interest], _ theirs: [Interest], limit: Int = 3) -> [SharedHighlight] {
         // Index by canonical id, keeping the user's own wording as evidence.
-        let mineByID = index(a.interests)
-        let theirsByID = index(b.interests)
+        let mineByID = index(mine)
+        let theirsByID = index(theirs)
 
         let sharedIDs = Set(mineByID.keys).intersection(theirsByID.keys)
         guard !sharedIDs.isEmpty else { return [] }

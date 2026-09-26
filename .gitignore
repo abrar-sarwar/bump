@@ -13,3 +13,6 @@ xcuserdata/
 *.hmap
 *.ipa
 *.dSYM.zip
+
+# Subagent-driven-development scratch workspaces
+.superpowers/

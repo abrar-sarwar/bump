@@ -3,12 +3,16 @@ import SwiftUI
 struct RootView: View {
     @StateObject private var store: Store
     @StateObject private var engine: BumpEngine
+    @StateObject private var streetPassEngine: StreetPassEngine
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var stage: Stage
     @State private var tab: BumpTabBar.Tab = .bump
     /// DEBUG demo only: a pre-seeded onboarding model with sample data.
     @State private var demoOnboarding: OnboardingModel?
+    /// Height of the StreetPass pass card's single detent. @ScaledMetric so the
+    /// card grows with Dynamic Type instead of clipping its buttons.
+    @ScaledMetric(relativeTo: .body) private var passCardHeight: CGFloat = 470
 
     enum Stage { case welcome, onboarding, main }
 
@@ -16,6 +20,7 @@ struct RootView: View {
         let store = Store()
         _store = StateObject(wrappedValue: store)
         _engine = StateObject(wrappedValue: BumpEngine(store: store))
+        _streetPassEngine = StateObject(wrappedValue: StreetPassEngine(store: store))
         _stage = State(initialValue: store.profile.isComplete ? .main : .welcome)
     }
 
@@ -24,7 +29,17 @@ struct RootView: View {
             if DemoMode.active != nil { DemoBadge() }
             content
         }
-        .task { applyDemoIfRequested() }
+        .task {
+            applyDemoIfRequested()
+            // A returning user starts at .main (see init), so .onChange(of:
+            // stage) never fires for them — this is the reliable start path.
+            // start() is idempotent, so overlapping with the stage/scenePhase
+            // paths is harmless. Skipped under a DEBUG demo so fixture screens
+            // never bring up real transport/ranging.
+            if DemoMode.active == nil, stage == .main {
+                streetPassEngine.start()
+            }
+        }
     }
 
     @ViewBuilder
@@ -53,10 +68,33 @@ struct RootView: View {
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) { BumpTabBar(selection: $tab) }
                 .tint(BumpColor.primary)
+                // The pass card: a short, bottom-anchored card in the spirit of
+                // the system "AirPods nearby" card, not a full page. A single
+                // fixed detent keeps it compact; it scales with Dynamic Type.
+                .sheet(item: streetPassSheetBinding) { encounter in
+                    StreetPassSheet(
+                        encounter: encounter,
+                        onBumpThem: {
+                            streetPassEngine.dismissPendingEncounter()
+                            engine.startNearby()
+                        },
+                        onNotNow: { streetPassEngine.dismissPendingEncounter() }
+                    )
+                    .presentationDetents([.height(passCardHeight)])
+                    .presentationCornerRadius(Radius.extraLargeIncreased)
+                    .presentationBackground(BumpColor.surfaceContainerLowest)
+                    .presentationDragIndicator(.visible)
+                }
             }
         }
         .animation(.easeInOut(duration: 0.25), value: stage)
-        .onChange(of: scenePhase) { _, phase in engine.handleScenePhase(phase) }
+        .onChange(of: scenePhase) { _, phase in
+            engine.handleScenePhase(phase)
+            streetPassEngine.handleScenePhase(phase)
+        }
+        .onChange(of: stage) { _, newStage in
+            if newStage == .main { streetPassEngine.start() }
+        }
         .onChange(of: store.settings) { _, _ in engine.applySettings() }
         .onChange(of: store.onboardingResets) { _, _ in
             demoOnboarding = nil
@@ -111,6 +149,13 @@ struct RootView: View {
             store.profile = PreviewFixtures.profile; stage = .main
             engine.demoSet(.unavailable("This iPhone isn't reporting motion data, so BUMP can't feel a bump. You can still connect by picking someone from the room."),
                            members: [sample])
+        case .streetpass:
+            store.profile = PreviewFixtures.profile; stage = .main
+            streetPassEngine.demoSet(.init(id: "demo#0002", displayName: "Priya (demo)",
+                                           avatarThumbnail: nil,
+                                           mutualInterestStatement: "You're both into photography.",
+                                           teasedMutualStatements: ["You're both into bouldering.",
+                                                                    "You both like espresso."]))
         case .connections, .you, .tools, .home, .tutorial, .notifications:
             store.profile = PreviewFixtures.profile
             if demo == .connections { PreviewFixtures.seed(store); tab = .connections }
@@ -119,5 +164,12 @@ struct RootView: View {
             stage = .main
         }
         #endif
+    }
+
+    private var streetPassSheetBinding: Binding<StreetPassEncounter?> {
+        Binding(
+            get: { streetPassEngine.pendingEncounter },
+            set: { if $0 == nil { streetPassEngine.dismissPendingEncounter() } }
+        )
     }
 }
