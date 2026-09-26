@@ -36,25 +36,23 @@ Not every similarity carries the same signal. [Alves (2018)](https://doi.org/10.
 
 ## What it does
 
-> **Current scope:** iOS only, two-or-more phones in the same room, plus a small
-> server for the voice intro and Grok talking points. No Android build and no web
-> app; the site in [`web/`](web/README.md) is marketing only. See the [roadmap](#roadmap).
+**Bump gives two people who are already near each other just enough common ground to start talking.**
 
-**The iOS app**
+Create a lightweight profile from a short spoken introduction, then edit it until it feels like you. When someone nearby also has Bump open, **Wave can surface one shared-interest teaser**. Enough to make you curious. Not enough to replace meeting them.
 
-- Onboards you by **voice**: speak an intro (≤ 45 s, or type it), answer up to three follow-ups, approve an editable card.
-- **Start bumping** puts you in an automatic nearby room. No event code, no host, no setup.
-- Tap the two phones together once; both sides **confirm the partner by name** before anything is exchanged.
-- Shows up to three **shared interests with evidence** from both cards, plus one opener, and saves the connection locally.
-- Degrades cleanly: no UWB, no on-device AI, or no server all still produce a usable bump, and the app says which path it took.
+See someone you want to meet? **Bump your phones together.** Once both people confirm the interaction, Bump reveals a few specific things you genuinely have in common, along with grounded conversation starters.
 
-**What stays on the phones**
+> **you both like music**  
+> useful, but broad.
+>
+> **you both build modular synths**  
+> now there is something to talk about.
 
-- Bumping, partner matching and the profile exchange happen **directly between the phones in the room**.
-- The profile exchange is partner-only and encrypted, and each person chooses whether their data reaches the server at all.
-- Talking points go to the server only when **both** people allowed it; otherwise they are drafted on-phone and labelled as such.
+There is no compatibility percentage and no feed to scroll. Bump is not trying to decide who you should be friends with. It helps answer a much smaller question:
 
-Every fact the server returns must quote the person's own words; anything that fails that check is dropped rather than smoothed over.
+**“what could we talk about right now?”**
+
+Then you put the phones down.
 
 ## Demo
 
