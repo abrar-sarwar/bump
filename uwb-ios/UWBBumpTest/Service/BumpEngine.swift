@@ -108,6 +108,21 @@ final class BumpEngine: ObservableObject {
     private var partnerProfile: SharedProfile?
     private var sentProfileFor: String?
     private var iAmGenerator = false
+    /// The coordinator's pick (Apple-Intelligence-aware). Overridden by the two
+    /// partners only when both allowed cloud processing — see `chooseGenerator`.
+    private var coordinatorPick: String?
+    private var partnerCaps: Wire.PartnerCaps?
+    /// Our own caps, frozen when the proposal seals. Both what we send and how we
+    /// choose the generator use this snapshot, so a health check finishing
+    /// mid-exchange can't make the two phones disagree.
+    private var lockedCaps: Wire.PartnerCaps?
+    /// The in-flight insight generation, so a newer connection can cancel it.
+    private var generationTask: Task<Void, Never>?
+
+    /// Whether this phone can currently reach a BUMP server with Grok set up.
+    /// Refreshed on joining/hosting a room; only checked if cloud is allowed.
+    @Published private(set) var grokReady = false
+    private var healthTask: Task<Void, Never>?
     private var localSequence = 0
     private var phaseDeadline: Timer?
 
@@ -167,8 +182,9 @@ final class BumpEngine: ObservableObject {
                                                  supportsUWB: ranging.isSupported)
         if ConversationService.onDeviceModelAvailable { aiCapable.insert(transport.myID) }
         startResolving()
+        refreshCloudStatus()
         phase = .notReady
-        note("hosting room \"\(code)\" — capacity \(PeerTransport.maxPeers) phones including you")
+        note("hosting room \"\(code)\", capacity \(PeerTransport.maxPeers) phones including you")
     }
 
     func join(roomCode: String) {
@@ -176,6 +192,7 @@ final class BumpEngine: ObservableObject {
         guard !code.isEmpty else { return }
         transport.start(role: .guest, roomCode: code, displayName: store.profile.displayName)
         room = .joined(code: code)
+        refreshCloudStatus()
         phase = .notReady
         note("joining room \"\(code)\"")
     }
@@ -187,6 +204,7 @@ final class BumpEngine: ObservableObject {
         ranging.stopAll()
         matcher.reset()
         proposals.removeAll(); membersByID.removeAll(); aiCapable.removeAll()
+        cancelGeneration()
         myProposal = nil; partnerProfile = nil
         room = .none
         members = []
@@ -221,7 +239,7 @@ final class BumpEngine: ObservableObject {
         }
         motion.start()
         phase = .ready
-        note("ready — mode: \(store.settings.detectionMode.label)")
+        note("ready, mode: \(store.settings.detectionMode.label)")
     }
 
     // MARK: Local sensing
@@ -261,7 +279,7 @@ final class BumpEngine: ObservableObject {
             transport.send(.bumpEvent(localSequence: localSequence, magnitude: magnitude),
                            to: coordinatorIDs())
         }
-        note(String(format: "bump felt (%.1f m/s²) — sent to coordinator", magnitude))
+        note(String(format: "bump felt (%.1f m/s²), sent to coordinator", magnitude))
     }
 
     /// The coordinator's own bumps go through the exact same pipeline as guests'.
@@ -355,16 +373,17 @@ final class BumpEngine: ObservableObject {
         let generator = aiCapable.contains(proposal.a) ? proposal.a
                       : aiCapable.contains(proposal.b) ? proposal.b
                       : min(proposal.a, proposal.b)
-        for participant in [proposal.a, proposal.b] {
-            if participant == transport.myID {
-                localProposalSealed(proposal.id, generator: generator)
-            } else {
-                transport.send(.proposalSealed(proposalID: proposal.id, generator: generator), to: [participant])
-            }
+        // Tell the remote participant FIRST: sealing ourselves sends our profile,
+        // and the partner must be sealed (caps locked) before that arrives.
+        for participant in [proposal.a, proposal.b] where participant != transport.myID {
+            transport.send(.proposalSealed(proposalID: proposal.id, generator: generator), to: [participant])
+        }
+        if proposal.a == transport.myID || proposal.b == transport.myID {
+            localProposalSealed(proposal.id, generator: generator)
         }
         proposals.removeValue(forKey: proposal.id)
         matcher.unlock([proposal.a, proposal.b])
-        note("sealed \(proposal.id.prefix(8)) — \(name(generator)) writes the opener")
+        note("sealed \(proposal.id.prefix(8)): \(name(generator)) writes the opener")
     }
 
     private func deliverTimeout(to participant: String) {
@@ -408,7 +427,7 @@ final class BumpEngine: ObservableObject {
 
         case .welcome(let accepted, let reason, let roomName, let capacity, let occupancy):
             if accepted {
-                note("joined \"\(roomName)\" — \(occupancy)/\(capacity) phones")
+                note("joined \"\(roomName)\": \(occupancy)/\(capacity) phones")
                 capacityNote = "\(occupancy) of \(capacity) phones"
                 exchangeTokens(with: peer)
             } else {
@@ -470,15 +489,20 @@ final class BumpEngine: ObservableObject {
         case .proposalSealed(let proposalID, let generator):
             localProposalSealed(proposalID, generator: generator)
 
-        case .profile(let proposalID, let profile):
-            guard myProposal?.id == proposalID else { return }
+        case .profile(let proposalID, let profile, let caps):
+            guard myProposal?.id == proposalID, let proposal = myProposal else { return }
+            var profile = profile
+            profile.photo = ProfilePhoto.sanitized(profile.photo)   // bounded, must be an image
             partnerProfile = profile
+            partnerCaps = caps
+            iAmGenerator = chooseGenerator(partner: proposal.partner.id) == transport.myID
             note("received \(profile.displayName)'s interests")
-            Task { await self.finishIfReady(proposalID: proposalID) }
+            startGenerationIfReady(proposalID: proposalID)
 
         case .insight(let proposalID, let insight):
             guard myProposal?.id == proposalID, !iAmGenerator else { return }
-            completeConnection(with: insight)
+            // The generator wrote "your/their" from its side; flip for ours.
+            completeConnection(with: insight.mirrored())
         }
     }
 
@@ -488,8 +512,12 @@ final class BumpEngine: ObservableObject {
         // One active proposal per person: ignore a second while one is open.
         guard myProposal == nil else { return }
         let proposal = Proposal(id: id, partner: partner, uwbCorroborated: uwb, manual: manual)
+        cancelGeneration()
         myProposal = proposal
         partnerProfile = nil
+        partnerCaps = nil
+        lockedCaps = nil
+        coordinatorPick = nil
         sentProfileFor = nil
         phase = .confirming(proposal)
         armPhaseDeadline(Self.confirmationTimeout) { [weak self] in
@@ -521,6 +549,7 @@ final class BumpEngine: ObservableObject {
 
     func declineCurrent(reason: String = "Not this person.") {
         guard let proposal = myProposal else { return }
+        cancelGeneration()
         myProposal = nil
         if isCoordinator { close(proposal.id, reason: reason) }
         else { transport.send(.decline(proposalID: proposal.id, reason: reason), to: coordinatorIDs()) }
@@ -533,6 +562,7 @@ final class BumpEngine: ObservableObject {
 
     private func localProposalClosed(_ proposalID: String, reason: String) {
         guard myProposal?.id == proposalID else { return }
+        cancelGeneration()
         myProposal = nil; partnerProfile = nil
         phase = .needsRetry(reason)
     }
@@ -541,7 +571,9 @@ final class BumpEngine: ObservableObject {
     /// profiles DIRECTLY. The coordinator never sees them.
     private func localProposalSealed(_ proposalID: String, generator: String) {
         guard let proposal = myProposal, proposal.id == proposalID else { return }
-        iAmGenerator = (generator == transport.myID)
+        coordinatorPick = generator
+        lockedCaps = currentCaps
+        iAmGenerator = chooseGenerator(partner: proposal.partner.id) == transport.myID
         phase = .exchanging
         armPhaseDeadline(Self.exchangeTimeout) { [weak self] in
             guard let self, case .exchanging = self.phase else { return }
@@ -550,27 +582,91 @@ final class BumpEngine: ObservableObject {
         }
         transport.openDirectLink(to: proposal.partner.id)
         sendProfileIfPossible(proposalID: proposalID)
+        // The partner's profile may have arrived before our seal.
+        startGenerationIfReady(proposalID: proposalID)
     }
 
     private func sendProfileIfPossible(proposalID: String) {
         guard let proposal = myProposal, proposal.id == proposalID, sentProfileFor != proposalID else { return }
         guard transport.connected.contains(where: { $0.id == proposal.partner.id }) else { return }
         sentProfileFor = proposalID
-        transport.send(.profile(proposalID: proposalID, profile: store.profile.shareable),
+        transport.send(.profile(proposalID: proposalID, profile: store.profile.shareable, caps: myCaps),
                        to: [proposal.partner.id])
         note("sent your interests to \(proposal.partner.displayName)")
-        Task { await finishIfReady(proposalID: proposalID) }
+        startGenerationIfReady(proposalID: proposalID)
     }
 
-    private func finishIfReady(proposalID: String) async {
-        guard iAmGenerator,
+    /// What we tell a confirmed partner about ourselves: two booleans.
+    private var currentCaps: Wire.PartnerCaps {
+        Wire.PartnerCaps(cloudConsent: store.privacy.allowsCloud,
+                         grokReady: store.privacy.allowsCloud && grokReady)
+    }
+    private var myCaps: Wire.PartnerCaps { lockedCaps ?? currentCaps }
+
+    /// Both phones run this with the same inputs and reach the same answer.
+    /// Grok is used only when BOTH people allowed cloud processing; then the
+    /// phone that can reach it (lowest id if both can) generates. Otherwise the
+    /// coordinator's pick stands — it prefers an Apple-Intelligence phone, which
+    /// is unrelated to whether Grok is usable.
+    private func chooseGenerator(partner: String) -> String? {
+        Self.generator(me: transport.myID, partner: partner, myCaps: myCaps,
+                       theirCaps: partnerCaps, coordinatorPick: coordinatorPick)
+    }
+
+    /// Pure, so it can be tested and so both phones provably agree: swap `me`
+    /// and `partner` (and their caps) and the answer is the same.
+    nonisolated static func generator(me: String, partner: String, myCaps: Wire.PartnerCaps,
+                          theirCaps: Wire.PartnerCaps?, coordinatorPick: String?) -> String? {
+        if let theirCaps, myCaps.cloudConsent, theirCaps.cloudConsent {
+            let ready = [(me, myCaps.grokReady), (partner, theirCaps.grokReady)]
+                .filter(\.1).map(\.0).sorted()
+            if let first = ready.first { return first }
+        }
+        return coordinatorPick
+    }
+
+    private func startGenerationIfReady(proposalID: String) {
+        // Only once sealed (caps locked), so the choice can't change underneath us.
+        guard iAmGenerator, generationTask == nil, lockedCaps != nil,
               let proposal = myProposal, proposal.id == proposalID,
-              let theirs = partnerProfile else { return }
-        let insight = await ConversationService.makeInsight(mine: store.profile.shareable, theirs: theirs)
-        // Idempotent: a retried send is harmless because the receiver keys on the
-        // proposal id and ignores a second one.
-        transport.send(.insight(proposalID: proposalID, insight: insight), to: [proposal.partner.id])
-        completeConnection(with: insight)
+              let theirs = partnerProfile, let caps = partnerCaps else { return }
+        // Only send shared information to the cloud if both people allowed it.
+        let cloud: ConversationService.CloudPhraser? =
+            (myCaps.grokReady && caps.cloudConsent) ? apiClient : nil
+        let mine = store.profile.shareable
+        generationTask = Task { [weak self] in
+            let insight = await ConversationService.makeInsight(mine: mine, theirs: theirs, cloud: cloud)
+            guard let self, !Task.isCancelled else { return }
+            self.generationTask = nil
+            // A late result for a connection we've moved on from is dropped, and
+            // we never send if we're somehow no longer the generator.
+            guard self.iAmGenerator, let current = self.myProposal, current.id == proposalID else { return }
+            // Idempotent: a retried send is harmless because the receiver keys on the
+            // proposal id and ignores a second one.
+            self.transport.send(.insight(proposalID: proposalID, insight: insight), to: [current.partner.id])
+            self.completeConnection(with: insight)
+        }
+    }
+
+    private func cancelGeneration() {
+        generationTask?.cancel()
+        generationTask = nil
+    }
+
+    // MARK: Cloud status
+
+    private var apiClient: BumpAPIClient? { BumpAPIClient.resolve(override: store.settings.apiBaseURL) }
+
+    /// Check (quickly) whether the BUMP server is reachable and has Grok set up.
+    /// Skipped entirely when the user hasn't allowed cloud processing.
+    func refreshCloudStatus() {
+        healthTask?.cancel()
+        guard store.privacy.allowsCloud, let client = apiClient else { grokReady = false; return }
+        healthTask = Task { [weak self] in
+            let ready = (try? await client.health())?.grokConfigured ?? false
+            guard !Task.isCancelled else { return }
+            self?.grokReady = ready
+        }
     }
 
     private func completeConnection(with insight: ConnectionInsight) {
@@ -639,6 +735,7 @@ final class BumpEngine: ObservableObject {
             }
         }
         if let proposal = myProposal, proposal.partner.id == peer {
+            cancelGeneration()
             myProposal = nil
             phase = .needsRetry("\(proposal.partner.displayName) disconnected.")
         }
@@ -682,6 +779,7 @@ final class BumpEngine: ObservableObject {
         switch scenePhase {
         case .active:
             ranging.resumeAll()
+            if room != .none { refreshCloudStatus() }
         case .background, .inactive:
             // Foreground-only experiment: stop sensing, clear stale values.
             motion.stop()
@@ -695,11 +793,13 @@ final class BumpEngine: ObservableObject {
     // MARK: Retry / reset
 
     func retry() {
+        cancelGeneration()
         myProposal = nil; partnerProfile = nil
         phase = room == .none ? .notReady : .notReady
     }
 
     func bumpAgain() {
+        cancelGeneration()
         myProposal = nil; partnerProfile = nil
         phase = .notReady
         setReady(true)
@@ -709,6 +809,7 @@ final class BumpEngine: ObservableObject {
         guard case .connected(let result) = phase else { return }
         store.save(SavedConnection(partnerName: result.partner.displayName,
                                    partnerBio: result.partner.bio,
+                                   partnerPhoto: result.partner.photo,
                                    metOn: result.metOn,
                                    roomName: result.roomName,
                                    insight: result.insight,

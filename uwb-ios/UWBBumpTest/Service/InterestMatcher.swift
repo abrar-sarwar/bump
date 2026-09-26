@@ -24,9 +24,11 @@ enum InterestMatcher {
         let sharedIDs = Set(mineByID.keys).intersection(theirsByID.keys)
         guard !sharedIDs.isEmpty else { return [] }
 
-        // Suppress a broad category when one of its specific children matched.
+        // Suppress a broad category when one of its specific children matched,
+        // including custom interests that belong to it ("Jazz piano" → Music).
         let matchedParents: Set<String> = Set(sharedIDs.compactMap { id in
-            InterestCatalog.byID[id]?.specificity == 2 ? InterestCatalog.byID[id]?.parent : nil
+            guard let interest = mineByID[id], interest.specificity == 2 else { return nil }
+            return interest.parent
         })
 
         let highlights: [SharedHighlight] = sharedIDs.compactMap { id -> SharedHighlight? in

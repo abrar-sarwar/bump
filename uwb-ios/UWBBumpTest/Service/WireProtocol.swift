@@ -7,7 +7,10 @@ import Foundation
 /// decoding (`Wire.maxFrame`) so a malformed or hostile peer cannot make us
 /// allocate without limit.
 enum Wire {
-    static let version = 1
+    /// v2: partner-only profile messages carry `PartnerCaps`, and insights carry
+    /// talking points. Older builds are refused with a clear message rather than
+    /// half-decoding.
+    static let version = 2
     /// Hard cap on an accepted frame. A profile with a long bio and many
     /// interests is a few KB; 64 KB is generous and still bounded.
     static let maxFrame = 64 * 1024
@@ -51,8 +54,20 @@ enum Wire {
         case proposalSealed(proposalID: String, generator: String)
 
         // ---- direct, partner-only exchange (never through the coordinator)
-        case profile(proposalID: String, profile: SharedProfile)
+        case profile(proposalID: String, profile: SharedProfile, caps: PartnerCaps)
         case insight(proposalID: String, insight: ConnectionInsight)
+    }
+
+    /// The minimum a confirmed partner needs to agree on who generates the
+    /// talking points. Sent ONLY on the direct partner link, never to the room or
+    /// the coordinator. Two booleans, no reasons, no settings.
+    struct PartnerCaps: Codable, Equatable, Hashable, Sendable {
+        /// This person allowed cloud processing (Grok via the BUMP server).
+        var cloudConsent: Bool
+        /// This phone could reach a BUMP server with Grok configured.
+        var grokReady: Bool
+
+        static let none = PartnerCaps(cloudConsent: false, grokReady: false)
     }
 
     /// A participant as everyone else sees them. Minimal on purpose: enough to

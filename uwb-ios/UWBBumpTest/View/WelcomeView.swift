@@ -22,7 +22,7 @@ struct WelcomeView: View {
                 PhonesIllustration(animated: true)
                     .padding(.vertical, Space.s)
 
-                Text("Tap phones with someone new. BUMP finds the specific things you actually have in common — and gives you something to say.")
+                Text("Tap phones with someone new. BUMP finds the specific things you actually have in common, and gives you something to say.")
                     .font(BumpFont.body)
                     .foregroundStyle(BumpColor.secondaryText)
                     .multilineTextAlignment(.center)

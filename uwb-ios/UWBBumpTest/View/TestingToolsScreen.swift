@@ -7,6 +7,7 @@ struct TestingToolsScreen: View {
     @ObservedObject var store: Store
 
     @State private var shareItem: ShareItem?
+    @State private var confirmingReset = false
 
     var body: some View {
         Screen {
@@ -35,12 +36,15 @@ struct TestingToolsScreen: View {
                 .pickerStyle(.segmented)
                 .onChange(of: store.settings.detectionMode) { _, _ in engine.applySettings() }
 
+                // MARK: Server
+                ServerSettingsSection(store: store, engine: engine)
+
                 // MARK: Motion
                 SectionHeading(title: "Motion")
                 Card {
                     VStack(alignment: .leading, spacing: Space.s) {
                         metric("Live |acceleration|", String(format: "%.2f m/s²", engine.motion.currentMagnitude))
-                        metric("Last spike", engine.motion.lastSpikeMagnitude.map { String(format: "%.2f m/s²", $0) } ?? "—")
+                        metric("Last spike", engine.motion.lastSpikeMagnitude.map { String(format: "%.2f m/s²", $0) } ?? "none")
                         metric("Source", "CMDeviceMotion.userAcceleration (g → m/s² × \(String(format: "%.3f", MotionDetector.G)))")
                         metric("Sensing", engine.motion.isRunning ? "running" : "stopped")
                     }
@@ -125,6 +129,17 @@ struct TestingToolsScreen: View {
                     .buttonStyle(.bumpSecondary)
                     Button("Clear log") { engine.clearLog() }
                         .buttonStyle(.bumpSecondary)
+                    Button("Reset onboarding", role: .destructive) { confirmingReset = true }
+                        .buttonStyle(.bumpSecondary)
+                        .confirmationDialog("Reset onboarding?", isPresented: $confirmingReset, titleVisibility: .visible) {
+                            Button("Reset and start over", role: .destructive) {
+                                engine.leaveRoom()
+                                store.resetOnboarding()
+                            }
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            Text("Clears your name, card and cloud-processing choice, then restarts onboarding. Saved connections and server settings are kept.")
+                        }
                 }
             }
         }

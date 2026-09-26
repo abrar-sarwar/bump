@@ -3,12 +3,16 @@
 **Meet someone. Find your overlap.**
 
 Two people tap phones, confirm each other, and get the specific things they
-actually have in common — plus one question to start on. No account, no server,
-no cloud AI, no API keys. Everything runs on the phones in the room.
+actually have in common — plus a few grounded talking points. No account.
+Bumping, matching and the profile exchange run on the phones in the room.
+Optional cloud features — a spoken intro, Grok-drafted profiles and Grok talking
+points — go through our small `bump-api` server, only with each person's
+permission. The app never holds an API key.
 
 | | What it is | Status |
 |---|---|---|
-| [**`uwb-ios/`**](uwb-ios/README.md) | **The native iOS MVP.** Swift + SwiftUI, Core Motion, Nearby Interaction, MultipeerConnectivity, on-device Apple Intelligence with a real fallback. | Builds clean, 43 unit tests pass, UI inspected in the Simulator. **Unproven on two physical phones.** |
+| [**`uwb-ios/`**](uwb-ios/README.md) | **The native iOS MVP.** Swift + SwiftUI, Core Motion, Nearby Interaction, MultipeerConnectivity, voice-intro onboarding, Grok via `bump-api` with Apple Intelligence and deterministic fallbacks. | Builds clean, 89 unit tests pass (mocked network), onboarding + reveal inspected in the Simulator. **Unproven on two physical phones; not yet run against live xAI.** |
+| [**`bump-api/`**](bump-api/README.md) | Tiny zero-dependency Node service between the app and xAI (speech-to-text + Grok structured outputs). Holds the `XAI_API_KEY`. | 41 mocked tests pass. **Not yet run against live xAI.** |
 | [`bump-web/`](bump-web/README.md) | The earlier browser experiment (Node + Socket.io + `devicemotion`). Kept for reference and Android testing. | Working spike. Not on the native app's critical path. |
 | [`RESULTS.md`](RESULTS.md) | Blank results templates — the original spikes, plus one for the native MVP. | To fill in on test day. |
 
@@ -17,6 +21,10 @@ no cloud AI, no API keys. Everything runs on the phones in the room.
 ```bash
 # The app
 open uwb-ios/UWBBumpTest.xcodeproj        # then follow uwb-ios/README.md
+
+# The Grok backend (optional — the app works without it)
+cd bump-api && cp .env.example .env   # put your XAI_API_KEY in .env
+npm start                             # http://0.0.0.0:8787
 
 # The old web experiment (optional, Android testing)
 cd bump-web && npm install && npm start
@@ -29,7 +37,7 @@ degrades cleanly without either. The Simulator cannot validate UWB or motion.
 ## The shortest two-phone test
 
 1. Build and run on both phones (`uwb-ios/README.md` has the signing steps).
-2. Onboard on both. **Give them at least one interest in common.**
+2. Onboard on both (speak or type an intro, approve your card). **Give them at least one interest in common.**
 3. Phone A: event code `hackgt` → **Host it on this phone**.
 4. Phone B: same code → **Join this event**.
 5. Both: **Ready to bump** → tap the phones together once.

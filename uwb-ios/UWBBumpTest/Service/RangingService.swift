@@ -206,7 +206,7 @@ extension RangingService: NISessionDelegate {
                 self.log("\(peerID) ended their ranging session")
                 self.endSession(for: peerID)
             case .timeout:
-                self.log("ranging timed out for \(peerID) — retrying")
+                self.log("ranging timed out for \(peerID), retrying")
                 // Recoverable: re-run with the token we still hold.
                 if let token = self.peerTokens[peerID] {
                     session.run(NINearbyPeerConfiguration(peerToken: token))

@@ -236,16 +236,17 @@ final class InterestMatcherTests: XCTestCase {
 
     func testNormalizationFoldsCaseWhitespaceAndPunctuation() {
         XCTAssertEqual(InterestCatalog.normalize("  Jazz   Piano!! "), "jazz piano")
-        XCTAssertEqual(InterestCatalog.canonical(from: "JAZZ PIANO")?.id, "jazz-piano")
-        XCTAssertEqual(InterestCatalog.canonical(from: "jazz")?.id, "jazz-piano", "synonym")
+        XCTAssertEqual(InterestCatalog.canonical(from: "HIP-HOP")?.id, "hip-hop")
+        XCTAssertEqual(InterestCatalog.canonical(from: "hip hop")?.id, "hip-hop", "synonym")
+        XCTAssertEqual(InterestCatalog.canonical(from: "jazz")?.id, "jazz", "broad stays broad")
         XCTAssertEqual(InterestCatalog.canonical(from: "  ")?.id, nil)
     }
 
     func testSpecificOverlapPreferredAndBroadParentSuppressed() {
-        let a = profile(["Music", "Jazz piano", "Typography"])
-        let b = profile(["Music", "Jazz piano"])
+        let a = profile(["Music", "Jazz", "Photography"])
+        let b = profile(["Music", "Jazz"])
         let out = InterestMatcher.overlap(a, b)
-        XCTAssertEqual(out.map(\.interestID), ["jazz-piano"],
+        XCTAssertEqual(out.map(\.interestID), ["jazz"],
                        "the broad 'music' category is suppressed because a child matched")
         XCTAssertEqual(out[0].specificity, 2)
     }
@@ -266,12 +267,12 @@ final class InterestMatcherTests: XCTestCase {
     func testSynonymsCanonicaliseSoEvidenceMatchesBothProfiles() {
         // A typed synonym becomes the catalogue interest, so both sides' evidence
         // is the canonical entry that is genuinely in each profile.
-        let a = profile(["jazz"])            // synonym
-        let b = profile(["Jazz piano"])      // canonical label
+        let a = profile(["hip hop"])         // synonym
+        let b = profile(["Hip-hop"])         // canonical label
         let out = InterestMatcher.overlap(a, b)
         XCTAssertEqual(out.count, 1)
-        XCTAssertEqual(out[0].yourEntry, "Jazz piano")
-        XCTAssertEqual(out[0].theirEntry, "Jazz piano")
+        XCTAssertEqual(out[0].yourEntry, "Hip-hop")
+        XCTAssertEqual(out[0].theirEntry, "Hip-hop")
     }
 
     func testEvidenceKeepsTheUsersOwnWordingForCustomInterests() {
@@ -293,7 +294,7 @@ final class InterestMatcherTests: XCTestCase {
     }
 
     func testResultIsDeterministicAndCappedAtThree() {
-        let labels = ["Jazz piano", "Typography", "Bouldering", "Sourdough", "Chess"]
+        let labels = ["Jazz", "Photography", "Climbing", "Baking", "Chess"]
         let a = profile(labels), b = profile(labels)
         let first = InterestMatcher.overlap(a, b)
         let second = InterestMatcher.overlap(a, b)
@@ -308,11 +309,11 @@ final class InterestMatcherTests: XCTestCase {
 final class ConversationServiceTests: XCTestCase {
 
     func testFallbackUsesTheRealOverlap() {
-        let mine = SharedProfile(displayName: "A", bio: "", interests: [InterestCatalog.byID["jazz-piano"]!])
-        let theirs = SharedProfile(displayName: "B", bio: "", interests: [InterestCatalog.byID["jazz-piano"]!])
+        let mine = SharedProfile(displayName: "A", bio: "", interests: [InterestCatalog.byID["climbing"]!])
+        let theirs = SharedProfile(displayName: "B", bio: "", interests: [InterestCatalog.byID["climbing"]!])
         let highlights = InterestMatcher.overlap(mine, theirs)
         let opener = ConversationService.fallbackOpener(highlights: highlights, theirs: theirs)
-        XCTAssertTrue(opener.lowercased().contains("jazz piano"))
+        XCTAssertTrue(opener.lowercased().contains("climbing"))
         XCTAssertTrue(opener.hasSuffix("?"))
     }
 
@@ -324,8 +325,8 @@ final class ConversationServiceTests: XCTestCase {
     }
 
     func testInsightFallsBackAndLabelsItselfHonestly() async {
-        let mine = SharedProfile(displayName: "A", bio: "", interests: [InterestCatalog.byID["typography"]!])
-        let theirs = SharedProfile(displayName: "B", bio: "", interests: [InterestCatalog.byID["typography"]!])
+        let mine = SharedProfile(displayName: "A", bio: "", interests: [InterestCatalog.byID["photography"]!])
+        let theirs = SharedProfile(displayName: "B", bio: "", interests: [InterestCatalog.byID["photography"]!])
         let insight = await ConversationService.makeInsight(mine: mine, theirs: theirs)
         XCTAssertEqual(insight.highlights.count, 1)
         XCTAssertFalse(insight.opener.isEmpty)

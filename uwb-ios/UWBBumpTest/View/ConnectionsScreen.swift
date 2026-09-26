@@ -56,7 +56,7 @@ struct ConnectionsScreen: View {
 
     private func row(_ connection: SavedConnection) -> some View {
         HStack(spacing: Space.m) {
-            Avatar(name: connection.partnerName, size: 44)
+            Avatar(name: connection.partnerName, size: 44, photo: connection.partnerPhoto)
             VStack(alignment: .leading, spacing: 2) {
                 Text(connection.partnerName)
                     .font(BumpFont.bodyEmphasis)
@@ -87,7 +87,7 @@ struct ConnectionDetail: View {
         Screen {
             VStack(alignment: .leading, spacing: Space.l) {
                 HStack(spacing: Space.m) {
-                    Avatar(name: connection.partnerName, size: 64)
+                    Avatar(name: connection.partnerName, size: 64, photo: connection.partnerPhoto)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(connection.partnerName)
                             .font(BumpFont.screenTitle)
@@ -129,9 +129,16 @@ struct ConnectionDetail: View {
                                     .font(BumpFont.caption)
                                     .foregroundStyle(BumpColor.secondaryText)
                                     .fixedSize(horizontal: false, vertical: true)
+                                if let point = connection.insight.point(for: highlight) {
+                                    TalkingPromptLine(point: point)
+                                }
                             }
                         }
                     }
+                }
+
+                if !connection.insight.unattachedPoints.isEmpty {
+                    TalkingPointsSection(points: connection.insight.unattachedPoints)
                 }
 
                 SectionHeading(title: "Something to talk about")

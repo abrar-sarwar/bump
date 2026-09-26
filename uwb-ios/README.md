@@ -3,8 +3,12 @@
 Meet someone. Find your overlap.
 
 Two people tap phones, confirm each other, and get the specific things they
-actually have in common plus one question to start on. Everything runs on the
-phones in the room: **no account, no server, no cloud AI, no API keys.**
+actually have in common plus grounded talking points. **No account, and no API
+key in the app.** Bumping, matching and the partner-only profile exchange run on
+the phones in the room. The optional voice intro, Grok profile drafting and Grok
+talking points go through our own [`bump-api`](../bump-api/README.md) server to
+xAI — only after the person allows it, and for talking points only when **both**
+people allowed it.
 
 This evolved from the Nearby Interaction spike that used to live here. The
 working `NISession` / `NINearbyPeerConfiguration` / MultipeerConnectivity code
@@ -23,7 +27,7 @@ both confirm → shared interests + a conversation opener → save the connectio
 | Screen | What it does |
 |---|---|
 | **Welcome** | Hero wordmark, one action. |
-| **Onboarding** | Name, optional bio, interest chips plus free text. Persists locally, editable later. |
+| **Onboarding** | Name → spoken intro (≤ 45 s, or type) → up to 3 follow-ups → an editable card you approve. See [Onboarding](#onboarding-pre). Profile editor still available later from You. |
 | **Bump** | Host/join an event, ready state, all the error states, manual pick. |
 | **Confirm partner** | "Did you bump with X?" — both sides must confirm before anything is exchanged. |
 | **Reveal** | Up to three grounded shared interests with evidence, one opener, save. |
@@ -46,7 +50,12 @@ Service/
   WireProtocol     versioned + bounded + idempotent messages
   PairingMatcher   pure matching algorithm (unit-tested)
   InterestMatcher  grounded overlap (unit-tested)
-  ConversationService  Foundation Models + deterministic fallback
+  TalkingPointMatcher  shared vs complementary candidates, each backed by both cards
+  ConversationService  Grok (via bump-api) → Foundation Models → deterministic
+  BumpAPI          client for bump-api + shared grounding checks
+  OnboardingModel  the Pre-phase state machine (cancellation, fallbacks)
+  IntroRecorder    45 s mic capture, interruptions, silence detection
+  LocalDrafter     on-phone drafting + questions (local-only / fallback)
   BumpEngine       the state machine that wires the above together
   Store            local JSON persistence
 ```
@@ -90,9 +99,11 @@ limit, not a bug.
 
 ### Running the full journey on two phones
 
-1. Both phones: finish onboarding (name + at least one interest). Give them at
-   least one interest in common, or the reveal will correctly say you share
-   nothing.
+1. Both phones: finish onboarding (name, speak or type an intro, approve the
+   card). Give them at least one interest in common, or the reveal will
+   correctly say you share nothing. For Grok talking points, both must allow
+   cloud processing and at least one must reach a bump-api with a key
+   (You ▸ Cloud processing shows the status).
 2. **Phone A** → Bump tab → type an event code (e.g. `hackgt`) → **Host it on
    this phone**.
 3. **Phone B** → same code → **Join this event**. A's name appears in "In this
@@ -128,6 +139,93 @@ limit, not a bug.
 - Motion and UWB do **not** have to fire in the same callback. The coordinator
   correlates them over a bounded interval (`uwbFreshness`, default 1.5 s).
 - Motion-only / UWB-only / Combined modes are all retained in Testing tools.
+
+## Onboarding (Pre)
+
+1. **Name.**
+2. **Introduce yourself** — record up to 45 s, or **Type instead**. Before
+   anything is uploaded, a one-time card explains that the recording, typed text
+   and answers go to the BUMP server and on to xAI, and offers **Keep everything
+   on this phone** (typing only; suggestions come from the phone). States:
+   asking for mic permission, denied (→ Settings / Type instead), recording with
+   countdown and level meter, interrupted (call/Siri), too short, silent,
+   uploading, transcribing, drafting, and every failure with a retry. The
+   transcript is shown for correction before drafting.
+3. **Up to three follow-ups**, one at a time, skip any. Grok is asked not to
+   repeat anything already said; the phone's fallback questions only ask about a
+   broad category if nothing specific in it was mentioned.
+4. **Your Bump card** — name, bio, and interests / experiences / goals. Each
+   suggestion shows the exact words it came from and who suggested it (Grok, your
+   phone, or you). Check/uncheck to decide what's shared, edit, remove, add, or
+   browse the catalogue. Only checked items are saved; transcript and answers
+   are dropped.
+
+Rules enforced in `OnboardingModel`: a newer request cancels the older one and
+late responses are ignored (including after leaving the screen); every cloud
+call has a hard deadline; Grok failing (not configured, offline, timeout,
+invalid output) falls back to the on-phone drafter with a calm notice, and
+nothing local is ever labelled Grok. Facts must quote the user's words
+(word-bounded, checked on the server **and** in Swift). Nothing is inferred from
+the voice itself — only the transcript text is analysed, and sensitive
+categories (health, religion, ethnicity, …) are never auto-suggested.
+
+**Catalogue:** 12 broad topics people actually talk about (Music, Coffee, Food
+& drink, Sports & fitness, Gaming, Movies & TV, Collecting, Outdoors, Tech, Art &
+design, Books & stories, Travel), each opening into common variations
+(Collecting: vinyl, figures, trading cards, sneakers, rocks & minerals…; Coffee:
+espresso, pour-over, cold brew…). Browsing shows the topics first; picking one
+opens its variations underneath. A topic and its variations never match as
+"shared"; they become complementary talking points. Synonyms are equivalents
+only ("coffee" is not "espresso", "jazz" is not "jazz piano"). Niche or older
+interests ("Jazz piano", "Bouldering") stay in the person's own words with a
+parent topic, so they still match each other and still feed complementary
+points.
+
+**Profile photo:** optional, from the system photo picker (no photo-library
+permission). Cropped square, resized and compressed to ≤ 30 KB so it fits one
+wire frame. Part of the card, so only a confirmed partner receives it; never
+sent to the BUMP server or xAI. Incoming photos over 40 KB or not decodable
+are dropped.
+
+**Style:** no em dashes in app copy; Grok is told not to use them and the
+server and app both replace any that slip through.
+
+## Grok and the BUMP server
+
+The app talks only to `bump-api` (see its [README](../bump-api/README.md) and
+[CONTRACT](../bump-api/CONTRACT.md)). Server URL: build setting
+`BUMP_API_BASE_URL` (default `http://localhost:8787`, fine for the Simulator),
+overridable at runtime in **You ▸ Testing tools ▸ BUMP server**, which also has
+a health check.
+
+**On a physical iPhone, `localhost` is the phone itself.** Run bump-api on your
+Mac, find the Mac's LAN address (`ipconfig getifaddr en0`, e.g.
+`192.168.1.20`), and enter `http://192.168.1.20:8787` in Testing tools — phone
+and Mac on the same Wi-Fi. Plain http works for LAN IPs and `.local` names
+(`NSAllowsLocalNetworking`); the phone may ask for Local Network permission
+(already used for bumping).
+
+### Talking points (During)
+
+`TalkingPointMatcher` builds up to 8 **verified candidates**: *shared* (the same
+interest, or identical experience/goal, in both approved cards) and
+*complementary* (different interests in the same family, e.g. jazz ↔ jazz
+piano; or one person's goal meeting the other's interest/experience). The model
+only phrases these; ids, kinds and evidence come from our candidates, and
+unknown ids, non-questions and anything mentioning scores/percentages are
+dropped. 0–4 points; no overlap means no claims.
+
+Exactly one phone generates and sends the result, so both phones match; the
+partner flips "you/them" evidence on receipt. Partners exchange a two-boolean
+`PartnerCaps` (`cloudConsent`, `grokReady`) on the direct link only — never to
+the room. If **both** consented, the phone that can reach Grok generates (lowest
+id if both); otherwise the coordinator's original Apple-Intelligence-aware pick
+stands. So Grok availability no longer depends on Apple Intelligence. The whole
+generation is capped at ~9 s: Grok (7 s) → Apple Intelligence with whatever
+remains → deterministic templates, each labelled with its real source.
+
+Wire protocol is now **v2**; a v1 phone gets the existing "both phones need the
+same app version" message.
 
 ## Rooms, pairing and crowded rooms
 
@@ -183,12 +281,22 @@ A guest is told so plainly rather than being given a button that quietly fails.
 - Full interest profiles go **only to the confirmed partner, only after both
   confirm**, over a direct encrypted link. The coordinator never sees them. Two
   guests open a direct MultipeerConnectivity link on demand for this.
+- What a partner receives is `SharedProfile`: name, bio, approved interests,
+  approved experiences/goals. Never the evidence quotes, transcript, answers,
+  drafts, or the cloud preference (a test asserts this). The only cloud-related
+  data a partner sees is the two `PartnerCaps` booleans.
+- Cloud processing is **opt-in** (`privacy.json`, separate from the profile).
+  Undecided or "keep on this phone" → no request is made at all (tested).
+- Audio: recorded to the temp directory, deleted after transcription, discard or
+  re-record; bump-api holds it in memory only and never logs bodies. Grok calls
+  use `store: false`. xAI's docs say API requests are retained up to 30 days for
+  auditing by default; we have **not** verified xAI's retention of STT audio.
 - The room only ever sees `{id, displayName, supportsUWB}` — a unit test asserts
   no interests or bio can leak into that type.
 - Diagnostics exports exclude profile content, interests, bios and raw discovery
   tokens.
 
-## On-device AI
+## On-device AI (fallback)
 
 `ConversationService` computes the *facts* in Swift first (`InterestMatcher`),
 then asks Apple's on-device model only to *phrase* them.
@@ -229,7 +337,8 @@ are named "(demo)".
 
 ```bash
 xcrun simctl launch <sim-id> com.jaredberesford.uwbbumptest -BumpDemo reveal
-# onboarding | ready | confirm | reveal | connections | timedout | ambiguous | unsupported
+# onboarding | onboardingintro | onboardingquestion | onboardingcard
+# ready | confirm | reveal | connections | timedout | ambiguous | unsupported
 ```
 
 ---
@@ -240,20 +349,25 @@ xcrun simctl launch <sim-id> com.jaredberesford.uwbbumptest -BumpDemo reveal
 |---|---|
 | Device build (`generic/platform=iOS`, Debug + Release) | **BUILD SUCCEEDED**, 0 errors, 0 warnings |
 | Simulator build | **BUILD SUCCEEDED** |
-| Unit tests | **43/43 pass** |
+| Unit tests (Simulator, network MOCKED) | **89 pass, 0 fail, 4 skipped** (93 total; the 4 skipped are the contract tests below) |
+| Contract tests: real `BumpAPIClient` ↔ real `bump-api` ↔ **fake** xAI | **5/5 pass** (run by hand, see `BumpTests/ContractTests.swift`) |
+| `bump-api` tests (fake xAI, no network) | **41/41 pass** |
+| Live xAI (Grok + speech-to-text) | **Not run** — no key in this environment. See `bump-api` README → smoke test |
 | `CFBundleIdentifier` in the built app | `com.jaredberesford.uwbbumptest` ✓ |
 | `CFBundleExecutable` | `UWBBumpTest`, and the file exists and is a real Mach-O ✓ |
 | Unresolved `$(...)` placeholders in the built plist | **0** ✓ |
 | `Info.plist` copied as a stray resource? | No — appears once, as the bundle plist ✓ |
 | Asset catalog compiled in | `Assets.car` + app icons present ✓ |
 | Bonjour entries match the code | `_bump-uwb._tcp` / `._udp` ↔ `PeerTransport.serviceType` ✓ |
-| Privacy strings | Nearby Interaction, Local Network, Motion — all meaningful ✓ |
+| Privacy strings | Nearby Interaction, Local Network, Motion, Microphone — all meaningful ✓ |
+| ATS | `NSAllowsLocalNetworking` only (LAN / `.local` http to bump-api); no arbitrary loads ✓ |
 | Entitlements | None needed; none added (no background modes) ✓ |
-| Screens inspected in the Simulator | Welcome, onboarding, ready, confirm, reveal, connections, timed-out, ambiguous |
+| Screens inspected in the Simulator | Welcome, ready, confirm, reveal (with talking points), connections, timed-out, ambiguous; onboarding name / transcript review / question / card via `-BumpDemo onboardingintro|onboardingquestion|onboardingcard` (sample data, DEMO badge) |
+| Not inspected in the Simulator | Live recording, real upload/transcribe, the consent card tapped through by hand (covered by unit tests, not by eye) |
 
 **Not verified:** anything requiring two physical iPhones. See below.
 
-### Test coverage (43 tests)
+### Test coverage
 
 Motion cooldown/rearm/units · measurement freshness and attribution · matching
 window boundaries · closest-pair selection · three ambiguous simultaneous bumps ·
@@ -263,6 +377,21 @@ normalization, synonyms, specificity ranking and truthful evidence · no-overlap
 produces no claims · AI fallback labelling · wire version/size/malformed-frame
 rejection · roster carries no interests · local save/load/delete idempotency ·
 manual selection never recorded as a detected bump.
+
+Added for Pre/During (all mocked): coffee ≠ espresso, jazz ≠ jazz piano, broad ≠
+specific, removed synonyms stay removed · word-bounded grounding, ungrounded and
+duplicate facts dropped, score/percentage questions rejected · local drafter
+(longest match, goals/experiences keep their words, no repeat questions, cap 3)
+· shared vs complementary candidates, goal↔experience, neutral templates,
+evidence mirroring · Grok result validated + labelled, malformed/score/slow Grok
+falls back within budget with one try, generator choice needs both consents and
+is symmetric · onboarding: Grok happy path, skip free text, skip a question,
+edit + uncheck controls what's saved, missing key / offline / no server /
+timeout / malformed → on-phone fallback with notice, local-only and undecided
+never call the server, leaving cancels and late responses are ignored, answers
+survive back/forward, ≤ 3 questions, back from the card never lands on an empty
+step · old profile / connection / settings JSON still load, shared card carries
+no evidence or preferences, wire v2 caps round-trip.
 
 ---
 
@@ -284,6 +413,14 @@ there is no UWB radio and no real accelerometer.
 11. Backgrounding and returning; reconnect.
 12. **Host disconnect** → rejoin / re-host path.
 13. AI available and unavailable, on the same pair.
+14. **Grok talking points on two phones:** both allow cloud → both show the
+    identical Grok result; one local-only → no `/v1/talking-points` in the
+    bump-api log and both show the same fallback; bump-api stopped mid-event →
+    fallback within ~9 s on both.
+15. **Voice onboarding on a real phone:** mic permission prompt and denial,
+    a phone call mid-recording, a noisy room, airplane mode (→ on-phone draft).
+16. Existing installs: upgrade a phone with a saved profile and connections;
+    both still load (unit-tested with old JSON, not on hardware).
 
 Record in `../RESULTS.md`: intended matches, **wrong-person proposals**,
 ambiguous/rejected, timeouts, missed bumps, false triggers per device-minute,

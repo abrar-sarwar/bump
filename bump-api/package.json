@@ -1,0 +1,15 @@
+{
+  "name": "bump-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tiny backend for the BUMP iOS app: proxies profile drafting, follow-ups, talking points and speech-to-text to xAI Grok.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js",
+    "smoke": "node scripts/smoke.js"
+  }
+}

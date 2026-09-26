@@ -5,6 +5,7 @@ import SwiftUI
 struct RevealView: View {
     let result: BumpEngine.Result
     let myName: String
+    var myPhoto: Data? = nil
     var onSave: () -> Void
     var onAgain: () -> Void
 
@@ -18,8 +19,9 @@ struct RevealView: View {
             VStack(alignment: .leading, spacing: Space.l) {
 
                 HStack(spacing: Space.m) {
-                    Avatar(name: myName, size: 52)
-                    Avatar(name: result.partner.displayName, size: 52, tint: BumpColor.illustrationWarm)
+                    Avatar(name: myName, size: 52, photo: myPhoto)
+                    Avatar(name: result.partner.displayName, size: 52, tint: BumpColor.illustrationWarm,
+                           photo: result.partner.photo)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\(myName.isEmpty ? "You" : myName) + \(result.partner.displayName)")
                             .font(BumpFont.bodyEmphasis)
@@ -58,6 +60,9 @@ struct RevealView: View {
                                         .font(BumpFont.caption)
                                         .foregroundStyle(BumpColor.secondaryText)
                                         .fixedSize(horizontal: false, vertical: true)
+                                    if let point = result.insight.point(for: highlight) {
+                                        TalkingPromptLine(point: point)
+                                    }
                                 }
                             }
                             .opacity(revealed ? 1 : 0)
@@ -67,18 +72,22 @@ struct RevealView: View {
                                        value: revealed)
                         }
 
-                        Text("Ranked by how specific they are — not by how rare they are. We don't have data on how common an interest is, so we don't claim to.")
+                        Text("Ranked by how specific they are, not by how rare they are. We don't have data on how common an interest is, so we don't claim to.")
                             .font(BumpFont.caption)
                             .foregroundStyle(BumpColor.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 } else {
                     Card {
-                        Text("Your lists don't overlap yet — which is its own kind of interesting.")
+                        Text("Your lists don't overlap yet, which is its own kind of interesting.")
                             .font(BumpFont.body)
                             .foregroundStyle(BumpColor.navy)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                }
+
+                if !result.insight.unattachedPoints.isEmpty {
+                    TalkingPointsSection(points: result.insight.unattachedPoints)
                 }
 
                 VStack(alignment: .leading, spacing: Space.s) {
