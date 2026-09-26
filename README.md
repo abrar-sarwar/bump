@@ -69,122 +69,66 @@ Then you put the phones down.
 
 ## How it works
 
-**Bump feels like one gesture. Underneath, it solves four separate problems.**
+**One gesture. Four systems underneath it.**
 
-### Profile creation
+### 1. Build a profile
 
 ```mermaid
 flowchart LR
-    A["Voice or text input"] --> B["Bump API"]
+    A["Voice or text"] --> B["Bump API"]
     B --> C["xAI Grok"]
-    C --> D["Transcription"]
-    C --> E["Profile drafting"]
-    D --> E
-    E --> F["User reviews + edits"]
-    F --> G["Approved profile"]
+    C --> D["Transcribe + structure"]
+    D --> E["User reviews"]
+    E --> F["Approved profile"]
 ```
 
-Voice is optional input, not the source of truth. Grok helps structure what the person said, then the user approves the profile before it is used anywhere else.
+Grok structures what you say into profile facts. **You decide what actually represents you.**
 
-### Nearby discovery
+### 2. Discover nearby people
 
 ```mermaid
 flowchart LR
-    A["Approved profile"] --> B["MultipeerConnectivity"]
-    C["Nearby Bump user"] --> B
-    B --> D["Peer discovered"]
-    D --> E["Nearby Interaction<br/>when supported"]
+    A["Your device"] --> C["MultipeerConnectivity"]
+    B["Nearby Bump user"] --> C
+    C --> D["Peer discovered"]
+    D --> E["Nearby Interaction / UWB"]
     E --> F["Close-range encounter"]
-    F --> G["Compute max 1<br/>mutual-interest teaser"]
-    G --> H["StreetPass"]
+    F --> G["One shared-interest teaser"]
 ```
 
-StreetPass uses its own nearby-discovery path. It reveals only enough information to make the encounter interesting, not the other person's full profile.
+MultipeerConnectivity finds participating devices. UWB adds proximity evidence. **StreetPass reveals one reason you might want to meet, not their whole profile.**
 
-### Physical pairing
+### 3. Pair the bump
 
 ```mermaid
 flowchart LR
-    A["Core Motion"] --> C["Pairing coordinator"]
-    B["UWB distance evidence"] --> C
-    C --> D{"Clear candidate?"}
-
-    D -- "No" --> E["Reject ambiguity<br/>or manual fallback"]
-    D -- "Yes" --> F["Proposed pair"]
-    F --> G["Person A confirms"]
-    F --> H["Person B confirms"]
-    G --> I["Mutual confirmation"]
-    H --> I
+    A["Core Motion<br/>gesture"] --> C["Pairing coordinator"]
+    B["UWB<br/>distance"] --> C
+    C --> D{"Clear pair?"}
+    D -- "No" --> E["Reject"]
+    D -- "Yes" --> F["Propose match"]
+    F --> G["Both confirm"]
 ```
 
-**Core Motion answers “did a bump happen?”**  
-**Nearby Interaction helps answer “who was it with?”**
+**Motion tells us a bump happened. UWB helps tell us who it happened with.** If the signals are ambiguous, Bump does not guess.
 
-Neither signal alone is treated as unquestionable proof.
-
-### Common-ground generation
+### 4. Find the overlap
 
 ```mermaid
 flowchart LR
-    A["Mutual confirmation"] --> B["Direct encrypted<br/>profile exchange"]
-    B --> C["Approved profile A"]
-    B --> D["Approved profile B"]
-
-    C --> E["Grounded matching"]
-    D --> E
-
-    E --> F["Shared interests"]
-    E --> G["Complementary interests"]
-    E --> H["Goal ↔ experience links"]
-
-    F --> I["Conversation starter generation"]
-    G --> I
-    H --> I
-
-    I --> J["Grok<br/>if cloud enabled"]
-    I --> K["On-device /<br/>deterministic fallback"]
-
-    J --> L["Same selected result<br/>on both phones"]
-    K --> L
+    A["Both confirm"] --> B["Encrypted profile exchange"]
+    B --> C["Grounded matching"]
+    C --> D["Shared interests"]
+    C --> E["Complementary interests"]
+    C --> F["Goals ↔ experience"]
+    D --> G["Conversation starters"]
+    E --> G
+    F --> G
+    G --> H["Grok or on-device fallback"]
+    H --> I["Same result on both phones"]
 ```
 
-The important distinction is that **Bump finds the underlying overlap before AI writes anything**. Grok helps phrase grounded facts into natural conversation starters rather than inventing the connection.
-
-### 1. Turn an introduction into a profile
-
-Say or type a short introduction. With cloud processing enabled, Bump can use xAI to transcribe it and turn your own words into structured profile facts.
-
-Nothing is silently added to your identity. You can edit, remove, or add interests before approving the card that represents you.
-
-### 2. Discover people without oversharing
-
-Nearby discovery uses **MultipeerConnectivity** to find other participating devices.
-
-Discovery does not mean profile sharing. StreetPass can reveal at most one mutual-interest teaser, while the full approved profiles stay private until both people intentionally complete a bump and confirm each other.
-
-### 3. Figure out who actually bumped whom
-
-This is the interesting physical problem.
-
-**Core Motion tells us that a bump happened. Nearby Interaction helps tell us who it happened with.**
-
-Bump detects the gesture from device acceleration, then combines timing with recent peer-specific UWB distance when the hardware supports it. A coordinator correlates the signals over a short window.
-
-If multiple pairings are too ambiguous to distinguish reliably, **Bump rejects the match instead of guessing**.
-
-Even a successful pairing is only a proposal. Both people must confirm each other before their approved profile data is exchanged.
-
-### 4. Find overlap without inventing it
-
-Once both people confirm, their approved profiles are exchanged directly between the phones.
-
-Bump first computes grounded connections between them: shared interests, related experiences, complementary interests, or a goal that naturally connects with something the other person knows.
-
-**The match comes first. AI only helps phrase it.**
-
-When both people opt into cloud processing, Grok can turn those grounded facts into natural conversation starters. Otherwise, Bump can fall back to on-device or deterministic suggestions.
-
-The result is deliberately simple: **a few real reasons these two people might have something to talk about.**
+Bump finds the connection first. **AI helps phrase grounded overlap into something worth saying. It does not invent the match.**
 
 ## Tech stack
 
