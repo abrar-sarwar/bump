@@ -22,27 +22,17 @@ Two people tap their phones together, confirm each other, and get the specific t
 
 ## The problem
 
-**Proximity does not guarantee connection.** One in six people worldwide
-experiences loneliness ([WHO Commission on Social Connection,
-2025](https://www.who.int/publications/i/item/9789240110403)). Being around
-people (a lecture hall, a conference floor, a neighbourhood event) is not the
-same as feeling connected to them. **The first hello is where it stalls.** We
-systematically underestimate how much other people want to talk to us. [Epley &
-Schroeder (2014)](https://doi.org/10.1037/a0037323) assigned train and bus
-commuters either to talk to a stranger or to keep to themselves; the ones told to
-talk reported a *more* positive commute. [Sandstrom & Boothby
-(2021)](https://doi.org/10.1080/15298868.2020.1816568) found the same pattern
-across seven studies: conversations generally went better than people expected.
+**The people you would get along with may already be in the room. You just don't know what to say to them yet.**
 
-That gives BUMP a specific place to be useful: the uncertainty right before the
-first hello. And the _why_ matters as much as the when: "we both like music" is
-not a conversation, "you build modular synths too?" is. [Alves
-(2018)](https://doi.org/10.1177/0146167218766861) found people rated potential
-partners more positively when they shared a *rare* interest rather than a common
-one. So BUMP ranks for distinctiveness and attaches the evidence from both cards,
-rather than reporting the largest number of matches it can find. Every study here
-motivates the design and none of them tested BUMP; that ranking is a hypothesis,
-not a validated result.
+Before class, at a hackathon, or waiting for an event to begin, people can stand a few feet apart and never speak. That small moment sits inside a much larger problem: the [WHO Commission on Social Connection](https://www.who.int/groups/commission-on-social-connection) estimates that roughly **1 in 6 people worldwide experience loneliness**. But the missed connection itself often happens somewhere much more ordinary: two people have an opportunity to talk, and neither knows whether to begin.
+
+Research suggests that this uncertainty is often miscalibrated. [Epley & Schroeder (2014)](https://doi.org/10.1037/a0037323) found that commuters assigned to talk with a stranger reported more positive experiences than those assigned to remain disconnected, even though separate participants predicted the opposite. Across seven studies, [Sandstrom & Boothby (2021)](https://doi.org/10.1080/15298868.2020.1816568) similarly found that people's fears before talking to strangers were generally worse than the conversations that followed. **Silence is weak evidence that a conversation would be unwelcome.**
+
+But willingness alone does not tell you what to say. A stranger gives you almost no context. You have to guess what they care about, whether you share anything, and which opening will actually land. **"We both like music" is trivia. "You build modular synths too?" is a conversation.**
+
+Not every similarity carries the same signal. [Alves (2018)](https://doi.org/10.1177/0146167218766861) found that sharing rarer interests produced stronger interpersonal attraction than sharing common ones, suggesting that distinctive overlap can reveal more than broad similarity. Two people can already share the thing that would start a ten-minute conversation and still walk past each other without ever finding out.
+
+**The common ground already exists. The missing piece is seeing it when it matters.**
 
 ## What it does
 
