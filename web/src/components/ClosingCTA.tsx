@@ -10,8 +10,8 @@ export default function ClosingCTA() {
         <h2 className="cta__heading">Make the first move.</h2>
         <Wordmark className="cta__mark" label="BUMP" />
         <p className="cta__line">
-          BUMP is being built at HackGT. The iOS app runs entirely between nearby
-          phones. No account, no server, no cloud.
+          BUMP is being built at HackGT. No account. Bumping, confirming and
+          swapping interests happen directly between the phones in the room.
         </p>
         <div className="cta__actions">
           {/* Real destinations only: an in-page anchor and the actual repository.
