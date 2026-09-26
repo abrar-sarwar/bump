@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bump Test</title>
+<style>
+  :root { --bg:#111; --fg:#eee; --dim:#888; --ok:#3ddc84; --bad:#ff6b6b; --warn:#ffd166; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--fg);
+         font:15px/1.4 -apple-system, system-ui, sans-serif; }
+  h1 { font-size:18px; margin:0 0 12px; }
+  label { display:block; margin:10px 0 4px; font-size:13px; color:var(--dim); }
+  input, button { font:inherit; width:100%; padding:10px; border-radius:8px;
+                  border:1px solid #333; background:#1c1c1c; color:var(--fg); }
+  input[type=range] { padding:0; }
+  button { background:#2b5fd9; border-color:#2b5fd9; font-weight:600; }
+  button:disabled { opacity:.45; }
+  button.secondary { background:#333; border-color:#444; }
+  .row { display:flex; gap:8px; }
+  .card { border:1px solid #2a2a2a; border-radius:10px; padding:12px; margin:12px 0; }
+  .status span { display:block; font-variant-numeric:tabular-nums; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
+  #log { height:180px; overflow-y:auto; margin:0; padding:8px; background:#0a0a0a;
+         border-radius:8px; font:11px/1.35 ui-monospace, monospace; white-space:pre-wrap; }
+  #mag { font-size:34px; font-variant-numeric:tabular-nums; }
+  #result { font-size:16px; }
+  .hide { display:none; }
+  .big { font-size:20px; font-weight:700; }
+</style>
+</head>
+<body>
+<h1>Bump pairing test</h1>
+
+<label for="name">Your display name</label>
+<input id="name" maxlength="40" autocomplete="off" placeholder="e.g. Jared">
+
+<label for="room">Room code (everyone testing together uses the same one)</label>
+<input id="room" maxlength="24" autocomplete="off" value="test1">
+
+<label for="thr">Acceleration threshold: <b id="thrVal">12.0</b> m/s&sup2;
+  <em style="color:var(--dim)">(starting value — tune on real hardware)</em></label>
+<input id="thr" type="range" min="4" max="40" step="0.5" value="12">
+
+<label for="win">Server pairing window: <b id="winVal">500</b> ms (authoritative per room)</label>
+<input id="win" type="range" min="100" max="1500" step="50" value="500">
+
+<button id="ready">Ready to bump</button>
+
+<div class="card status">
+  <span>Connection: <b id="sConn" class="bad">disconnected</b></span>
+  <span>Motion permission: <b id="sPerm" class="warn">not requested</b></span>
+  <span>Readiness: <b id="sReady" class="warn">not armed</b></span>
+  <span>Secure context (HTTPS): <b id="sSecure"></b></span>
+</div>
+
+<div class="card">
+  <div style="color:var(--dim);font-size:12px">live |acceleration| (gravity removed)</div>
+  <div id="mag">--</div>
+  <div style="font-size:12px;color:var(--dim)">
+    last spike: <b id="lastSpike">--</b> &middot; source: <b id="src">--</b><br>
+    threshold <b id="dThr">12.0</b> m/s&sup2; &middot; window <b id="dWin">500</b> ms
+    &middot; ambiguity margin <b id="dAmb">--</b> ms &middot; buffer <b id="dBuf">--</b> ms
+  </div>
+</div>
+
+<div class="card" id="result">Waiting for a bump&hellip;</div>
+
+<div class="card hide" id="proposal">
+  <div class="big">Bumped with <span id="peerName"></span>?</div>
+  <div class="row" style="margin-top:10px">
+    <button id="confirm">Confirm</button>
+    <button id="cancel" class="secondary">Cancel</button>
+  </div>
+</div>
+
+<label>Debug log</label>
+<pre id="log"></pre>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const txt = (el, s) => { el.textContent = s; };          // always textContent: names render as text, never HTML
+
+  // ------------------------------------------------------------------ logging
+  const LOG_MAX = 250;
+  const lines = [];
+  let logDirty = false;
+  function log(msg) {
+    lines.push(new Date().toISOString().slice(11, 23) + '  ' + msg);
+    if (lines.length > LOG_MAX) lines.shift();             // bounded
+    logDirty = true;
+  }
+  // Flush the log and the live magnitude on a frame timer rather than on every
+  // devicemotion event (~60 Hz), so logging never starves the page.
+  let liveMag = 0;
+  setInterval(() => {
+    txt($('mag'), liveMag.toFixed(2));
+    if (logDirty) { $('log').textContent = lines.join('\n'); $('log').scrollTop = 1e6; logDirty = false; }
+  }, 100);
+
+  // ----------------------------------------------------------------- settings
+  let threshold = 12;   // m/s^2, gravity excluded
+  let windowMs = 500;
+  $('thr').oninput = (e) => {
+    threshold = Number(e.target.value);
+    txt($('thrVal'), threshold.toFixed(1)); txt($('dThr'), threshold.toFixed(1));
+  };
+  $('win').oninput = (e) => {
+    windowMs = Number(e.target.value);
+    txt($('winVal'), windowMs); txt($('dWin'), windowMs);
+    socket.emit('config', { windowMs });                   // server decides; it echoes back to the room
+  };
+
+  const secure = window.isSecureContext;
+  txt($('sSecure'), secure ? 'yes' : 'NO — motion will be blocked');
+  $('sSecure').className = secure ? 'ok' : 'bad';
+  if (!secure) log('insecure context: iOS/Android only expose devicemotion over HTTPS (or localhost). Use a tunnel or a hosted HTTPS URL.');
+
+  // ------------------------------------------------------------------- socket
+  const socket = io();
+  let activeProposalId = null;
+  socket.on('connect', () => { txt($('sConn'), 'connected'); $('sConn').className = 'ok'; log('socket connected ' + socket.id); join(); });
+  socket.on('disconnect', () => { txt($('sConn'), 'disconnected'); $('sConn').className = 'bad'; log('socket disconnected — pending bumps and proposals are cleaned up server-side'); clearProposal('disconnected'); });
+
+  function join() {
+    socket.emit('join', { name: $('name').value, room: $('room').value }, (res) => {
+      if (!res || !res.ok) return;
+      applyConfig(res);
+      log(`joined room "${res.roomCode}" as "${$('name').value || 'anon'}"`);
+    });
+  }
+  $('name').onchange = join;
+  $('room').onchange = join;
+
+  function applyConfig(c) {
+    windowMs = c.windowMs;
+    $('win').value = windowMs; txt($('winVal'), windowMs); txt($('dWin'), windowMs);
+    txt($('dAmb'), c.ambiguityMarginMs); txt($('dBuf'), c.bufferMs);
+  }
+  socket.on('room:config', (c) => { applyConfig(c); log(`room window is now ${c.windowMs} ms (server authoritative)`); });
+
+  socket.on('bump:ack',       (p) => log(`server ACK bump ${p.bumpId} (server t=${p.serverT})`));
+  socket.on('bump:rejected',  (p) => log(`server rejected bump: ${p.reason}`));
+  socket.on('bump:timeout',   () => { result('No partner found — timed out.', 'warn'); log('bump timed out with no partner'); });
+  socket.on('bump:ambiguous', (p) => { result('Ambiguous — too many bumps at once. Try again.', 'bad'); log(`bump rejected as ambiguous (${p.candidates} bumps involved): ${p.reason}`); });
+
+  socket.on('match:proposed', (p) => {
+    activeProposalId = p.proposalId;
+    txt($('peerName'), p.peerName);                        // text, not HTML
+    $('proposal').classList.remove('hide');
+    $('confirm').disabled = false;
+    result('Match proposed — confirm it is really them.', 'warn');
+    log(`match proposed ${p.proposalId} with "${p.peerName}" (gap ${p.gapMs} ms)`);
+  });
+  socket.on('match:waiting',        () => { $('confirm').disabled = true; result('Waiting for the other person…', 'warn'); log('waiting for peer confirmation'); });
+  socket.on('match:peer-confirmed', () => { log('peer confirmed; waiting on you'); });
+  socket.on('match:confirmed',      (p) => { clearProposal(); result('CONFIRMED with ' + p.peerName, 'ok'); log('match confirmed'); });
+  socket.on('match:cancelled',      (p) => { clearProposal(); result('Pairing cancelled (' + p.reason + ').', 'bad'); log('proposal cancelled: ' + p.reason); });
+
+  $('confirm').onclick = () => { if (activeProposalId) socket.emit('confirm', { proposalId: activeProposalId }); };
+  $('cancel').onclick  = () => { if (activeProposalId) socket.emit('cancel',  { proposalId: activeProposalId }); clearProposal('cancelled'); };
+
+  function clearProposal() { activeProposalId = null; $('proposal').classList.add('hide'); }
+  function result(msg, cls) { const el = $('result'); txt(el, msg); el.className = 'card ' + (cls || ''); }
+
+  // ----------------------------------------------------- motion processing
+  // We want linear acceleration in m/s^2 with GRAVITY EXCLUDED, because a still
+  // phone reads ~9.8 m/s^2 with gravity and that would swamp the threshold.
+  //
+  //  - e.acceleration            -> already gravity-free; use it directly.
+  //  - e.accelerationIncludingGravity -> fall back to a one-pole high-pass:
+  //      gravity = a*gravity + (1-a)*sample   (slow low-pass estimate of g)
+  //      linear  = sample - gravity
+  //    alpha 0.9 at ~60 Hz gives a ~25 ms time constant: it tracks the slowly
+  //    changing gravity vector while letting a sharp bump through.
+  const ALPHA = 0.9;
+  const grav = { x: 0, y: 0, z: 0 };
+  let gravSeeded = false;
+  let source = null;
+
+  const COOLDOWN_MS = 1500;
+  let armed = true;          // threshold crossing/rearming: sustained shaking fires once
+  let lastFireAt = -Infinity;
+  const mono = () => performance.now();   // monotonic, local-only, never used for matching
+
+  let listening = false;     // guards against stacking duplicate listeners
+
+  function onMotion(e) {
+    let x, y, z;
+    if (e.acceleration && e.acceleration.x !== null && e.acceleration.x !== undefined) {
+      ({ x, y, z } = e.acceleration);
+      if (source !== 'acceleration') { source = 'acceleration'; txt($('src'), 'acceleration (gravity already excluded)'); }
+    } else if (e.accelerationIncludingGravity && e.accelerationIncludingGravity.x !== null) {
+      const s = e.accelerationIncludingGravity;
+      if (!gravSeeded) { grav.x = s.x; grav.y = s.y; grav.z = s.z; gravSeeded = true; }
+      grav.x = ALPHA * grav.x + (1 - ALPHA) * s.x;
+      grav.y = ALPHA * grav.y + (1 - ALPHA) * s.y;
+      grav.z = ALPHA * grav.z + (1 - ALPHA) * s.z;
+      x = s.x - grav.x; y = s.y - grav.y; z = s.z - grav.z;
+      if (source !== 'filtered') { source = 'filtered'; txt($('src'), 'accelerationIncludingGravity + high-pass'); }
+    } else {
+      if (source !== 'none') { source = 'none'; txt($('src'), 'NO SENSOR DATA (null readings)'); log('devicemotion fired but both acceleration fields are null/missing — this device or browser is not giving us usable data'); }
+      return;
+    }
+    if (x == null || y == null || z == null) return;
+
+    // The SAME processed value drives the display and the threshold test.
+    const mag = Math.sqrt(x * x + y * y + z * z);
+    liveMag = mag;
+
+    const now = mono();
+    if (mag >= threshold) {
+      if (!armed) return;                                   // still above threshold from the same event
+      armed = false;
+      txt($('lastSpike'), mag.toFixed(2) + ' m/s²');
+      if (now - lastFireAt < COOLDOWN_MS) {
+        log(`spike ${mag.toFixed(2)} m/s² SUPPRESSED by ${COOLDOWN_MS} ms cooldown`);
+        result('Spike suppressed by cooldown.', 'warn');
+        return;
+      }
+      if (activeProposalId) { log(`spike ${mag.toFixed(2)} m/s² ignored — a pairing proposal is still open`); return; }
+      lastFireAt = now;
+      log(`spike ${mag.toFixed(2)} m/s² -> emitting bump`);
+      result('Bump sent — looking for a partner…', 'warn');
+      socket.emit('bump', {}, (ack) => { if (ack && !ack.accepted) log('bump not accepted: ' + ack.reason); });
+    } else if (mag < threshold * 0.6) {
+      armed = true;                                         // hysteresis: rearm well below the threshold
+    }
+  }
+
+  // The permission request MUST be the first thing in the tap handler: iOS only
+  // honours DeviceMotionEvent.requestPermission() while a user gesture is live,
+  // and any awaited work before it loses that gesture.
+  $('ready').onclick = () => {
+    const DME = window.DeviceMotionEvent;
+    if (!DME) {
+      txt($('sPerm'), 'unsupported'); $('sPerm').className = 'bad';
+      log('DeviceMotionEvent does not exist in this browser — motion bump detection is impossible here');
+      return;
+    }
+    if (typeof DME.requestPermission === 'function') {
+      DME.requestPermission().then((state) => {
+        txt($('sPerm'), state);
+        $('sPerm').className = state === 'granted' ? 'ok' : 'bad';
+        log('motion permission: ' + state);
+        if (state === 'granted') arm();
+        else log('denied: iOS remembers this per site. Reload the page (or Settings > Safari > Motion & Orientation Access) and tap Ready again.');
+      }).catch((err) => {
+        txt($('sPerm'), 'error'); $('sPerm').className = 'bad';
+        log('requestPermission threw: ' + err.message + ' (usually means it was not called from a user gesture, or the page is not HTTPS)');
+      });
+    } else {
+      // Android Chrome and desktop: no permission gate, just listen.
+      txt($('sPerm'), 'not required'); $('sPerm').className = 'ok';
+      log('no requestPermission API — registering listener directly');
+      arm();
+    }
+  };
+
+  function arm() {
+    join();
+    if (!listening) { window.addEventListener('devicemotion', onMotion); listening = true; }  // never stack listeners
+    txt($('sReady'), 'armed'); $('sReady').className = 'ok';
+    log('armed — keep this page in the FOREGROUND. Backgrounding the tab, locking the phone, or switching apps stops devicemotion and will drop the socket.');
+    // Sanity check: if no motion events arrive we say so instead of looking idle.
+    const seen = liveMag;
+    setTimeout(() => {
+      if (liveMag === seen && liveMag === 0) log('no devicemotion events received after 2 s — sensor may be unavailable in this context');
+    }, 2000);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    log('page ' + (document.hidden ? 'HIDDEN — motion events stop; this experiment is foreground-only' : 'visible again'));
+  });
+
+  txt($('dThr'), threshold.toFixed(1));
+  log('ready. enter a name and room, then tap "Ready to bump".');
+})();
+</script>
+</body>
+</html>

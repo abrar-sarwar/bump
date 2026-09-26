@@ -1,0 +1,309 @@
+# BUMP — native iOS MVP
+
+Meet someone. Find your overlap.
+
+Two people tap phones, confirm each other, and get the specific things they
+actually have in common plus one question to start on. Everything runs on the
+phones in the room: **no account, no server, no cloud AI, no API keys.**
+
+This evolved from the Nearby Interaction spike that used to live here. The
+working `NISession` / `NINearbyPeerConfiguration` / MultipeerConnectivity code
+was kept and refactored into `RangingService` and `PeerTransport`; the old
+`UWBExperiment`/`ContentView` test dashboard is gone, and its instrumentation now
+lives behind **You ▸ Testing tools**. The web spike in `../bump-web` is untouched
+and still useful for Android testing — the native app does not depend on it.
+
+---
+
+## The journey
+
+Create a profile → join or host an event → tap **Ready to bump** → bump phones →
+both confirm → shared interests + a conversation opener → save the connection.
+
+| Screen | What it does |
+|---|---|
+| **Welcome** | Hero wordmark, one action. |
+| **Onboarding** | Name, optional bio, interest chips plus free text. Persists locally, editable later. |
+| **Bump** | Host/join an event, ready state, all the error states, manual pick. |
+| **Confirm partner** | "Did you bump with X?" — both sides must confirm before anything is exchanged. |
+| **Reveal** | Up to three grounded shared interests with evidence, one opener, save. |
+| **Connections** | Locally saved people, detail view, swipe to delete, empty state. |
+| **You** | Edit profile, permission/capability status, link to Testing tools. |
+
+## Architecture
+
+Each box is one file, with a real boundary between them.
+
+```
+View/            SwiftUI screens only. No sensors, no sockets.
+Design/          Theme.swift (colour/type/spacing) + Components.swift
+Model/           Profile, SharedProfile, SavedConnection, Interest catalogue
+Service/
+  MotionDetector   CoreMotion → SpikeGate
+  SpikeGate        pure threshold/rearm/cooldown state machine (unit-tested)
+  RangingService   NISession per peer, bounded, attributed
+  PeerTransport    MultipeerConnectivity, encrypted, swappable
+  WireProtocol     versioned + bounded + idempotent messages
+  PairingMatcher   pure matching algorithm (unit-tested)
+  InterestMatcher  grounded overlap (unit-tested)
+  ConversationService  Foundation Models + deterministic fallback
+  BumpEngine       the state machine that wires the above together
+  Store            local JSON persistence
+```
+
+## Build and run
+
+Requires **Xcode 26+**. Deployment target is **iOS 17.0** — chosen so the app runs
+on any phone the team has. Nearby Interaction needs iOS 16+, and the optional
+on-device AI needs iOS 26, so **neither the newest iPhone nor the newest OS is
+required**; both degrade cleanly.
+
+```bash
+open uwb-ios/UWBBumpTest.xcodeproj
+
+# compile check, no signing, no device
+xcodebuild -project UWBBumpTest.xcodeproj -scheme UWBBumpTest \
+  -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+
+# unit tests (simulator)
+xcodebuild test -project UWBBumpTest.xcodeproj -scheme UWBBumpTest \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+```
+
+Signing is already set: team `56KWU9QP85`, bundle id
+`com.jaredberesford.uwbbumptest`, automatic signing. The display name is **BUMP**;
+the target and bundle id are deliberately unchanged so existing provisioning
+keeps working. A teammate using their own Apple ID changes only
+`PRODUCT_BUNDLE_IDENTIFIER` and `DEVELOPMENT_TEAM`.
+
+### Installing on two phones
+
+1. Connect iPhone, **Trust This Computer**.
+2. Settings ▸ Privacy & Security ▸ **Developer Mode** on (the phone restarts).
+3. Select the phone as the run destination, ⌘R.
+4. If it won't launch: Settings ▸ General ▸ **VPN & Device Management** ▸ Trust.
+5. Grant **Nearby Interaction**, **Local Network** and **Motion** when prompted.
+6. Repeat on the second phone.
+
+Free provisioning expires after 7 days — rebuild from Xcode. That is an account
+limit, not a bug.
+
+### Running the full journey on two phones
+
+1. Both phones: finish onboarding (name + at least one interest). Give them at
+   least one interest in common, or the reveal will correctly say you share
+   nothing.
+2. **Phone A** → Bump tab → type an event code (e.g. `hackgt`) → **Host it on
+   this phone**.
+3. **Phone B** → same code → **Join this event**. A's name appears in "In this
+   event" within a second or two.
+4. Both: **Ready to bump**.
+5. Tap the phones together, back to back, once.
+6. Both see "Did you bump with …?" → **Confirm & share interests** on both.
+7. Reveal appears on both with the same shared interests and the same opener.
+8. **Save connection** → it shows up under Connections.
+
+## Detection
+
+**Motion is the gesture. UWB is the evidence about *which* peer.**
+
+- `MotionDetector` reads `CMDeviceMotion.userAcceleration`, which is in **g** with
+  gravity already removed, and converts explicitly to m/s² (× 9.80665). The web
+  experiment's 12 m/s² threshold came from a hand-rolled high-pass over
+  `accelerationIncludingGravity` in a browser at a different sample rate and is
+  **not** transferable — the native default (20 m/s²) was set independently and
+  still needs tuning on hardware. 50 Hz, off the UI thread, stopped when you leave
+  ready or background the app.
+- `SpikeGate` does threshold crossing, rearm below 0.5× threshold, and a 1.5 s
+  cooldown, on a monotonic clock (`CMDeviceMotion.timestamp`, seconds since boot).
+- `RangingService` runs one `NISession` per peer, keyed so a measurement can only
+  ever be attributed to the peer whose session produced it. Capability is checked
+  at runtime — `supportsPreciseDistanceMeasurement` does **not** imply
+  `supportsDirectionMeasurement`, and "iPhone 11 or newer" guarantees neither.
+  Missing distance stays `nil` (never 0), measurements expire after 1.5 s, and
+  suspension/invalidation/peer-removal/permission-denial are all handled.
+  **Direction is never required** — a valid distance is sufficient evidence.
+- ~0.15 m is an **experimental proximity threshold, not proof the phones
+  touched**, and is adjustable in Testing tools.
+- Motion and UWB do **not** have to fire in the same callback. The coordinator
+  correlates them over a bounded interval (`uwbFreshness`, default 1.5 s).
+- Motion-only / UWB-only / Combined modes are all retained in Testing tools.
+
+## Rooms, pairing and crowded rooms
+
+One phone hosts the room and coordinates. Guests connect to it; the host's own
+bumps go through the **same** pipeline as everyone else's.
+
+The coordinator stamps each bump with **its own monotonic clock on arrival**.
+Timestamps from different phones are never subtracted from each other — their
+clocks are not synchronized — and network latency genuinely blurs arrival order.
+
+The algorithm (`PairingMatcher`, all of it unit-tested):
+
+1. Age out anything older than `timeout` (2.5 s) → explicit timeout, never a
+   hanging spinner.
+2. Buffer for 250 ms before committing, so a closer later arrival can still win.
+3. Candidates = different participants within the `window` (500 ms, configurable).
+4. Rank: **UWB-corroborated pairs first**, then smallest arrival gap.
+5. **Ambiguity:** if a rival pair shares exactly one member and is within
+   `ambiguityMargin` (50 ms) at the same evidence level, reject everything
+   involved. We never guess.
+6. Otherwise commit and loop, so two separated pairs both match.
+
+Never self-pairs, never reuses a bump, one active proposal per participant,
+idempotent on duplicate/delayed messages, and cleans up on decline, timeout,
+disconnect or room change.
+
+**We never connect to the first discovered phone.** Discovery is scoped to the
+event code, identities are transient (`Name#XXXX`, regenerated per session), and
+the only thing advertised is a display name and the room code.
+
+### Documented limits
+
+| Limit | Value | Why |
+|---|---|---|
+| Phones per room | **8** | `MCSession`'s documented maximum. Shown on screen as "n of 8 phones". |
+| Simultaneous ranging sessions | **4** | Nearby Interaction publishes no hard number and it varies by hardware. We cap it rather than pretend a room of 50 can be ranged. |
+
+For a bigger event, run several small rooms. This is surfaced in the UI, not
+hidden.
+
+### When it can't decide
+
+"A few people bumped at once — try again," with an optional **Pick someone
+instead** flow. A manual pick is recorded as `manualSelection` and is **never**
+counted as a hardware-detected bump — the reveal and the saved connection both
+say "Picked manually".
+
+Current honest limitation: the manual picker only works on the **hosting** phone.
+A guest is told so plainly rather than being given a button that quietly fails.
+
+## Privacy
+
+- Full interest profiles go **only to the confirmed partner, only after both
+  confirm**, over a direct encrypted link. The coordinator never sees them. Two
+  guests open a direct MultipeerConnectivity link on demand for this.
+- The room only ever sees `{id, displayName, supportsUWB}` — a unit test asserts
+  no interests or bio can leak into that type.
+- Diagnostics exports exclude profile content, interests, bios and raw discovery
+  tokens.
+
+## On-device AI
+
+`ConversationService` computes the *facts* in Swift first (`InterestMatcher`),
+then asks Apple's on-device model only to *phrase* them.
+
+- Compiled with `#if canImport(FoundationModels)` and gated at runtime on
+  `SystemLanguageModel.default.availability`, so unsupported devices and older
+  OSes just work.
+- The model gets only the confirmed shared interests — no names, no bios. User
+  text is passed as **data** inside delimited tags, never as instructions.
+- Output is structured (`@Generable`) and **validated**: if the model grounds its
+  question in an interest that is not in both profiles, it is rejected. Refusals,
+  guardrail trips, unloaded models and a 12 s timeout all fall through.
+- The fallback is deterministic, built from the real overlap, and labelled
+  **"Suggested question"**. A template is never presented as an AI result — the
+  UI shows which produced it.
+- Exactly one participant generates (an AI-capable one is preferred), then sends
+  the result to the partner, so **both phones show the same thing**. Retries are
+  idempotent on the proposal id.
+- No rarity claims anywhere. We have no population data, so the UI says "Specific
+  things you share" and states plainly that ranking is by specificity, not rarity.
+
+## Testing tools
+
+**You ▸ Testing tools.** Detection mode, live acceleration and last spike, motion
+threshold/cooldown sliders, peer/session status, live distance and direction
+availability, measurement age, pairing window/ambiguity/buffer sliders, a
+bounded timestamped event log, reset, and **Export diagnostics** through the
+native share sheet.
+
+Deliberately kept out of the normal flow — no raw sensor numbers appear on the
+Bump screen.
+
+### Demo mode
+
+DEBUG builds only, by explicit launch argument. Every demo screen wears a
+**"DEMO DATA — not a real person or measurement"** badge and the fixture people
+are named "(demo)".
+
+```bash
+xcrun simctl launch <sim-id> com.jaredberesford.uwbbumptest -BumpDemo reveal
+# onboarding | ready | confirm | reveal | connections | timedout | ambiguous | unsupported
+```
+
+---
+
+## What was actually verified
+
+| Check | Result |
+|---|---|
+| Device build (`generic/platform=iOS`, Debug + Release) | **BUILD SUCCEEDED**, 0 errors, 0 warnings |
+| Simulator build | **BUILD SUCCEEDED** |
+| Unit tests | **43/43 pass** |
+| `CFBundleIdentifier` in the built app | `com.jaredberesford.uwbbumptest` ✓ |
+| `CFBundleExecutable` | `UWBBumpTest`, and the file exists and is a real Mach-O ✓ |
+| Unresolved `$(...)` placeholders in the built plist | **0** ✓ |
+| `Info.plist` copied as a stray resource? | No — appears once, as the bundle plist ✓ |
+| Asset catalog compiled in | `Assets.car` + app icons present ✓ |
+| Bonjour entries match the code | `_bump-uwb._tcp` / `._udp` ↔ `PeerTransport.serviceType` ✓ |
+| Privacy strings | Nearby Interaction, Local Network, Motion — all meaningful ✓ |
+| Entitlements | None needed; none added (no background modes) ✓ |
+| Screens inspected in the Simulator | Welcome, onboarding, ready, confirm, reveal, connections, timed-out, ambiguous |
+
+**Not verified:** anything requiring two physical iPhones. See below.
+
+### Test coverage (43 tests)
+
+Motion cooldown/rearm/units · measurement freshness and attribution · matching
+window boundaries · closest-pair selection · three ambiguous simultaneous bumps ·
+two separate pairs in one room · duplicate events and idempotent re-delivery ·
+self-pairing and lockout · timeout-once · disconnect cleanup · interest
+normalization, synonyms, specificity ranking and truthful evidence · no-overlap
+produces no claims · AI fallback labelling · wire version/size/malformed-frame
+rejection · roster carries no interests · local save/load/delete idempotency ·
+manual selection never recorded as a detected bump.
+
+---
+
+## Still pending on physical hardware
+
+Nothing below has been measured. The simulator cannot validate **any** of it —
+there is no UWB radio and no real accelerometer.
+
+1. Two supported iPhones, full journey end to end.
+2. **20+ intentional bumps**, outcomes recorded individually.
+3. Gentle bumps; different holding angles.
+4. Walking and normal handling with no intentional bumps (false-trigger rate).
+5. Four phones, two intended pairs bumping simultaneously.
+6. Bystanders nearby running the app.
+7. One-sided motion (only one phone feels it).
+8. UWB unavailable, and UWB stale.
+9. A body blocking line of sight.
+10. Rejection ("Not this person") and cancellation on both sides.
+11. Backgrounding and returning; reconnect.
+12. **Host disconnect** → rejoin / re-host path.
+13. AI available and unavailable, on the same pair.
+
+Record in `../RESULTS.md`: intended matches, **wrong-person proposals**,
+ambiguous/rejected, timeouts, missed bumps, false triggers per device-minute,
+time to confirmation, UWB reliability, and how often manual selection was needed.
+Report the rejection rate separately — an app that rejects everything has zero
+wrong matches and is useless.
+
+### Known risk from the earlier spike
+
+Ranging appeared to stop a couple of seconds into a close approach. If Nearby
+Interaction drops out below ~10 cm, the 0.15 m trigger may sit under what the
+hardware can resolve, and UWB would corroborate *fewer* bumps than hoped. The app
+degrades correctly if so — motion still matches, and the proposal just says
+"Matched by motion" instead of "motion + UWB" — but **measure this first**, at a
+steady 1 m, before trusting any combined-mode number.
+
+## Reference
+
+- [Nearby Interaction](https://developer.apple.com/documentation/nearbyinteraction) · [`NISession.deviceCapabilities`](https://developer.apple.com/documentation/nearbyinteraction/nisession/devicecapabilities) · [`NINearbyObject.direction`](https://developer.apple.com/documentation/nearbyinteraction/ninearbyobject/direction)
+- [MultipeerConnectivity](https://developer.apple.com/documentation/multipeerconnectivity) · [`MCSession`](https://developer.apple.com/documentation/multipeerconnectivity/mcsession) (peer limit)
+- [Core Motion `CMDeviceMotion.userAcceleration`](https://developer.apple.com/documentation/coremotion/cmdevicemotion/useracceleration)
+- [Foundation Models](https://developer.apple.com/documentation/foundationmodels) · [`SystemLanguageModel`](https://developer.apple.com/documentation/foundationmodels/systemlanguagemodel)
+- [`NSBonjourServices`](https://developer.apple.com/documentation/bundleresources/information-property-list/nsbonjourservices) · [Enabling Developer Mode](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device)

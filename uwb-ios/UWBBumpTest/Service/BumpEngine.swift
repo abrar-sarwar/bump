@@ -1,0 +1,745 @@
+import Combine
+import Foundation
+import SwiftUI
+
+/// Orchestrates the whole bump journey: motion → coordinator matching → mutual
+/// confirmation → partner-only profile exchange → insight.
+///
+/// Explicit state machine. There is no indefinite spinner and no generic
+/// "something went wrong" — every terminal state carries a reason and a way out.
+@MainActor
+final class BumpEngine: ObservableObject {
+
+    // MARK: State
+
+    enum Phase: Equatable {
+        case notReady
+        case preparing
+        case ready
+        case checking                       // we felt a bump, waiting on the coordinator
+        case confirming(Proposal)           // "did you bump with X?"
+        case waitingForPartner              // we confirmed, they haven't
+        case exchanging                     // both confirmed, swapping profiles
+        case connected(Result)
+        case timedOut
+        case ambiguous(Int)                 // several people bumped at once
+        case needsRetry(String)
+        case unavailable(String)
+
+        var isBusy: Bool {
+            switch self {
+            case .preparing, .checking, .waitingForPartner, .exchanging: return true
+            default: return false
+            }
+        }
+    }
+
+    struct Proposal: Equatable, Identifiable {
+        let id: String
+        let partner: Wire.Member
+        let uwbCorroborated: Bool
+        let manual: Bool
+        var evidence: SavedConnection.PairingEvidence {
+            if manual { return .manualSelection }
+            return uwbCorroborated ? .motionAndUWB : .motionOnly
+        }
+    }
+
+    struct Result: Equatable {
+        let partner: SharedProfile
+        let insight: ConnectionInsight
+        let evidence: SavedConnection.PairingEvidence
+        let roomName: String
+        let metOn: Date
+    }
+
+    enum RoomState: Equatable {
+        case none
+        case hosting(code: String)
+        case joined(code: String)
+        case hostLost(code: String)
+
+        var code: String? {
+            switch self {
+            case .none: return nil
+            case .hosting(let c), .joined(let c), .hostLost(let c): return c
+            }
+        }
+    }
+
+    @Published private(set) var phase: Phase = .notReady
+    @Published private(set) var room: RoomState = .none
+    @Published private(set) var members: [Wire.Member] = []
+    @Published private(set) var capacityNote: String?
+    @Published private(set) var log: [LogLine] = []
+
+    struct LogLine: Identifiable, Equatable {
+        let id = UUID()
+        let at: Date
+        let text: String
+    }
+
+    // MARK: Collaborators
+
+    let motion = MotionDetector()
+    let ranging = RangingService()
+    let transport = PeerTransport()
+    private let store: Store
+
+    /// Coordinator-only pairing state.
+    private var matcher = PairingMatcher()
+    private var resolveTimer: Timer?
+    private var proposals: [String: LiveProposal] = [:]
+    private var membersByID: [String: Wire.Member] = [:]
+    private var aiCapable: Set<String> = []
+
+    private struct LiveProposal {
+        let id: String
+        let a: String
+        let b: String
+        var confirmed: Set<String> = []
+        let uwbCorroborated: Bool
+        let manual: Bool
+        let createdAt: Date
+    }
+
+    /// Our own side of a live proposal.
+    private var myProposal: Proposal?
+    private var partnerProfile: SharedProfile?
+    private var sentProfileFor: String?
+    private var iAmGenerator = false
+    private var localSequence = 0
+    private var phaseDeadline: Timer?
+
+    /// Seconds a proposal may sit unconfirmed before it is closed.
+    static let confirmationTimeout: TimeInterval = 20
+    /// Seconds to wait for the partner-only profile exchange before giving up.
+    static let exchangeTimeout: TimeInterval = 15
+
+    private var cancellables = Set<AnyCancellable>()
+
+    init(store: Store) {
+        self.store = store
+        wireUp()
+        applySettings()
+    }
+
+    // MARK: Wiring
+
+    private func wireUp() {
+        motion.onSpike = { [weak self] magnitude in self?.handleLocalSpike(magnitude) }
+        ranging.onMeasurement = { [weak self] peer, distance in self?.handleMeasurement(peer, distance) }
+        ranging.onLog = { [weak self] line in self?.note(line) }
+        transport.onLog = { [weak self] line in self?.note(line) }
+        transport.onMessage = { [weak self] from, envelope in self?.handle(envelope.body, from: from) }
+        transport.onPeerJoined = { [weak self] peer in self?.peerJoined(peer) }
+        transport.onPeerLeft = { [weak self] peer in self?.peerLeft(peer) }
+
+        transport.$connected
+            .sink { [weak self] peers in self?.rosterChanged(peers) }
+            .store(in: &cancellables)
+    }
+
+    /// Push the user's testing-tools settings into the components that use them.
+    func applySettings() {
+        let s = store.settings
+        motion.config.threshold = s.motionThreshold
+        motion.config.cooldown = s.motionCooldown
+        ranging.config.proximityThreshold = s.uwbProximity
+        ranging.config.freshness = s.uwbFreshness
+        matcher.config.window = s.pairingWindow
+        matcher.config.ambiguityMargin = s.ambiguityMargin
+        matcher.config.buffer = s.pairingBuffer
+        matcher.config.uwbProximity = s.uwbProximity
+        matcher.config.uwbFreshness = s.uwbFreshness
+    }
+
+    // MARK: Rooms
+
+    func host(roomCode: String) {
+        let code = sanitize(roomCode)
+        guard !code.isEmpty else { return }
+        transport.start(role: .coordinator, roomCode: code, displayName: store.profile.displayName)
+        room = .hosting(code: code)
+        matcher.reset()
+        membersByID[transport.myID] = Wire.Member(id: transport.myID,
+                                                 displayName: store.profile.displayName,
+                                                 supportsUWB: ranging.isSupported)
+        if ConversationService.onDeviceModelAvailable { aiCapable.insert(transport.myID) }
+        startResolving()
+        phase = .notReady
+        note("hosting room \"\(code)\" — capacity \(PeerTransport.maxPeers) phones including you")
+    }
+
+    func join(roomCode: String) {
+        let code = sanitize(roomCode)
+        guard !code.isEmpty else { return }
+        transport.start(role: .guest, roomCode: code, displayName: store.profile.displayName)
+        room = .joined(code: code)
+        phase = .notReady
+        note("joining room \"\(code)\"")
+    }
+
+    func leaveRoom() {
+        setReady(false)
+        stopResolving()
+        transport.stop()
+        ranging.stopAll()
+        matcher.reset()
+        proposals.removeAll(); membersByID.removeAll(); aiCapable.removeAll()
+        myProposal = nil; partnerProfile = nil
+        room = .none
+        members = []
+        phase = .notReady
+    }
+
+    private func sanitize(_ code: String) -> String {
+        String(InterestCatalog.normalize(code).replacingOccurrences(of: " ", with: "-").prefix(20))
+    }
+
+    var isCoordinator: Bool { transport.role == .coordinator }
+
+    // MARK: Ready
+
+    func setReady(_ ready: Bool) {
+        guard ready else {
+            motion.stop()
+            if case .ready = phase { phase = .notReady }
+            else if case .checking = phase { phase = .notReady }
+            return
+        }
+        guard room != .none else { return }
+
+        phase = .preparing
+        guard motion.isAvailable else {
+            phase = .unavailable("This iPhone isn't reporting motion data, so BUMP can't feel a bump. You can still connect by picking someone from the room.")
+            return
+        }
+        if store.settings.detectionMode == .uwbOnly && !ranging.isSupported {
+            phase = .unavailable("UWB-only mode is selected but this iPhone has no ultra-wideband chip. Switch to Motion or Combined in Testing tools.")
+            return
+        }
+        motion.start()
+        phase = .ready
+        note("ready — mode: \(store.settings.detectionMode.label)")
+    }
+
+    // MARK: Local sensing
+
+    private func handleLocalSpike(_ magnitude: Double) {
+        guard case .ready = phase else { return }
+        guard store.settings.detectionMode != .uwbOnly else { return }
+        emitBump(magnitude: magnitude)
+    }
+
+    private func handleMeasurement(_ peerID: String, _ distance: Double) {
+        // Report proximity as evidence to the coordinator. This is evidence about
+        // WHICH peer, not a trigger on its own — except in uwbOnly mode.
+        if distance <= store.settings.uwbProximity {
+            if isCoordinator {
+                matcher.record(.init(observer: transport.myID, peer: peerID,
+                                     distance: distance, at: monotonic()))
+            } else {
+                transport.send(.proximity(peer: peerID, distance: distance), to: coordinatorIDs())
+            }
+            if store.settings.detectionMode == .uwbOnly, case .ready = phase {
+                emitBump(magnitude: 0)
+            }
+        }
+    }
+
+    private func emitBump(magnitude: Double) {
+        localSequence += 1
+        phase = .checking
+        armPhaseDeadline(matcher.config.timeout + 0.75) { [weak self] in
+            guard let self, case .checking = self.phase else { return }
+            self.phase = .timedOut
+        }
+        if isCoordinator {
+            ingestBump(from: transport.myID)
+        } else {
+            transport.send(.bumpEvent(localSequence: localSequence, magnitude: magnitude),
+                           to: coordinatorIDs())
+        }
+        note(String(format: "bump felt (%.1f m/s²) — sent to coordinator", magnitude))
+    }
+
+    /// The coordinator's own bumps go through the exact same pipeline as guests'.
+    private func ingestBump(from participant: String) {
+        let event = PairingMatcher.Event(id: UUID().uuidString, participant: participant, arrival: monotonic())
+        if let rejection = matcher.submit(event) {
+            note("rejected bump from \(name(participant)): \(rejection)")
+            if participant == transport.myID, case .checking = phase { phase = .needsRetry("That one came too soon after your last bump. Try again.") }
+            else if participant != transport.myID {
+                transport.send(.bumpTimedOut, to: [participant])
+            }
+        }
+    }
+
+    /// The coordinator's monotonic clock. Timestamps from other phones are never
+    /// used for matching — only arrival time here.
+    private func monotonic() -> TimeInterval { ProcessInfo.processInfo.systemUptime }
+
+    // MARK: Coordinator loop
+
+    private func startResolving() {
+        stopResolving()
+        resolveTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.tick() }
+        }
+    }
+
+    private func stopResolving() { resolveTimer?.invalidate(); resolveTimer = nil }
+
+    private func tick() {
+        guard isCoordinator else { return }
+        for outcome in matcher.resolve(now: monotonic()) {
+            switch outcome {
+            case .matched(let a, let b, let gap, let uwb):
+                openProposal(a: a, b: b, uwb: uwb, manual: false, gap: gap)
+            case .ambiguous(let participants, let count):
+                for p in participants { deliverAmbiguous(to: p, candidates: count) }
+                note("rejected \(participants.count) bumps as ambiguous")
+            case .timedOut(let participant):
+                deliverTimeout(to: participant)
+            }
+        }
+        expireProposals()
+    }
+
+    private func openProposal(a: String, b: String, uwb: Bool, manual: Bool, gap: TimeInterval) {
+        // One active proposal per participant.
+        guard !matcher.locked.contains(a), !matcher.locked.contains(b) else { return }
+        let proposal = LiveProposal(id: UUID().uuidString, a: a, b: b,
+                                    uwbCorroborated: uwb, manual: manual, createdAt: Date())
+        proposals[proposal.id] = proposal
+        matcher.lock([a, b])
+
+        for (me, them) in [(a, b), (b, a)] {
+            let partner = membersByID[them] ?? Wire.Member(id: them, displayName: name(them))
+            let body = Wire.Body.proposal(id: proposal.id, partner: partner,
+                                          uwbCorroborated: uwb,
+                                          expiresIn: Self.confirmationTimeout)
+            if me == transport.myID {
+                receiveProposal(id: proposal.id, partner: partner, uwb: uwb, manual: manual)
+            } else {
+                transport.send(body, to: [me])
+            }
+        }
+        note(String(format: "proposed %@ ↔ %@ (gap %.0f ms%@)", name(a), name(b), gap * 1000, uwb ? ", UWB corroborated" : ""))
+    }
+
+    private func expireProposals() {
+        let now = Date()
+        for proposal in proposals.values
+        where now.timeIntervalSince(proposal.createdAt) > Self.confirmationTimeout {
+            close(proposal.id, reason: "Nobody confirmed in time.")
+        }
+    }
+
+    private func close(_ proposalID: String, reason: String) {
+        guard let proposal = proposals.removeValue(forKey: proposalID) else { return }
+        matcher.unlock([proposal.a, proposal.b])
+        for participant in [proposal.a, proposal.b] {
+            if participant == transport.myID {
+                localProposalClosed(proposalID, reason: reason)
+            } else {
+                transport.send(.proposalClosed(proposalID: proposalID, reason: reason), to: [participant])
+            }
+        }
+    }
+
+    private func seal(_ proposal: LiveProposal) {
+        // Prefer an AI-capable participant to generate, so both phones get the
+        // better result; otherwise a stable deterministic choice.
+        let generator = aiCapable.contains(proposal.a) ? proposal.a
+                      : aiCapable.contains(proposal.b) ? proposal.b
+                      : min(proposal.a, proposal.b)
+        for participant in [proposal.a, proposal.b] {
+            if participant == transport.myID {
+                localProposalSealed(proposal.id, generator: generator)
+            } else {
+                transport.send(.proposalSealed(proposalID: proposal.id, generator: generator), to: [participant])
+            }
+        }
+        proposals.removeValue(forKey: proposal.id)
+        matcher.unlock([proposal.a, proposal.b])
+        note("sealed \(proposal.id.prefix(8)) — \(name(generator)) writes the opener")
+    }
+
+    private func deliverTimeout(to participant: String) {
+        if participant == transport.myID {
+            if case .checking = phase { phase = .timedOut }
+        } else {
+            transport.send(.bumpTimedOut, to: [participant])
+        }
+    }
+
+    private func deliverAmbiguous(to participant: String, candidates: Int) {
+        if participant == transport.myID {
+            if case .checking = phase { phase = .ambiguous(candidates) }
+        } else {
+            transport.send(.bumpAmbiguous(candidates: candidates), to: [participant])
+        }
+    }
+
+    // MARK: Messages
+
+    private func handle(_ body: Wire.Body, from peer: String) {
+        switch body {
+
+        case .hello(let displayName, let roomCode, let supportsUWB, let supportsAI):
+            guard isCoordinator else { return }
+            let full = transport.connected.count + 1 > PeerTransport.maxPeers
+            guard roomCode == room.code, !full else {
+                transport.send(.welcome(accepted: false,
+                                        reason: full ? "This room is full (\(PeerTransport.maxPeers) phones max)." : "Wrong room code.",
+                                        roomName: room.code ?? "", capacity: PeerTransport.maxPeers,
+                                        occupancy: transport.connected.count + 1), to: [peer])
+                return
+            }
+            membersByID[peer] = Wire.Member(id: peer, displayName: displayName, supportsUWB: supportsUWB)
+            if supportsAI { aiCapable.insert(peer) }
+            transport.send(.welcome(accepted: true, reason: nil, roomName: room.code ?? "",
+                                    capacity: PeerTransport.maxPeers,
+                                    occupancy: transport.connected.count + 1), to: [peer])
+            broadcastRoster()
+            exchangeTokens(with: peer)
+
+        case .welcome(let accepted, let reason, let roomName, let capacity, let occupancy):
+            if accepted {
+                note("joined \"\(roomName)\" — \(occupancy)/\(capacity) phones")
+                capacityNote = "\(occupancy) of \(capacity) phones"
+                exchangeTokens(with: peer)
+            } else {
+                room = .none
+                transport.stop()
+                phase = .needsRetry(reason ?? "That room wouldn't let you in.")
+            }
+
+        case .roster(let list):
+            members = list.filter { $0.id != transport.myID }
+            for m in list { membersByID[m.id] = m }
+
+        case .discoveryToken(let data):
+            ranging.acceptToken(data, from: peer)
+            // Reciprocate so both sides can range.
+            if let mine = ranging.prepareSession(for: peer) {
+                transport.send(.discoveryToken(mine), to: [peer])
+            }
+
+        case .bumpEvent:
+            guard isCoordinator else { return }
+            ingestBump(from: peer)
+
+        case .proximity(let subject, let distance):
+            guard isCoordinator else { return }
+            // Attributed to the reporting observer and its named peer, never
+            // assumed to be about us.
+            matcher.record(.init(observer: peer, peer: subject, distance: distance, at: monotonic()))
+
+        case .proposal(let id, let partner, let uwb, _):
+            receiveProposal(id: id, partner: partner, uwb: uwb, manual: false)
+
+        case .bumpTimedOut:
+            if case .checking = phase { phase = .timedOut }
+
+        case .bumpAmbiguous(let candidates):
+            if case .checking = phase { phase = .ambiguous(candidates) }
+
+        case .confirm(let proposalID):
+            guard isCoordinator, var proposal = proposals[proposalID] else { return }
+            guard proposal.a == peer || proposal.b == peer else { return }
+            proposal.confirmed.insert(peer)              // idempotent
+            proposals[proposalID] = proposal
+            let other = proposal.a == peer ? proposal.b : proposal.a
+            if proposal.confirmed.count == 2 { seal(proposal) }
+            else if other == transport.myID { partnerConfirmedLocally(proposalID) }
+            else { transport.send(.partnerConfirmed(proposalID: proposalID), to: [other]) }
+
+        case .decline(let proposalID, let reason):
+            guard isCoordinator else { return }
+            close(proposalID, reason: reason)
+
+        case .partnerConfirmed:
+            note("your partner confirmed")
+
+        case .proposalClosed(let proposalID, let reason):
+            localProposalClosed(proposalID, reason: reason)
+
+        case .proposalSealed(let proposalID, let generator):
+            localProposalSealed(proposalID, generator: generator)
+
+        case .profile(let proposalID, let profile):
+            guard myProposal?.id == proposalID else { return }
+            partnerProfile = profile
+            note("received \(profile.displayName)'s interests")
+            Task { await self.finishIfReady(proposalID: proposalID) }
+
+        case .insight(let proposalID, let insight):
+            guard myProposal?.id == proposalID, !iAmGenerator else { return }
+            completeConnection(with: insight)
+        }
+    }
+
+    // MARK: Local proposal handling
+
+    private func receiveProposal(id: String, partner: Wire.Member, uwb: Bool, manual: Bool) {
+        // One active proposal per person: ignore a second while one is open.
+        guard myProposal == nil else { return }
+        let proposal = Proposal(id: id, partner: partner, uwbCorroborated: uwb, manual: manual)
+        myProposal = proposal
+        partnerProfile = nil
+        sentProfileFor = nil
+        phase = .confirming(proposal)
+        armPhaseDeadline(Self.confirmationTimeout) { [weak self] in
+            guard let self, case .confirming = self.phase else { return }
+            self.declineCurrent(reason: "You didn't confirm in time.")
+        }
+        Haptics.tap()
+    }
+
+    func confirmCurrent() {
+        guard let proposal = myProposal else { return }
+        phase = .waitingForPartner
+        armPhaseDeadline(Self.confirmationTimeout) { [weak self] in
+            guard let self, case .waitingForPartner = self.phase else { return }
+            self.phase = .needsRetry("\(proposal.partner.displayName) didn't confirm in time.")
+            self.myProposal = nil
+        }
+        if isCoordinator {
+            guard var live = proposals[proposal.id] else { return }
+            live.confirmed.insert(transport.myID)
+            proposals[proposal.id] = live
+            let other = live.a == transport.myID ? live.b : live.a
+            if live.confirmed.count == 2 { seal(live) }
+            else { transport.send(.partnerConfirmed(proposalID: proposal.id), to: [other]) }
+        } else {
+            transport.send(.confirm(proposalID: proposal.id), to: coordinatorIDs())
+        }
+    }
+
+    func declineCurrent(reason: String = "Not this person.") {
+        guard let proposal = myProposal else { return }
+        myProposal = nil
+        if isCoordinator { close(proposal.id, reason: reason) }
+        else { transport.send(.decline(proposalID: proposal.id, reason: reason), to: coordinatorIDs()) }
+        phase = .needsRetry(reason)
+    }
+
+    private func partnerConfirmedLocally(_ proposalID: String) {
+        note("partner confirmed \(proposalID.prefix(8))")
+    }
+
+    private func localProposalClosed(_ proposalID: String, reason: String) {
+        guard myProposal?.id == proposalID else { return }
+        myProposal = nil; partnerProfile = nil
+        phase = .needsRetry(reason)
+    }
+
+    /// Both confirmed. Now — and only now — the two phones exchange full
+    /// profiles DIRECTLY. The coordinator never sees them.
+    private func localProposalSealed(_ proposalID: String, generator: String) {
+        guard let proposal = myProposal, proposal.id == proposalID else { return }
+        iAmGenerator = (generator == transport.myID)
+        phase = .exchanging
+        armPhaseDeadline(Self.exchangeTimeout) { [weak self] in
+            guard let self, case .exchanging = self.phase else { return }
+            self.phase = .needsRetry("Couldn't swap interests with \(proposal.partner.displayName). Move a little closer and bump again.")
+            self.myProposal = nil
+        }
+        transport.openDirectLink(to: proposal.partner.id)
+        sendProfileIfPossible(proposalID: proposalID)
+    }
+
+    private func sendProfileIfPossible(proposalID: String) {
+        guard let proposal = myProposal, proposal.id == proposalID, sentProfileFor != proposalID else { return }
+        guard transport.connected.contains(where: { $0.id == proposal.partner.id }) else { return }
+        sentProfileFor = proposalID
+        transport.send(.profile(proposalID: proposalID, profile: store.profile.shareable),
+                       to: [proposal.partner.id])
+        note("sent your interests to \(proposal.partner.displayName)")
+        Task { await finishIfReady(proposalID: proposalID) }
+    }
+
+    private func finishIfReady(proposalID: String) async {
+        guard iAmGenerator,
+              let proposal = myProposal, proposal.id == proposalID,
+              let theirs = partnerProfile else { return }
+        let insight = await ConversationService.makeInsight(mine: store.profile.shareable, theirs: theirs)
+        // Idempotent: a retried send is harmless because the receiver keys on the
+        // proposal id and ignores a second one.
+        transport.send(.insight(proposalID: proposalID, insight: insight), to: [proposal.partner.id])
+        completeConnection(with: insight)
+    }
+
+    private func completeConnection(with insight: ConnectionInsight) {
+        guard let proposal = myProposal, let partner = partnerProfile else { return }
+        phaseDeadline?.invalidate()
+        let result = Result(partner: partner, insight: insight,
+                            evidence: proposal.evidence,
+                            roomName: room.code ?? "",
+                            metOn: Date())
+        phase = .connected(result)
+        myProposal = nil
+        motion.stop()
+        Haptics.success()
+        note("connected with \(partner.displayName)")
+    }
+
+    // MARK: Manual selection (honest fallback)
+
+    /// Used when automatic matching can't decide, or UWB/motion isn't usable.
+    /// Recorded as `.manualSelection`, never as a hardware-detected bump.
+    func proposeManually(with member: Wire.Member) {
+        guard isCoordinator else {
+            // A guest asks the coordinator by sending a bump and letting the
+            // coordinator pair, which it cannot do for a manual pick. Keep the
+            // honest limitation explicit.
+            phase = .needsRetry("Only the phone hosting the room can pick someone manually right now. Ask them to host the pick, or try bumping again.")
+            return
+        }
+        openProposal(a: transport.myID, b: member.id, uwb: false, manual: true, gap: 0)
+    }
+
+    // MARK: Roster / peers
+
+    private func peerJoined(_ peer: String) {
+        if !isCoordinator, room.code != nil {
+            transport.send(.hello(displayName: store.profile.displayName,
+                                  roomCode: room.code ?? "",
+                                  supportsUWB: ranging.isSupported,
+                                  supportsAI: ConversationService.onDeviceModelAvailable),
+                           to: [peer])
+        }
+        if case .hostLost(let code) = room { room = .joined(code: code) }
+        // A newly opened direct link may be the partner we are waiting for.
+        if let proposal = myProposal, proposal.partner.id == peer {
+            sendProfileIfPossible(proposalID: proposal.id)
+        }
+    }
+
+    private func peerLeft(_ peer: String) {
+        ranging.endSession(for: peer)
+        if isCoordinator {
+            matcher.remove(participant: peer)
+            membersByID[peer] = nil
+            aiCapable.remove(peer)
+            for proposal in proposals.values where proposal.a == peer || proposal.b == peer {
+                close(proposal.id, reason: "\(name(peer)) disconnected.")
+            }
+            broadcastRoster()
+        } else if members.isEmpty || transport.connected.isEmpty {
+            // We lost the coordinator. Pause matching and offer a clear way back;
+            // no host migration, by design.
+            if let code = room.code {
+                room = .hostLost(code: code)
+                motion.stop()
+                phase = .needsRetry("The phone hosting \"\(code)\" went away. Rejoin, or host the room yourself.")
+            }
+        }
+        if let proposal = myProposal, proposal.partner.id == peer {
+            myProposal = nil
+            phase = .needsRetry("\(proposal.partner.displayName) disconnected.")
+        }
+    }
+
+    private func rosterChanged(_ peers: [Wire.Member]) {
+        guard isCoordinator else { return }
+        capacityNote = "\(peers.count + 1) of \(PeerTransport.maxPeers) phones"
+        broadcastRoster()
+    }
+
+    private func broadcastRoster() {
+        guard isCoordinator else { return }
+        var list = transport.connected.map { membersByID[$0.id] ?? $0 }
+        list.append(Wire.Member(id: transport.myID,
+                                displayName: store.profile.displayName,
+                                supportsUWB: ranging.isSupported))
+        members = list.filter { $0.id != transport.myID }
+        transport.broadcast(.roster(members: list))
+    }
+
+    private func exchangeTokens(with peer: String) {
+        guard let token = ranging.prepareSession(for: peer) else { return }
+        transport.send(.discoveryToken(token), to: [peer])
+    }
+
+    private func coordinatorIDs() -> [String] {
+        // As a guest we are connected to the coordinator (and possibly a partner
+        // via a direct link). Messages for the coordinator go to whichever peer
+        // we joined through; with a star topology that is the host.
+        transport.connected.map(\.id)
+    }
+
+    private func name(_ id: String) -> String {
+        membersByID[id]?.displayName ?? transport.displayName(of: id)
+    }
+
+    // MARK: Lifecycle
+
+    func handleScenePhase(_ scenePhase: ScenePhase) {
+        switch scenePhase {
+        case .active:
+            ranging.resumeAll()
+        case .background, .inactive:
+            // Foreground-only experiment: stop sensing, clear stale values.
+            motion.stop()
+            ranging.pauseAll()
+            if case .ready = phase { phase = .notReady }
+            if case .checking = phase { phase = .needsRetry("BUMP paused when you left the app. Tap ready and try again.") }
+        @unknown default: break
+        }
+    }
+
+    // MARK: Retry / reset
+
+    func retry() {
+        myProposal = nil; partnerProfile = nil
+        phase = room == .none ? .notReady : .notReady
+    }
+
+    func bumpAgain() {
+        myProposal = nil; partnerProfile = nil
+        phase = .notReady
+        setReady(true)
+    }
+
+    func saveCurrentConnection() {
+        guard case .connected(let result) = phase else { return }
+        store.save(SavedConnection(partnerName: result.partner.displayName,
+                                   partnerBio: result.partner.bio,
+                                   metOn: result.metOn,
+                                   roomName: result.roomName,
+                                   insight: result.insight,
+                                   pairingEvidence: result.evidence))
+        Haptics.tap()
+    }
+
+    // MARK: Helpers
+
+    private func armPhaseDeadline(_ seconds: TimeInterval, _ action: @escaping () -> Void) {
+        phaseDeadline?.invalidate()
+        phaseDeadline = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { _ in
+            Task { @MainActor in action() }
+        }
+    }
+
+    func note(_ text: String) {
+        log.insert(LogLine(at: Date(), text: text), at: 0)
+        if log.count > 200 { log.removeLast() }
+    }
+
+    func clearLog() { log.removeAll() }
+
+    #if DEBUG
+    /// DEBUG-only: pose a phase for simulator screenshots and previews. Never
+    /// called on a real run; see `DemoMode`.
+    func applyDemo(phase: Phase, members: [Wire.Member]) {
+        self.phase = phase
+        self.members = members
+        self.room = .hosting(code: "demo")
+        self.capacityNote = "\(members.count + 1) of \(PeerTransport.maxPeers) phones"
+    }
+    #endif
+}

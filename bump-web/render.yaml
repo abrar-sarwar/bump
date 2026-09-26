@@ -1,0 +1,16 @@
+# Render Blueprint for the bump spike.
+# One free instance only: all state is in memory, so a second instance would
+# put two phones on two different, non-communicating matchers.
+services:
+  - type: web
+    name: bump-web
+    runtime: node
+    plan: free
+    rootDir: bump-web
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
