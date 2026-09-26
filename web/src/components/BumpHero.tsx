@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import wordmark from '../assets/wordmark.png'
+import HeroBackdrop from './HeroBackdrop'
+import HeroFloaters from './HeroFloaters'
 import './BumpHero.css'
 
 gsap.registerPlugin(ScrollTrigger)
@@ -25,13 +27,17 @@ gsap.registerPlugin(ScrollTrigger)
  * rather than by nudging whole-image bounds together.
  */
 
+// Scroll lengths are 400vh desktop / 300vh mobile. Everything up to revealIn
+// sits at the same ABSOLUTE scroll distance it had at 320 / 240 (fractions
+// scaled by 0.8); the extra length all went to the reveal, so the wordmark
+// and the parting phones take twice as much scrolling as they used to.
 const STAGE = {
-  cueOut: 0.10,      // the "scroll to bump" cue fades away
-  approachIn: 0.15,  // phones start closing
-  contact: 0.50,     // edges meet
-  recoilOut: 0.62,   // recoil settles, reveal begins
-  revealIn: 0.66,    // wordmark takes focus, copy arrives
-  settled: 0.90,     // composition holds before release
+  cueOut: 0.08,      // the "scroll to bump" cue fades away
+  approachIn: 0.12,  // phones start closing
+  contact: 0.40,     // edges meet
+  recoilOut: 0.496,  // recoil settles, reveal begins
+  revealIn: 0.528,   // wordmark takes focus, copy arrives
+  settled: 0.912,    // composition holds before release
 }
 
 type Layout = {
@@ -61,8 +67,13 @@ type Layout = {
 }
 
 const DESKTOP: Layout = {
-  restOffset: 26, travel: 19.3, drift: 0, axis: 'x',
-  partX: 15, partY: 31, markReveal: 76, markFrom: 0.9,
+  // The photos are 60vw wide so the cropped wrist of each arm stays past the
+  // viewport edge for the whole sequence, including contact. restOffset was
+  // re-derived with it so the leading phone edges sit exactly where they did
+  // at 46vw: blue rests at 33.9vw and meets at 53.2vw, and the image's left
+  // (wrist) edge is at -26vw at rest and -6.7vw at contact, never on screen.
+  restOffset: 43.3, travel: 19.3, drift: 0, axis: 'x',
+  partX: 15, partY: 50, markReveal: 76, markFrom: 0.9,
 }
 
 const MOBILE: Layout = {
@@ -116,7 +127,12 @@ export default function BumpHero() {
         // and only `scale` animates, so the bloom is a transform, not a layout
         // change. CSS already sets opacity: 0 so it cannot flash before GSAP runs.
         gsap.set(mark, {
-          width: `${L.markReveal}vw`, yPercent: -50,
+          // Centre with xPercent, and zero x explicitly. GSAP folds the CSS
+          // `translate: -50%` into a PIXEL x the first time it touches the
+          // transform, measured at the CSS width (92vw); after this resize to
+          // markReveal that stale offset put the word ~115px left of centre,
+          // i.e. not opening from the point where the phones met.
+          width: `${L.markReveal}vw`, x: 0, xPercent: -50, yPercent: -50,
           // Fully opaque but masked to a zero-width sliver at the centre, which
           // is exactly where the phones meet. The reveal opens that mask
           // outwards, so the WORD grows from the contact point instead of
@@ -144,6 +160,37 @@ export default function BumpHero() {
         // ---- cue out
         tl.to('.hero__cue', { opacity: 0, y: 14, duration: STAGE.cueOut }, 0)
 
+        // ---- background parallax, across the whole scroll. Slow and linear,
+        // so it reads as depth rather than as something happening.
+        tl.to(q('.hero__backdrop'), { y: () => -7 * vh(), duration: 1 }, 0)
+        tl.to(q('.hero__shape'), {
+          rotation: (i: number) => [28, -22, 34, -18, 0, 16][i] ?? 0,
+          duration: 1,
+        }, 0)
+        // The reveal's one shared motion: the wordmark opening and the phones
+        // parting use this start, duration and ease (see "the reveal" below),
+        // and the foreground fragments slide off at the same speed.
+        const reveal = STAGE.settled - STAGE.revealIn
+        const partAt = STAGE.revealIn + reveal * 0.12
+        const partFor = reveal * 0.88
+        const partEase = 'power1.inOut'
+
+        // Foreground UI fragments: from just after the cue fades, each slides
+        // sideways off its own edge at the reveal's speed, a small stagger
+        // between them. Distances come from untransformed layout
+        // (offsetLeft/Width) so a refresh mid-scroll measures correctly.
+        q('.hero__float').forEach((el: HTMLElement, i: number) => {
+          const out = () => el.dataset.side === 'left'
+            ? -(el.offsetLeft + el.offsetWidth * 1.1 + 80)
+            : window.innerWidth - el.offsetLeft + 80
+          tl.to(el, {
+            x: out,
+            rotation: `+=${Number(el.dataset.turn) * 3}`,
+            duration: partFor,
+            ease: partEase,
+          }, STAGE.cueOut * 0.5 + i * 0.012)
+        })
+
         // ---- the approach (translate + a little rotation, never a zoom)
         const approach = STAGE.contact - STAGE.approachIn
         const blueIn = inward(1)
@@ -170,44 +217,46 @@ export default function BumpHero() {
         tl.to(spark, { opacity: 0, scale: 1.5, duration: beat * 0.5 }, STAGE.contact + beat * 0.35)
 
         // ---- the reveal: the SAME wordmark becomes the focal point
-        const reveal = STAGE.settled - STAGE.revealIn
         // Part outwards, clearing the centre for the wordmark and the copy.
         // Desktop: both sink toward the lower outside corners.
         // Mobile: they separate back along the axis they closed on: blue up,
         // orange down, so the tagline and button get a clean band between them.
         const partX = L.partX * vw()
         const partY = L.partY * vh()
-        // 1. the wordmark blooms out of the meeting point. This starts at
-        //    STAGE.revealIn, which is strictly after the recoil and the contact
-        //    mark have finished (see the assertion below).
-        tl.fromTo(mark,
-          { clipPath: 'inset(0% 50% 0% 50%)', scale: L.markFrom },
-          {
-            clipPath: 'inset(0% 0% 0% 0%)', scale: 1,
-            duration: reveal * 0.6, ease: 'power2.out',
-          },
-          STAGE.revealIn,
-        )
-
-        // 2. the phones move aside so it becomes fully readable
+        // 1 + 2. The phones move aside and the wordmark opens out of the
+        //    meeting point AS they part: one start, one duration, one ease, so
+        //    the mask's edges track the phones instead of racing ahead of them.
+        //    (It used to open over 0.6 of this span with power2.out and was
+        //    fully open while the phones had barely started moving.)
+        //    This starts after STAGE.revealIn, so strictly after the recoil
+        //    and the contact mark have finished.
         const blueOut = L.axis === 'x'
           ? { x: blueRest.x - partX, y: blueRest.y + partY }
           : { x: blueRest.x - partX, y: blueRest.y - partY }
         const orangeOut = { x: orangeRest.x + partX, y: orangeRest.y + partY }
         tl.to(blue, {
           ...blueOut, rotation: -9,
-          duration: reveal * 0.88, ease: 'power1.inOut',
-        }, STAGE.revealIn + reveal * 0.12)
+          duration: partFor, ease: partEase,
+        }, partAt)
         tl.to(orange, {
           ...orangeOut, rotation: 9,
-          duration: reveal * 0.88, ease: 'power1.inOut',
-        }, STAGE.revealIn + reveal * 0.12)
+          duration: partFor, ease: partEase,
+        }, partAt)
+        tl.fromTo(mark,
+          { clipPath: 'inset(0% 50% 0% 50%)', scale: L.markFrom },
+          {
+            clipPath: 'inset(0% 0% 0% 0%)', scale: 1,
+            duration: partFor, ease: partEase,
+          },
+          partAt,
+        )
 
-        // 3. only then the supporting line and the CTA
+        // 3. then the supporting line and the CTA
         tl.fromTo('.hero__reveal',
           { opacity: 0, y: 24 },
-          { opacity: 1, y: 0, duration: reveal * 0.5, ease: 'power2.out' },
-          STAGE.revealIn + reveal * 0.5,
+          // Starts once the word is past halfway open, lands with `settled`.
+          { opacity: 1, y: 0, duration: reveal * 0.4, ease: 'power2.out' },
+          STAGE.revealIn + reveal * 0.6,
         )
 
         // The STAGE numbers are fractions of the WHOLE scroll, so the timeline
@@ -216,9 +265,14 @@ export default function BumpHero() {
         tl.set({}, {}, 1)
       }
 
-      mm.add('(min-width: 861px)', build(DESKTOP, 320))
-      mm.add('(max-width: 860px)', build(MOBILE, 240))
+      mm.add('(min-width: 861px)', build(DESKTOP, 400))
+      mm.add('(max-width: 860px)', build(MOBILE, 300))
     }, root)
+
+    // The pin adds ~3x the viewport height of spacer above everything below
+    // the hero. Any ScrollTrigger created earlier (the intro's word reveal)
+    // measured the page without it, so re-measure now that it exists.
+    ScrollTrigger.refresh()
 
     // Fonts can change the cue/reveal text metrics after first paint.
     document.fonts?.ready.then(() => ScrollTrigger.refresh())
@@ -234,6 +288,8 @@ export default function BumpHero() {
           BUMP. Meet someone, find your overlap.
         </h1>
 
+        <HeroBackdrop />
+
         <img className="hero__mark" src={wordmark} alt="" aria-hidden="true" />
 
         <div className="hero__spark" aria-hidden="true" />
@@ -242,7 +298,7 @@ export default function BumpHero() {
           className="hero__phone hero__phone--blue"
           src="/assets/phone-blue.png"
           srcSet="/assets/phone-blue.png 1100w, /assets/phone-blue@1600.png 1600w"
-          sizes="46vw"
+          sizes="(max-width: 860px) 82vw, 60vw"
           width={1100}
           height={506}
           alt=""
@@ -254,7 +310,7 @@ export default function BumpHero() {
           className="hero__phone hero__phone--orange"
           src="/assets/phone-orange.png"
           srcSet="/assets/phone-orange.png 1100w, /assets/phone-orange@1600.png 1600w"
-          sizes="46vw"
+          sizes="(max-width: 860px) 82vw, 60vw"
           width={1100}
           height={604}
           alt=""
@@ -268,9 +324,14 @@ export default function BumpHero() {
           Scroll to bump
         </p>
 
+        <HeroFloaters />
+
         <div className="hero__reveal">
           <p className="hero__tagline">A small gesture. A real connection.</p>
-          <a className="btn btn--primary" href="#how-it-works">See how it works</a>
+          <md-filled-button href="#how-it-works" trailing-icon="">
+            See how it works
+            <md-icon slot="icon">arrow_downward</md-icon>
+          </md-filled-button>
         </div>
       </div>
     </section>

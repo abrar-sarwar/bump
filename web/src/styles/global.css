@@ -46,72 +46,8 @@ a {
   clip-path: inset(50%); white-space: nowrap; border: 0;
 }
 
-/* --- Buttons ---------------------------------------------------------------
-   MD3 buttons: full corner radius, label-large type, and a STATE LAYER rather
-   than a different background colour on hover. The layer is the button's own
-   content colour at the spec opacity, painted by ::before, so one rule works
-   on every variant regardless of its background. */
-.btn {
-  position: relative;
-  isolation: isolate;
-  display: inline-flex; align-items: center; gap: 10px;
-  font: inherit;
-  font-size: var(--md-sys-typescale-label-large-size);
-  font-weight: var(--md-sys-typescale-label-weight);
-  letter-spacing: var(--md-sys-typescale-label-tracking);
-  padding: 15px 26px;
-  border-radius: var(--md-sys-shape-corner-full);
-  border: 1px solid transparent;
-  cursor: pointer;
-  text-decoration: none;
-  overflow: hidden;
-  transition:
-    box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-    transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-}
-
-.btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: currentColor;
-  opacity: 0;
-  transition: opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
-}
-.btn:hover::before { opacity: var(--md-sys-state-hover-state-layer-opacity); }
-.btn:focus-visible::before { opacity: var(--md-sys-state-focus-state-layer-opacity); }
-.btn:active::before { opacity: var(--md-sys-state-pressed-state-layer-opacity); }
-.btn:active { transform: translateY(1px); }
-
-/* Filled: the highest-emphasis action. */
-.btn--primary {
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
-}
-.btn--primary:hover { box-shadow: var(--md-sys-elevation-level1); }
-
-/* Outlined: medium emphasis on a plain surface. */
-.btn--ghost {
-  background: transparent;
-  color: var(--md-sys-color-primary);
-  border-color: var(--md-sys-color-outline);
-}
-
-/* Filled, sitting ON the primary panel, so the roles invert. */
-.btn--on-blue {
-  background: var(--md-sys-color-on-primary);
-  color: var(--md-sys-color-primary);
-}
-.btn--on-blue:hover { box-shadow: var(--md-sys-elevation-level1); }
-
-.eyebrow {
-  font-size: var(--md-sys-typescale-label-medium-size);
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--md-sys-color-on-surface-variant);
-}
+/* The hero uses Google's Material Web components (src/material.ts). Below the
+   hero, buttons, pills and cards are the folk-style ones in sections.css. */
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

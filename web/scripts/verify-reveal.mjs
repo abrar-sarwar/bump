@@ -2,16 +2,18 @@
  *  breakpoints, forwards and backwards. */
 import { chromium } from 'playwright'
 const URL = process.argv[2] ?? 'http://localhost:4173'
-const HERO_VH = { desktop: 3.2, mobile: 2.4 }
+const HERO_VH = { desktop: 4.0, mobile: 3.0 }
 const BEATS = [
   ['load',        0.00, 'hidden'],
-  ['approach',    0.32, 'hidden'],
-  ['pre-contact', 0.47, 'hidden'],
-  ['contact',     0.53, 'hidden'],
-  ['recoil',      0.60, 'hidden'],
-  ['mid-reveal',  0.70, 'partial'],
-  ['reveal',      0.78, 'visible'],
-  ['settled',     0.93, 'visible'],
+  ['approach',    0.26, 'hidden'],
+  ['pre-contact', 0.38, 'hidden'],
+  ['contact',     0.42, 'hidden'],
+  ['recoil',      0.48, 'hidden'],
+  // The word opens in lockstep with the phones parting (0.574 to 0.912,
+  // power1.inOut), so these sample that span.
+  ['mid-reveal',  0.66, 'partial'],
+  ['reveal',      0.80, 'visible'],
+  ['settled',     0.95, 'visible'],
 ]
 const b = await chromium.launch({ channel: 'chrome' })
 const fails = []

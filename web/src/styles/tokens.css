@@ -118,6 +118,12 @@
   --md-ref-typeface-brand: 'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --md-ref-typeface-plain: var(--md-ref-typeface-brand);
 
+  /* Material Web components read these directly. Labels on buttons and chips
+     run a touch heavier than the spec's 500 to sit with Archivo's weight. */
+  --md-sys-typescale-label-large-font: var(--md-ref-typeface-plain);
+  --md-sys-typescale-label-large-weight: var(--md-sys-typescale-label-weight);
+  --md-icon-font: 'Material Symbols Rounded';
+
   /* --- MD3 shape scale ---------------------------------------------------- */
   --md-sys-shape-corner-none: 0;
   --md-sys-shape-corner-extra-small: 4px;
@@ -163,6 +169,47 @@
   --md-sys-motion-duration-medium2: 300ms;
   --md-sys-motion-duration-medium4: 400ms;
   --md-sys-motion-duration-long2: 500ms;
+
+  /* --- Folk-inspired surface language (everything below the hero) --------
+     Measured from folk.com on 2026-09-26, not guessed. The hero keeps MD3.
+     Accents stay BUMP's own MD3 primary, so the page is still ours. */
+  --folk-page: #f5f6f8;
+  --folk-ink: #1f2a2f;
+  --folk-ink-soft: rgba(31, 42, 47, 0.62);   /* secondary text */
+  --folk-ink-faint: rgba(31, 42, 47, 0.45);  /* tertiary, "with ..." */
+  --folk-track: rgba(31, 42, 47, 0.06);      /* pill-tab track */
+  --folk-hairline: rgba(31, 42, 47, 0.08);
+  --folk-typeface: ui-rounded, 'SF Pro Rounded', 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+
+  /* Frosted card: a white gradient, a bright inner top edge, a hairline,
+     and three stacked soft shadows. */
+  --folk-card-fill: linear-gradient(rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.78));
+  --folk-card-shadow:
+    inset 0 1px 0 #fff, inset 0 -1px 0 rgba(255, 255, 255, 0.5),
+    0 0 0 0.5px rgba(31, 42, 47, 0.08), 0 1px 2px rgba(31, 42, 47, 0.03),
+    0 4px 10px rgba(31, 42, 47, 0.04), 0 10px 24px rgba(31, 42, 47, 0.05);
+  --folk-card-shadow-hover:
+    inset 0 1px 0 #fff, inset 0 -1px 0 rgba(255, 255, 255, 0.5),
+    0 0 0 0.5px rgba(31, 42, 47, 0.1), 0 2px 4px rgba(31, 42, 47, 0.04),
+    0 8px 18px rgba(31, 42, 47, 0.07), 0 18px 40px rgba(31, 42, 47, 0.08);
+  --folk-radius-card: 15px;
+  --folk-radius-bento: 22px;
+
+  /* The glossy orb that holds an icon or avatar. */
+  --folk-orb-fill: radial-gradient(circle at 34% 28%, #ffffff 0%, #eef1f4 46%, #d6dce3 100%);
+  --folk-orb-shadow:
+    inset 0 -3px 6px rgba(31, 42, 47, 0.08), inset 0 2px 3px #fff,
+    0 0 0 0.5px rgba(31, 42, 47, 0.08), 0 6px 14px rgba(31, 42, 47, 0.12);
+
+  /* Pastel washes for bento cards. */
+  --folk-wash-mint: radial-gradient(120% 90% at 20% 100%, #c9f1ea 0%, rgba(201, 241, 234, 0) 60%), radial-gradient(90% 80% at 100% 100%, #dfe2fb 0%, rgba(223, 226, 251, 0) 65%), #f3f5f8;
+  --folk-wash-peach: radial-gradient(110% 90% at 30% 100%, #f8e0d4 0%, rgba(248, 224, 212, 0) 62%), radial-gradient(80% 70% at 100% 90%, #ece0f5 0%, rgba(236, 224, 245, 0) 65%), #f4f4f7;
+  --folk-wash-lilac: radial-gradient(120% 90% at 10% 100%, #e6dcfa 0%, rgba(230, 220, 250, 0) 60%), radial-gradient(90% 80% at 100% 100%, #d9ecfb 0%, rgba(217, 236, 251, 0) 65%), #f3f4f8;
+  --folk-wash-sky: radial-gradient(120% 90% at 50% 100%, #d7ebfb 0%, rgba(215, 235, 251, 0) 62%), #f3f5f8;
+
+  /* Chat bubbles. The blue is BUMP's primary, not iMessage's. */
+  --folk-bubble-them: #e9ebef;
+  --folk-bubble-me: var(--md-sys-color-primary);
 
   /* --- Layout -------------------------------------------------------------
      Not an MD3 concept. MD3's window size classes are for app layout; this is

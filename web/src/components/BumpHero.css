@@ -45,7 +45,7 @@
    the left), so its right edge is the contact edge. */
 .hero__phone--blue {
   left: 0;
-  width: 46vw;
+  width: 60vw;   /* wide enough that the wrist crop never reaches the viewport */
   transform-origin: 20% 50%;
   margin-top: -2vh;
 }
@@ -53,7 +53,7 @@
 /* The orange phone's body sits at the LEFT end of its image. */
 .hero__phone--orange {
   right: 0;
-  width: 46vw;
+  width: 60vw;
   transform-origin: 80% 50%;
   margin-top: 6vh;
 }
@@ -136,10 +136,10 @@
   .hero__reveal { margin-top: clamp(64px, 22vw, 130px); }
 }
 
-/* Ultrawide: cap the artwork so the photographs never stretch into the void. */
+/* Ultrawide: cap the wordmark only. The phones are NOT capped: a capped photo
+   is narrower than the 60vw the timeline assumes, which puts the cropped wrist
+   back on screen. A slightly soft photo beats a visibly severed arm. */
 @media (min-width: 1700px) {
-  .hero__phone--blue,
-  .hero__phone--orange { width: min(46vw, 820px); }
   .hero__mark { width: min(92vw, 1560px); }
 }
 

@@ -1,22 +1,74 @@
+import { useLayoutEffect, useRef } from 'react'
+import gsap from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import './sections.css'
 
+gsap.registerPlugin(ScrollTrigger)
+
+// The statement, split so each word can be revealed by scroll. `orbs` marks
+// where the inline icon orbs sit, the way folk sets app icons into its line.
+const BEFORE = 'You already have something in common. BUMP'
+const AFTER = 'finds it, so a first hello turns into a real conversation.'
+
+const ORBS = [
+  { icon: 'vibration', tone: 'primary' },
+  { icon: 'handshake', tone: 'secondary' },
+  { icon: 'chat_bubble', tone: 'tertiary' },
+]
+
+const words = (s: string) => s.split(' ').map((w, i) => (
+  <span className="statement__word" key={i}>{w} </span>
+))
+
 export default function IntroSection() {
+  const root = useRef<HTMLElement>(null)
+
+  // Words start faint and darken as the statement scrolls through the
+  // viewport, scrubbed so it reverses on scroll-up. Reduced motion: the CSS
+  // default is fully dark and this never runs.
+  useLayoutEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const ctx = gsap.context(() => {
+      gsap.fromTo('.statement__word, .statement__orbs',
+        { opacity: 0.16 },
+        {
+          opacity: 1,
+          ease: 'none',
+          stagger: 0.12,
+          scrollTrigger: {
+            trigger: '.statement__text',
+            start: 'top 82%',
+            end: 'bottom 45%',
+            scrub: 0.4,
+            // Created before the hero's pin (the hero waits for its images),
+            // but sits below it, so it must be measured AFTER the pin spacer
+            // exists. Lower priority = refreshed later.
+            refreshPriority: -1,
+          },
+        },
+      )
+    }, root)
+    return () => ctx.revert()
+  }, [])
+
   return (
-    <section id="the-idea" className="section section--intro">
-      <div className="shell intro__grid">
-        <p className="eyebrow intro__eyebrow">The idea</p>
-        <h2 className="intro__statement">
-          You already have<br />something in common.
+    <section ref={root} id="the-idea" className="section folk-section statement">
+      <div className="shell">
+        <p className="folk-eyebrow">The idea</p>
+        <h2 className="statement__text">
+          {words(BEFORE)}
+          <span className="statement__orbs" aria-hidden="true">
+            {ORBS.map((o) => (
+              <span key={o.icon} className={`folk-orb folk-orb--${o.tone}`}>
+                <md-icon>{o.icon}</md-icon>
+              </span>
+            ))}
+          </span>{' '}
+          {words(AFTER)}
         </h2>
-        <div className="intro__body">
-          <p>
-            BUMP helps you turn a first hello into a real conversation. Bring your
-            phones together, confirm the connection, and find the interests you share.
-          </p>
-          <p className="intro__aside">
-            Not a feed. Not a follow. One gesture, one person, one thing worth talking about.
-          </p>
-        </div>
+        <p className="statement__aside">
+          Not a feed. Not a follow. One gesture, one person, one thing worth talking about.
+        </p>
       </div>
     </section>
   )

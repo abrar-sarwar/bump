@@ -1,0 +1,24 @@
+.to-top {
+  position: fixed;
+  right: clamp(16px, 3vw, 32px);
+  bottom: clamp(16px, 3vw, 32px);
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--folk-ink);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(31, 42, 47, 0.25);
+  cursor: pointer;
+  --md-icon-size: 20px;
+  opacity: 0;
+  scale: 0.6;
+  pointer-events: none;
+  transition:
+    opacity var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized-decelerate),
+    scale var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized-decelerate);
+}
+.to-top--shown { opacity: 1; scale: 1; pointer-events: auto; }
