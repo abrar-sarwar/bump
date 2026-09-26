@@ -136,3 +136,27 @@ final class StreetPassWireTests: XCTestCase {
         XCTAssertEqual(decodedProfile.interests.map(\.id), ["i1", "i2", "i3", "i4", "i5"])
     }
 }
+
+// MARK: - Notifier copy
+
+final class StreetPassNotifierTests: XCTestCase {
+    private func encounter(mutual: String? = nil) -> StreetPassEncounter {
+        StreetPassEncounter(id: "p#1", displayName: "Sam", avatarThumbnail: nil,
+                            mutualInterestStatement: mutual)
+    }
+
+    func testBaseCopyIsAlwaysPresentAndSecondLineEmptyWithNoMutualInterest() {
+        let copy = StreetPassNotifier.copy(for: encounter())
+        XCTAssertEqual(copy.title, "hey, this person just walked by you. bump them?")
+        XCTAssertEqual(copy.body, "")
+    }
+
+    func testSecondLineIsTheExactMutualInterestStatementWhenPresent() {
+        let copy = StreetPassNotifier.copy(for: encounter(mutual: "You're both into jazz piano."))
+        XCTAssertEqual(copy.body, "You're both into jazz piano.")
+    }
+
+    func testNeverInventsAnInterestLine() {
+        XCTAssertFalse(StreetPassNotifier.copy(for: encounter()).body.contains("both"))
+    }
+}
