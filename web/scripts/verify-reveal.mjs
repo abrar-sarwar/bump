@@ -5,13 +5,12 @@ const URL = process.argv[2] ?? 'http://localhost:4173'
 const HERO_VH = { desktop: 4.0, mobile: 3.0 }
 const BEATS = [
   ['load',        0.00, 'hidden'],
-  ['approach',    0.26, 'hidden'],
-  ['pre-contact', 0.38, 'hidden'],
-  ['contact',     0.42, 'hidden'],
-  ['recoil',      0.48, 'hidden'],
-  // The word opens in lockstep with the phones parting (0.574 to 0.912,
-  // power1.inOut), so these sample that span.
-  ['mid-reveal',  0.66, 'partial'],
+  ['approach',    0.20, 'hidden'],
+  ['pre-contact', 0.36, 'hidden'],
+  ['contact',     0.40, 'hidden'],
+  ['touch',       0.405, 'hidden'],
+  // The word opens linearly with the phones parting (0.412 to 0.912).
+  ['mid-reveal',  0.60, 'partial'],
   ['reveal',      0.80, 'visible'],
   ['settled',     0.95, 'visible'],
 ]
@@ -47,7 +46,7 @@ for (const [name, vp] of [['desktop', { width: 1440, height: 900 }], ['mobile', 
 
   for (const [label, p, want] of BEATS.slice(1)) {
     await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), p * span)
-    await page.waitForTimeout(850)
+    await page.waitForTimeout(1400)
     r = await read()
     const ok = want === 'hidden' ? r.o <= 0.02
       : want === 'partial' ? (r.o > 0.02 && r.o < 0.98)
@@ -58,7 +57,7 @@ for (const [name, vp] of [['desktop', { width: 1440, height: 900 }], ['mobile', 
 
   // reversibility: scroll back before the reveal, it must hide again
   await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), 0.4 * span)
-  await page.waitForTimeout(900)
+  await page.waitForTimeout(1400)
   r = await read()
   if (r.o > 0.02) fails.push(`${name} scrolled back to 0.40: visible ${r.o.toFixed(3)} (want 0)`)
   console.log(`${name.padEnd(8)} back-to-0.40 visible ${r.o.toFixed(3)}`)

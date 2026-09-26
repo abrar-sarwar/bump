@@ -1,0 +1,33 @@
+/* Section shapes: behind the content, in the margins. The section needs to
+   be a positioning context and to clip, and its content sits above. */
+.shapes {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.shapes ~ * { position: relative; z-index: 1; }
+
+.shape {
+  position: absolute;
+  /* --size is the width at 1440px; scale with the viewport, within limits. */
+  width: clamp(calc(var(--size) * 0.6px), calc(var(--size) / 14.4 * 1vw), calc(var(--size) * 1.3px));
+  height: auto;
+  overflow: visible;
+}
+.shape--primary { --tone: var(--md-sys-color-primary); }
+.shape--secondary { --tone: var(--md-sys-color-secondary); }
+.shape--tertiary { --tone: var(--md-sys-color-tertiary); }
+
+.shape--line path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--tone) 20%, transparent);
+  stroke-width: 1.5px;
+}
+.shape--fill path { fill: color-mix(in srgb, var(--tone) 6%, transparent); }
+
+@media (max-width: 860px) {
+  .shape:not(.shape--mobile) { display: none; }
+  .shape--mobile { width: calc(var(--size) * 0.55px); }
+}

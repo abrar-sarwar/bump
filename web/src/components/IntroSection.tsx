@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import './sections.css'
+import Shapes, { type ShapeSpec } from './Shapes'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -19,6 +20,14 @@ const ORBS = [
 const words = (s: string) => s.split(' ').map((w, i) => (
   <span className="statement__word" key={i}>{w} </span>
 ))
+
+// Margin shapes for this section (see Shapes.tsx).
+const SHAPES: ShapeSpec[] = [
+  { shape: 'cookie', at: { left: '4%', top: '18%' }, size: 170, turn: 16, drift: -80, mobile: true },
+  { shape: 'flower', at: { right: '5%', top: '34%' }, size: 200, fill: true, turn: -20, drift: -120, tone: 'tertiary' },
+  { shape: 'circle', at: { left: '15%', bottom: '14%' }, size: 64, fill: true, drift: -60, tone: 'secondary' },
+  { shape: 'pill', at: { right: '13%', bottom: '10%' }, size: 150, turn: 12, drift: -50, mobile: true },
+]
 
 export default function IntroSection() {
   const root = useRef<HTMLElement>(null)
@@ -53,6 +62,7 @@ export default function IntroSection() {
 
   return (
     <section ref={root} id="the-idea" className="section folk-section statement">
+      <Shapes set={SHAPES} />
       <div className="shell">
         <p className="folk-eyebrow">The idea</p>
         <h2 className="statement__text">

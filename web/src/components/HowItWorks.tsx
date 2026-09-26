@@ -1,3 +1,4 @@
+import Shapes, { type ShapeSpec } from './Shapes'
 import './sections.css'
 
 // Deliberately short: one word and one line each.
@@ -7,9 +8,18 @@ const STEPS = [
   { icon: 'join_inner', tone: 'tertiary', title: 'Connect', body: 'See what you share, and one thing to open with.' },
 ]
 
+const SHAPES: ShapeSpec[] = [
+  { shape: 'clover', at: { left: '7%', top: '10%' }, size: 124, turn: 18, drift: -70, mobile: true },
+  { shape: 'sunny', at: { right: '12%', top: '6%' }, size: 190, turn: 24, drift: -40, tone: 'secondary' },
+  { shape: 'pill', at: { left: '13%', bottom: '10%' }, size: 170, turn: -10, drift: -90 },
+  { shape: 'cookie', at: { right: '8%', bottom: '8%' }, size: 108, fill: true, turn: -14, drift: -110, tone: 'tertiary', mobile: true },
+]
+
 export default function HowItWorks() {
   return (
     <section id="how-it-works" className="section folk-section">
+      <Shapes set={SHAPES} />
+
       <div className="shell">
         <header className="folk-head">
           <p className="folk-eyebrow">How it works</p>

@@ -1,4 +1,5 @@
 import './sections.css'
+import Shapes, { type ShapeSpec } from './Shapes'
 
 /**
  * What BUMP does and does not do, as MD3 cards.
@@ -48,9 +49,17 @@ const PRINCIPLES = [
 
 const WASHES = ['mint', 'peach', 'lilac', 'sky', 'lilac', 'mint']
 
+// Margin shapes for this section (see Shapes.tsx).
+const SHAPES: ShapeSpec[] = [
+  { shape: 'sunny', at: { left: '4%', top: '3%' }, size: 150, turn: 22, drift: -60, mobile: true },
+  { shape: 'flower', at: { right: '5%', top: '4%' }, size: 130, fill: true, turn: -16, drift: -90 },
+  { shape: 'pill', at: { right: '10%', bottom: '2%' }, size: 140, turn: 10, drift: -50, tone: 'secondary' },
+]
+
 export default function Principles() {
   return (
     <section id="whats-inside" className="section folk-section">
+      <Shapes set={SHAPES} />
       <div className="shell">
         <header className="folk-head">
           <p className="folk-eyebrow">What’s inside</p>
@@ -71,16 +80,6 @@ export default function Principles() {
             </li>
           ))}
         </ul>
-
-        <p className="folk-chip principles__status">
-          <span className="folk-orb folk-orb--sm folk-orb--tertiary" aria-hidden="true">
-            <md-icon>science</md-icon>
-          </span>
-          <span>
-            <strong>Where it stands.</strong> The iOS app builds clean and 96 of 100 unit
-            tests pass, with 4 skipped. It has not yet been proven on two physical phones.
-          </span>
-        </p>
       </div>
     </section>
   )

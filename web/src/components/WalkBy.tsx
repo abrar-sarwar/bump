@@ -1,4 +1,5 @@
 import './sections.css'
+import Shapes, { type ShapeSpec } from './Shapes'
 
 /**
  * The "StreetPass" idea from the team's master doc (.agents/60-master-doc.md):
@@ -13,9 +14,16 @@ import './sections.css'
  */
 const NAME = 'walk-by'
 
+// Margin shapes for this section (see Shapes.tsx).
+const SHAPES: ShapeSpec[] = [
+  { shape: 'pill', at: { left: '1%', top: '8%' }, size: 130, turn: 14, drift: -60 },
+  { shape: 'clover', at: { right: '1.5%', bottom: '4%' }, size: 120, fill: true, turn: -18, drift: -90, tone: 'tertiary', mobile: true },
+]
+
 export default function WalkBy() {
   return (
     <section id="walk-by" className="section folk-section">
+      <Shapes set={SHAPES} />
       <div className="shell">
         <div className="folk-bento folk-bento--lilac walkby">
           <div className="walkby__copy">

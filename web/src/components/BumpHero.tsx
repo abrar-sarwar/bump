@@ -27,16 +27,21 @@ gsap.registerPlugin(ScrollTrigger)
  * rather than by nudging whole-image bounds together.
  */
 
-// Scroll lengths are 400vh desktop / 300vh mobile. Everything up to revealIn
-// sits at the same ABSOLUTE scroll distance it had at 320 / 240 (fractions
-// scaled by 0.8); the extra length all went to the reveal, so the wordmark
-// and the parting phones take twice as much scrolling as they used to.
+// Scroll lengths are 400vh desktop / 300vh mobile.
+//
+// ONE CONSTANT SPEED. Every movement is linear (ease 'none'), the phones go
+// straight from closing to parting with only a brief touch between, and the
+// two spans are sized so the phones cover about the same pixels per pixel
+// scrolled on the way in as on the way out (measured at 1440x900: ~33px of
+// phone movement per 144px scrolled, both directions). There used
+// to be power1.in on the approach, an eased recoil, a ~400px dead zone after
+// contact and power1.inOut on the parting: it crawled near the bump and then
+// rushed away. Keep the eases linear and the gap short, or that comes back.
 const STAGE = {
   cueOut: 0.08,      // the "scroll to bump" cue fades away
-  approachIn: 0.12,  // phones start closing
+  approachIn: 0.035, // phones start closing almost as soon as you scroll
   contact: 0.40,     // edges meet
-  recoilOut: 0.496,  // recoil settles, reveal begins
-  revealIn: 0.528,   // wordmark takes focus, copy arrives
+  revealIn: 0.412,   // a brief touch, then parting and the reveal begin
   settled: 0.912,    // composition holds before release
 }
 
@@ -152,7 +157,7 @@ export default function BumpHero() {
             end: () => '+=' + window.innerHeight * (scrollVh / 100),
             pin: '.hero__stage',
             pinSpacing: true,
-            scrub: 0.6,
+            scrub: 0.9,  // a touch more smoothing, so the turn at contact glides
             invalidateOnRefresh: true,
           },
         })
@@ -167,18 +172,17 @@ export default function BumpHero() {
           rotation: (i: number) => [28, -22, 34, -18, 0, 16][i] ?? 0,
           duration: 1,
         }, 0)
-        // The reveal's one shared motion: the wordmark opening and the phones
-        // parting use this start, duration and ease (see "the reveal" below),
-        // and the foreground fragments slide off at the same speed.
-        const reveal = STAGE.settled - STAGE.revealIn
-        const partAt = STAGE.revealIn + reveal * 0.12
-        const partFor = reveal * 0.88
-        const partEase = 'power1.inOut'
+        // The reveal's one shared motion: the phones parting and the wordmark
+        // opening use this start, duration and (linear) ease, and the
+        // foreground fragments slide off at the same pace.
+        const partAt = STAGE.revealIn
+        const partFor = STAGE.settled - STAGE.revealIn
+        const linear = 'none'
 
         // Foreground UI fragments: from just after the cue fades, each slides
-        // sideways off its own edge at the reveal's speed, a small stagger
-        // between them. Distances come from untransformed layout
-        // (offsetLeft/Width) so a refresh mid-scroll measures correctly.
+        // sideways off its own edge, a small stagger between them. Distances
+        // come from untransformed layout (offsetLeft/Width) so a refresh
+        // mid-scroll measures correctly.
         q('.hero__float').forEach((el: HTMLElement, i: number) => {
           const out = () => el.dataset.side === 'left'
             ? -(el.offsetLeft + el.offsetWidth * 1.1 + 80)
@@ -187,7 +191,7 @@ export default function BumpHero() {
             x: out,
             rotation: `+=${Number(el.dataset.turn) * 3}`,
             duration: partFor,
-            ease: partEase,
+            ease: linear,
           }, STAGE.cueOut * 0.5 + i * 0.012)
         })
 
@@ -195,68 +199,41 @@ export default function BumpHero() {
         const approach = STAGE.contact - STAGE.approachIn
         const blueIn = inward(1)
         const orangeIn = inward(-1)
-        tl.to(blue, {
-          ...blueIn, rotation: 1.5,
-          duration: approach, ease: 'power1.in',
-        }, STAGE.approachIn)
-        tl.to(orange, {
-          ...orangeIn, rotation: -1.5,
-          duration: approach, ease: 'power1.in',
-        }, STAGE.approachIn)
+        tl.to(blue, { ...blueIn, rotation: 1.5, duration: approach, ease: linear }, STAGE.approachIn)
+        tl.to(orange, { ...orangeIn, rotation: -1.5, duration: approach, ease: linear }, STAGE.approachIn)
 
-        // ---- contact: a short, readable beat, then a restrained recoil
-        const beat = STAGE.recoilOut - STAGE.contact
-        const recoil = L.axis === 'x' ? 1.6 * vw() : 1.6 * vh()
-        const back = (p: { x: number; y: number }, sign: number) =>
-          L.axis === 'x' ? { x: p.x - sign * recoil, y: p.y } : { x: p.x, y: p.y - sign * recoil }
-        const blueRest = back(blueIn, 1)
-        const orangeRest = back(orangeIn, -1)
-        tl.to(spark, { opacity: 1, scale: 1, duration: beat * 0.28 }, STAGE.contact)
-        tl.to(blue, { ...blueRest, rotation: -0.5, duration: beat * 0.5, ease: 'power2.out' }, STAGE.contact + beat * 0.2)
-        tl.to(orange, { ...orangeRest, rotation: 0.5, duration: beat * 0.5, ease: 'power2.out' }, STAGE.contact + beat * 0.2)
-        tl.to(spark, { opacity: 0, scale: 1.5, duration: beat * 0.5 }, STAGE.contact + beat * 0.35)
+        // ---- contact: the mark blooms and fades across the turn. Opacity
+        // only, so it never interrupts the phones' constant speed.
+        tl.to(spark, { opacity: 1, scale: 1, duration: 0.02 }, STAGE.contact - 0.005)
+        tl.to(spark, { opacity: 0, scale: 1.5, duration: 0.05 }, STAGE.contact + 0.015)
 
         // ---- the reveal: the SAME wordmark becomes the focal point
         // Part outwards, clearing the centre for the wordmark and the copy.
         // Desktop: both sink toward the lower outside corners.
         // Mobile: they separate back along the axis they closed on: blue up,
         // orange down, so the tagline and button get a clean band between them.
+        // The wordmark opens out of the meeting point AS they part, same start,
+        // duration and ease, so the mask's edges track the phones.
         const partX = L.partX * vw()
         const partY = L.partY * vh()
-        // 1 + 2. The phones move aside and the wordmark opens out of the
-        //    meeting point AS they part: one start, one duration, one ease, so
-        //    the mask's edges track the phones instead of racing ahead of them.
-        //    (It used to open over 0.6 of this span with power2.out and was
-        //    fully open while the phones had barely started moving.)
-        //    This starts after STAGE.revealIn, so strictly after the recoil
-        //    and the contact mark have finished.
         const blueOut = L.axis === 'x'
-          ? { x: blueRest.x - partX, y: blueRest.y + partY }
-          : { x: blueRest.x - partX, y: blueRest.y - partY }
-        const orangeOut = { x: orangeRest.x + partX, y: orangeRest.y + partY }
-        tl.to(blue, {
-          ...blueOut, rotation: -9,
-          duration: partFor, ease: partEase,
-        }, partAt)
-        tl.to(orange, {
-          ...orangeOut, rotation: 9,
-          duration: partFor, ease: partEase,
-        }, partAt)
+          ? { x: blueIn.x - partX, y: blueIn.y + partY }
+          : { x: blueIn.x - partX, y: blueIn.y - partY }
+        const orangeOut = { x: orangeIn.x + partX, y: orangeIn.y + partY }
+        tl.to(blue, { ...blueOut, rotation: -9, duration: partFor, ease: linear }, partAt)
+        tl.to(orange, { ...orangeOut, rotation: 9, duration: partFor, ease: linear }, partAt)
         tl.fromTo(mark,
           { clipPath: 'inset(0% 50% 0% 50%)', scale: L.markFrom },
-          {
-            clipPath: 'inset(0% 0% 0% 0%)', scale: 1,
-            duration: partFor, ease: partEase,
-          },
+          { clipPath: 'inset(0% 0% 0% 0%)', scale: 1, duration: partFor, ease: linear },
           partAt,
         )
 
-        // 3. then the supporting line and the CTA
+        // Then the supporting line and the CTA: in once the word is past
+        // halfway open, landing with `settled`.
         tl.fromTo('.hero__reveal',
           { opacity: 0, y: 24 },
-          // Starts once the word is past halfway open, lands with `settled`.
-          { opacity: 1, y: 0, duration: reveal * 0.4, ease: 'power2.out' },
-          STAGE.revealIn + reveal * 0.6,
+          { opacity: 1, y: 0, duration: partFor * 0.4, ease: linear },
+          partAt + partFor * 0.6,
         )
 
         // The STAGE numbers are fractions of the WHOLE scroll, so the timeline

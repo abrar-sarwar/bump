@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import './sections.css'
+import Shapes, { type ShapeSpec } from './Shapes'
 
 /**
  * An ILLUSTRATIVE preview of what appears after two people connect.
@@ -48,12 +49,20 @@ function initials(name: string) {
   return name.slice(0, 1).toUpperCase()
 }
 
+// Margin shapes for this section (see Shapes.tsx).
+const SHAPES: ShapeSpec[] = [
+  { shape: 'flower', at: { left: '5%', top: '5%' }, size: 150, turn: 18, drift: -70, mobile: true },
+  { shape: 'circle', at: { right: '7%', top: '9%' }, size: 90, fill: true, drift: -90, tone: 'tertiary' },
+  { shape: 'cookie', at: { right: '3%', bottom: '6%' }, size: 130, turn: -14, drift: -60, tone: 'secondary' },
+]
+
 export default function SharedInterestsPreview() {
   const [index, setIndex] = useState(0)
   const ex = VALID[index]
 
   return (
     <section id="the-overlap" className="section folk-section">
+      <Shapes set={SHAPES} />
       <div className="shell">
         <header className="folk-head">
           <p className="folk-eyebrow">The moment</p>

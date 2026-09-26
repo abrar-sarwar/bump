@@ -238,8 +238,34 @@
 .step__title { font-size: 1.1rem; }
 .step__body { color: var(--folk-ink-soft); font-size: 0.92rem; line-height: 1.35; }
 
+/* A small arrow orb between cards, so the three read as a sequence. It is
+   the Material Symbols ligature in generated content, so it needs no markup. */
+.steps { gap: 30px; }
+.step { position: relative; }
+.step:not(:last-child)::after {
+  content: 'arrow_forward';
+  position: absolute;
+  right: -29px;
+  top: 50%;
+  translate: 0 -50%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  font-family: var(--md-icon-font);
+  font-size: 16px;
+  font-feature-settings: 'liga';
+  text-transform: none;
+  box-shadow: 0 0 0 4px var(--folk-page);
+}
+
 @media (max-width: 860px) {
-  .steps { grid-template-columns: 1fr; max-width: 420px; }
+  .steps { grid-template-columns: 1fr; max-width: 420px; gap: 16px; }
+  .step:not(:last-child)::after { display: none; }
 }
 
 /* -------------------------------------------------------------- overlap */
@@ -330,16 +356,6 @@
 .principle__foot { display: grid; gap: 10px; }
 .principle__body { color: var(--folk-ink-soft); font-size: 0.95rem; line-height: 1.45; max-width: 38ch; }
 
-.principles__status {
-  width: fit-content;
-  max-width: 100%;
-  margin: 28px auto 0;
-  padding-right: 24px;
-  font-size: 0.92rem;
-  color: var(--folk-ink-soft);
-  line-height: 1.4;
-}
-.principles__status strong { color: var(--folk-ink); font-weight: 600; }
 
 /* -------------------------------------------------------------- closing */
 /* Back on the original MD3 primary panel (not a folk section: sentence case,

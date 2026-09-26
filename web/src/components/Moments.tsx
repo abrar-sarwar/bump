@@ -1,4 +1,5 @@
 import './sections.css'
+import Shapes, { type ShapeSpec } from './Shapes'
 
 /**
  * folk's "try these" grid, for BUMP: the specific moments where you'd
@@ -20,9 +21,16 @@ const MOMENTS = [
   { icon: 'home', tone: 'tertiary', who: 'your roommate’s friend you keep running into', turns: 'you both bake sourdough' },
 ]
 
+// Margin shapes for this section (see Shapes.tsx).
+const SHAPES: ShapeSpec[] = [
+  { shape: 'sunny', at: { right: '3%', top: '4%' }, size: 130, turn: 20, drift: -50, tone: 'secondary' },
+  { shape: 'clover', at: { left: '2%', top: '8%' }, size: 110, fill: true, turn: -16, drift: -70 },
+]
+
 export default function Moments() {
   return (
     <section id="made-for" className="section folk-section moments">
+      <Shapes set={SHAPES} />
       <div className="shell">
         <header className="folk-head">
           <p className="folk-eyebrow">Made for</p>
