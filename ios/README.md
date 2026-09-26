@@ -277,6 +277,39 @@ say "Picked manually".
 Current honest limitation: the manual picker only works on the **hosting** phone.
 A guest is told so plainly rather than being given a button that quietly fails.
 
+## StreetPass
+
+An ambient, foreground-only proximity teaser, fully separate from the main
+bump pipeline described above.
+
+- Runs automatically once a profile is complete and the app is foregrounded
+  — no toggle. Uses its own MultipeerConnectivity service
+  (`_bump-streetpass._tcp`/`._udp`), not the room/coordinator transport above,
+  and auto-connects to any nearby StreetPass peer rather than requiring a
+  shared room code.
+- Each connected peer gets its own `NISession` (`StreetPassRanging`, capped at
+  3 concurrent peers, independent of the main pipeline's cap of 4).
+  `StreetPassEncounterGate` requires several consecutive sub-threshold
+  readings before an encounter qualifies, then latches until the peer clearly
+  moves away (hysteresis) and a per-peer cooldown has elapsed.
+- On a qualifying encounter: at most one mutual interest is computed
+  (`InterestMatcher.overlap(..., limit: 1)`) and a teaser is shown — never a
+  full profile. While the app is foregrounded this is a custom in-app sheet;
+  a local notification is only scheduled in the narrow case where the app
+  was not active at that instant.
+- "Bump them" hands off into the existing nearby-room flow
+  (`engine.startNearby()`) — the actual pairing still goes through the same,
+  unmodified physical-tap-to-confirm pipeline everyone else uses.
+- **Locked-phone detection is out of scope for this iteration.** Real UWB
+  peer-to-peer ranging cannot run while the app is backgrounded on stock iOS
+  — there is no background API for phone-to-phone `NISession` ranging.
+  StreetPass is entirely foreground-only; nothing is persisted, and all
+  state clears when the app leaves the foreground.
+
+```bash
+xcrun simctl launch <sim-id> com.jaredberesford.uwbbumptest -BumpDemo streetpass
+```
+
 ## Privacy
 
 - Full interest profiles go **only to the confirmed partner, only after both
