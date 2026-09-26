@@ -10,8 +10,9 @@ This evolved from the Nearby Interaction spike that used to live here. The
 working `NISession` / `NINearbyPeerConfiguration` / MultipeerConnectivity code
 was kept and refactored into `RangingService` and `PeerTransport`; the old
 `UWBExperiment`/`ContentView` test dashboard is gone, and its instrumentation now
-lives behind **You ▸ Testing tools**. The web spike in `../bump-web` is untouched
-and still useful for Android testing — the native app does not depend on it.
+lives behind **You ▸ Testing tools**. The earlier Node + Socket.io web spike has
+been removed from the tree; it is still in git history at commit `278d2e0` if the
+matching algorithm or the browser `devicemotion` work is ever needed again.
 
 ---
 
