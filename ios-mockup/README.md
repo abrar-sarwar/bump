@@ -24,8 +24,27 @@ Two ways to look at it:
 - **All screens**: every screen and state side by side, for reviewing.
 
 `index.html#reveal` (or any screen id) opens a screen directly. The **Chrome** menu
-switches between iOS 26 (Liquid Glass tab bar and buttons) and iOS 17/18 (flat bars).
-Xcode 26 builds pick up whichever one the phone runs.
+switches between Material 3 (the default), iOS 26 (Liquid Glass) and iOS 17/18
+(flat bars).
+
+## Design language: the marketing site
+
+The mockup follows the live site (`web/`, localhost:5173). `web/` is never
+edited from here; its tokens and assets are copied in.
+
+- **Brand, unchanged:** the Horizon wordmark artwork (`assets/wordmark.png`,
+  never set in a font), Archivo for type, sentence case, the site's MD3 colour
+  scheme (seed `#70aaf9`), blue pill buttons with a trailing icon, the drawn
+  blue and orange phones.
+- **Borrowed from the site:** the hero backdrop (dot grid, faint MD3 shapes),
+  frosted cards with layered shadows, glossy orbs, pill rows, tags, pill tabs,
+  chat bubbles and tilted bubble "floaters" (lines verbatim from
+  `HeroFloaters.tsx`), and the morphing "you both share this" badge
+  (`SharedBadge.tsx`), here at 0.4x the site's speed (23s loop).
+- **Not borrowed:** the sections' lowercase and rounded system face.
+- `shapes.js` uses the site's `scallop()` formula, so the shapes match.
+- Chrome defaults to "BUMP (site)": frosted square buttons and a frosted
+  floating tab bar with a blue active tab. The MD3 and iOS options remain.
 
 ## How it maps to Swift
 
@@ -34,13 +53,13 @@ Xcode 26 builds pick up whichever one the phone runs.
 | `tokens.css` | `Design/Theme.swift` | Same names, same values. `--BumpColor-navy` is `BumpColor.navy`, `--Space-l` is `Space.l`. Copy the numbers across. |
 | `components.css` + `ui.js` | `Design/Components.swift` (+ small private views) | One block / one function per Swift type, named in a comment. |
 | `screens.js` | `View/*.swift` | Each screen lists its Swift file and view. Copy is verbatim from Swift. |
-| `ios-chrome.css` | nothing | Status bar, nav bar, tab bar, sheets, switches: iOS draws these itself. |
+| `ios-chrome.css` | nothing (iOS) / custom views (MD3) | Status bar, top bar, tab bar, sheets. |
 | `app.js`, `app.css` | nothing | The review harness. |
 
-Type sizes are SwiftUI's text styles at the default Dynamic Type size
-(`.largeTitle` 34, `.title3` 20, `.body` 17, `.footnote` 13, `.caption2` 11).
-The wordmark uses Archivo at width 125 / weight 900 to stand in for
-SF Pro Expanded Black.
+The `.t-*` classes keep the `BumpFont` names but now map to MD3 roles:
+`screenTitle` is headline-medium, `sectionTitle` title-large, `body` body-large,
+`bodyEmphasis` title-medium, `caption` body-medium, `caption2` body-small. The
+wordmark is Archivo at width 125 / weight 900.
 
 ## Rules that keep the port painless
 

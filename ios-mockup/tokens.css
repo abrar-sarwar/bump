@@ -1,60 +1,136 @@
 /*
- * tokens.css: a 1:1 mirror of ios/UWBBumpTest/Design/Theme.swift.
+ * tokens.css: the porting contract with ios/UWBBumpTest/Design/Theme.swift.
  *
- * This is the porting contract. Every variable here has the same name as its
- * Swift counterpart (BumpColor.navy -> --BumpColor-navy). When a design change
- * is approved, the edit to this file is the edit to Theme.swift, value for
- * value. Add a token here only if you will add the same token there.
+ * The app now speaks the MARKETING SITE's language (localhost:5173), value
+ * for value, while keeping the brand exactly as the site's hero has it:
+ *   - Brand: the Horizon wordmark ARTWORK (assets/wordmark.png, never set in
+ *     a font), Archivo for type, sentence case, MD3 surface, primary buttons.
+ *   - Borrowed card language from the site's sections (--folk-*): frosted
+ *     cards with layered soft shadows, glossy orbs, pill rows, tags, bubbles.
+ *     NOT borrowed: its lowercase and its rounded system face.
+ * If the site's tokens change, change them here too; they are one system.
+ *
+ * The Theme.swift names (--BumpColor-*, --Space-*) sit at the bottom, pointed
+ * at these, so porting stays "add these to Theme.swift, repoint the names".
  */
 
 :root {
-  /* MARK: Colour (enum BumpColor) */
-  --BumpColor-background: #FFF9F0;       /* warm ivory page background */
-  --BumpColor-brand: #73A9F5;            /* wordmark blue, decorative only */
-  --BumpColor-action: #2F6FD0;           /* filled buttons, ~5:1 with white */
-  --BumpColor-navy: #183555;             /* primary text */
-  --BumpColor-secondaryText: #5A7290;    /* ~4.9:1 on ivory */
-  --BumpColor-surface: #FFFFFF;          /* raised surfaces */
-  --BumpColor-paleBlue: #EAF1FD;         /* chips, wells, inactive */
-  --BumpColor-hairline: #E3DCCF;
-  --BumpColor-positive: #2E7D5B;
-  --BumpColor-warning: #B4761F;
-  --BumpColor-negative: #B03A3A;
-  --BumpColor-illustrationWarm: #F0955A; /* ONLY inside the phones illustration */
+  /* ── MD3 colour roles (web/src/styles/tokens.css, light scheme) ──────── */
+  --md-sys-color-primary: #155fa9;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #d4e3ff;
+  --md-sys-color-on-primary-container: #001c3a;
+  --md-sys-color-secondary: #545f71;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #d8e3f8;
+  --md-sys-color-on-secondary-container: #111c2b;
+  --md-sys-color-tertiary: #6d5676;
+  --md-sys-color-on-tertiary: #ffffff;
+  --md-sys-color-tertiary-container: #f7d8ff;
+  --md-sys-color-on-tertiary-container: #271430;
+  --md-sys-color-error: #ba1a1a;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #ffdad6;
+  --md-sys-color-on-error-container: #410002;
+  --md-sys-color-background: #fdfcff;
+  --md-sys-color-on-background: #1a1c1e;
+  --md-sys-color-surface: #fdfcff;
+  --md-sys-color-on-surface: #1a1c1e;
+  --md-sys-color-surface-variant: #e0e2ec;
+  --md-sys-color-on-surface-variant: #43474e;
+  --md-sys-color-outline: #74777f;
+  --md-sys-color-outline-variant: #c3c6cf;
+  --md-sys-color-shadow: #000000;
+  --md-sys-color-scrim: #000000;
+  --md-sys-color-inverse-surface: #2f3033;
+  --md-sys-color-inverse-on-surface: #f1f0f4;
+  --md-sys-color-inverse-primary: #a5c8ff;
+  --md-sys-color-surface-container-lowest: #ffffff;
+  --md-sys-color-surface-container-low: #f4f3f7;
+  --md-sys-color-surface-container: #eeedf1;
+  --md-sys-color-surface-container-high: #e9e8eb;
+  --md-sys-color-surface-container-highest: #e3e2e6;
 
-  /* MARK: Type (enum BumpFont)
-   * SwiftUI text styles at the default Dynamic Type size ("Large").
-   * size / line height / tracking are Apple's published values for SF Pro. */
-  --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-  /* .system(size:, weight: .black).width(.expanded): SF Pro Expanded Black.
-   * Archivo at width 125 / weight 900 is the closest free stand-in. */
-  --font-wordmark: "Archivo", -apple-system, sans-serif;
+  /* Brand reference: artwork only, never chrome. */
+  --brand-seed: #70aaf9;
+  --brand-wordmark-ink: #70aaf9;
+  --brand-phone-orange: #f0955a;
 
-  /* BumpFont.screenTitle = .largeTitle, bold */
-  --BumpFont-screenTitle-size: 34px;  --BumpFont-screenTitle-line: 41px;
-  --BumpFont-screenTitle-weight: 700; --BumpFont-screenTitle-track: 0.37px;
-  /* BumpFont.sectionTitle = .title3, semibold */
-  --BumpFont-sectionTitle-size: 20px; --BumpFont-sectionTitle-line: 25px;
-  --BumpFont-sectionTitle-weight: 600; --BumpFont-sectionTitle-track: -0.45px;
-  /* BumpFont.body / bodyEmphasis / button = .body */
-  --BumpFont-body-size: 17px;         --BumpFont-body-line: 22px;
-  --BumpFont-body-track: -0.43px;
-  /* BumpFont.caption = .footnote */
-  --BumpFont-caption-size: 13px;      --BumpFont-caption-line: 18px;
-  --BumpFont-caption-track: -0.08px;
-  /* .caption2 (used raw in a few views, and by BumpFont.mono) */
-  --caption2-size: 11px;              --caption2-line: 13px;
-  --caption2-track: 0.06px;
+  /* Status colours (not in the site; kept for the app's evidence states). */
+  --bump-color-success: #2E7D5B;
+  --bump-color-warning: #8a5a00;
 
-  /* MARK: Spacing (enum Space) */
+  /* ── Folk surface language (web --folk-*, measured from folk.com) ────── */
+  --folk-page: #f5f6f8;
+  --folk-ink: #1f2a2f;
+  --folk-ink-soft: rgba(31, 42, 47, 0.62);
+  --folk-ink-faint: rgba(31, 42, 47, 0.45);
+  --folk-track: rgba(31, 42, 47, 0.06);
+  --folk-hairline: rgba(31, 42, 47, 0.08);
+  /* The site's --md-ref-typeface-brand: Archivo for everything. */
+  --bump-typeface: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --folk-card-fill: linear-gradient(rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.78));
+  --folk-card-shadow:
+    inset 0 1px 0 #fff, inset 0 -1px 0 rgba(255, 255, 255, 0.5),
+    0 0 0 0.5px rgba(31, 42, 47, 0.08), 0 1px 2px rgba(31, 42, 47, 0.03),
+    0 4px 10px rgba(31, 42, 47, 0.04), 0 10px 24px rgba(31, 42, 47, 0.05);
+  --folk-card-shadow-hover:
+    inset 0 1px 0 #fff, inset 0 -1px 0 rgba(255, 255, 255, 0.5),
+    0 0 0 0.5px rgba(31, 42, 47, 0.1), 0 2px 4px rgba(31, 42, 47, 0.04),
+    0 8px 18px rgba(31, 42, 47, 0.07), 0 18px 40px rgba(31, 42, 47, 0.08);
+  --folk-radius-card: 15px;
+  --folk-radius-bento: 22px;
+
+  --folk-orb-fill: radial-gradient(circle at 34% 28%, #ffffff 0%, #eef1f4 46%, #d6dce3 100%);
+  --folk-orb-shadow:
+    inset 0 -3px 6px rgba(31, 42, 47, 0.08), inset 0 2px 3px #fff,
+    0 0 0 0.5px rgba(31, 42, 47, 0.08), 0 6px 14px rgba(31, 42, 47, 0.12);
+
+  --folk-wash-mint: radial-gradient(120% 90% at 20% 100%, #c9f1ea 0%, rgba(201, 241, 234, 0) 60%), radial-gradient(90% 80% at 100% 100%, #dfe2fb 0%, rgba(223, 226, 251, 0) 65%), #f3f5f8;
+  --folk-wash-peach: radial-gradient(110% 90% at 30% 100%, #f8e0d4 0%, rgba(248, 224, 212, 0) 62%), radial-gradient(80% 70% at 100% 90%, #ece0f5 0%, rgba(236, 224, 245, 0) 65%), #f4f4f7;
+  --folk-wash-lilac: radial-gradient(120% 90% at 10% 100%, #e6dcfa 0%, rgba(230, 220, 250, 0) 60%), radial-gradient(90% 80% at 100% 100%, #d9ecfb 0%, rgba(217, 236, 251, 0) 65%), #f3f4f8;
+  --folk-wash-sky: radial-gradient(120% 90% at 50% 100%, #d7ebfb 0%, rgba(215, 235, 251, 0) 62%), #f3f5f8;
+
+  --folk-bubble-them: #e9ebef;
+  --folk-bubble-me: var(--md-sys-color-primary);
+
+  /* ── Shape + motion (web MD3 tokens) ─────────────────────────────────── */
+  --md-sys-shape-corner-extra-small: 4px;
+  --md-sys-shape-corner-small: 8px;
+  --md-sys-shape-corner-medium: 12px;
+  --md-sys-shape-corner-large: 16px;
+  --md-sys-shape-corner-extra-large: 28px;
+  --md-sys-shape-corner-full: 9999px;
+  --md-sys-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --md-sys-motion-duration-short4: 200ms;
+  --md-sys-motion-duration-medium2: 300ms;
+  --md-sys-motion-duration-long2: 500ms;
+
+  /* ── Theme.swift names, pointed at the system above ──────────────────── */
+  --BumpColor-background: var(--md-sys-color-surface);
+  --BumpColor-brand: var(--brand-wordmark-ink);
+  --BumpColor-action: var(--md-sys-color-primary);
+  --BumpColor-navy: var(--md-sys-color-on-surface);
+  --BumpColor-secondaryText: var(--folk-ink-soft);
+  --BumpColor-surface: #ffffff;
+  --BumpColor-paleBlue: var(--folk-track);
+  --BumpColor-hairline: var(--folk-hairline);
+  --BumpColor-positive: var(--bump-color-success);
+  --BumpColor-warning: var(--bump-color-warning);
+  --BumpColor-negative: var(--md-sys-color-error);
+  --BumpColor-illustrationWarm: var(--brand-phone-orange);
+
+  --font-system: var(--bump-typeface);
+
   --Space-xs: 4px;
   --Space-s: 8px;
   --Space-m: 16px;
   --Space-l: 24px;
   --Space-xl: 32px;
   --Space-xxl: 48px;
-  --Space-gutter: 20px;       /* standard screen gutter */
-  --Space-corner: 16px;
-  --Space-cornerLarge: 24px;
+  --Space-gutter: 20px;
+  --Space-corner: var(--folk-radius-card);
+  --Space-cornerLarge: var(--folk-radius-bento);
 }

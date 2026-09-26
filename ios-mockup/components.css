@@ -1,49 +1,49 @@
 /*
- * components.css: mirrors ios/UWBBumpTest/Design/Components.swift, plus the
- * small private components some views define (BottomBar, WorkingCard, ...).
- * Each block names the Swift type it stands for. Change them together.
+ * components.css: the app's components in the marketing site's language.
+ * Brand (wordmark artwork, Archivo, sentence case, MD3 primary) from the
+ * site's hero; card language (frosted cards, orbs, pill rows, tags, bubbles,
+ * the shared badge) from its sections. Each block names what it mirrors:
+ * the Swift type it ports to, and the web class it was copied from.
  */
 
-/* MARK: Text styles (BumpFont) */
-.t-screenTitle {
-  font-size: var(--BumpFont-screenTitle-size);
-  line-height: var(--BumpFont-screenTitle-line);
-  font-weight: var(--BumpFont-screenTitle-weight);
-  letter-spacing: var(--BumpFont-screenTitle-track);
+/* MARK: Icons (Material Symbols Rounded, as on the site) */
+.ms {
+  font-family: "Material Symbols Rounded";
+  font-weight: normal; font-style: normal; line-height: 1;
+  letter-spacing: normal; text-transform: none; white-space: nowrap;
+  display: inline-block; direction: ltr; flex: none;
+  font-feature-settings: "liga"; -webkit-font-smoothing: antialiased;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  user-select: none;
 }
-.t-sectionTitle {
-  font-size: var(--BumpFont-sectionTitle-size);
-  line-height: var(--BumpFont-sectionTitle-line);
-  font-weight: var(--BumpFont-sectionTitle-weight);
-  letter-spacing: var(--BumpFont-sectionTitle-track);
-}
-.t-body, .t-bodyEmphasis, .t-button {
-  font-size: var(--BumpFont-body-size);
-  line-height: var(--BumpFont-body-line);
-  letter-spacing: var(--BumpFont-body-track);
-  font-weight: 400;
-}
-.t-bodyEmphasis, .t-button { font-weight: 600; }
-.t-caption {
-  font-size: var(--BumpFont-caption-size);
-  line-height: var(--BumpFont-caption-line);
-  letter-spacing: var(--BumpFont-caption-track);
-}
-.t-caption2 {
-  font-size: var(--caption2-size);
-  line-height: var(--caption2-line);
-  letter-spacing: var(--caption2-track);
-}
+.ms.fill { font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24; }
+
+/* MARK: Type. BumpFont names, the site's Archivo scale */
+.t-screenTitle { font: 800 31px/1.06 var(--bump-typeface); letter-spacing: -0.025em; text-wrap: balance; }
+.t-display { font: 800 40px/1.02 var(--bump-typeface); letter-spacing: -0.03em; text-wrap: balance; }
+.t-sectionTitle { font: 700 20px/1.2 var(--bump-typeface); letter-spacing: -0.02em; }
+.t-body { font: 400 16px/1.55 var(--bump-typeface); }
+.t-bodyEmphasis { font: 600 16px/1.35 var(--bump-typeface); letter-spacing: -0.01em; }
+.t-button { font: 600 16px/1.2 var(--bump-typeface); }
+.t-caption { font: 400 14px/1.45 var(--bump-typeface); }
+.t-caption2 { font: 500 12px/1.35 var(--bump-typeface); }
 .t-semibold { font-weight: 600; }
 .t-bold { font-weight: 700; }
 .t-center { text-align: center; }
-.c-navy { color: var(--BumpColor-navy); }
-.c-secondary { color: var(--BumpColor-secondaryText); }
-.c-action { color: var(--BumpColor-action); }
-.c-negative { color: var(--BumpColor-negative); }
+.c-navy { color: var(--md-sys-color-on-surface); }
+.c-secondary { color: var(--md-sys-color-on-surface-variant); }
+.c-faint { color: color-mix(in srgb, var(--md-sys-color-on-surface) 45%, transparent); }
+.c-action { color: var(--md-sys-color-primary); }
+.c-negative { color: var(--md-sys-color-error); }
 .c-white { color: #fff; }
 
-/* Stacks: SwiftUI VStack/HStack with a spacing value */
+/* The hero's "SCROLL TO BUMP" line: uppercase, letter-spaced, small. */
+.eyebrow {
+  font: 600 12.5px/1.5 var(--bump-typeface); letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* Stacks */
 .v { display: flex; flex-direction: column; }
 .h { display: flex; flex-direction: row; align-items: center; }
 .h.top { align-items: flex-start; }
@@ -55,259 +55,357 @@
 .spacer { flex: 1 1 auto; }
 .fill-w { width: 100%; }
 
-/* MARK: Wordmark */
-.wordmark {
-  font-family: var(--font-wordmark);
-  font-weight: 900;
-  font-stretch: 125%;
-  font-variation-settings: "wdth" 125;
-  color: var(--BumpColor-brand);
-  white-space: nowrap;
-  line-height: 1;
+/* Press feedback: MD3 state layer */
+.state { position: relative; overflow: hidden; isolation: isolate; }
+.state::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: currentColor; opacity: 0; transition: opacity 150ms linear;
 }
-.wordmark--hero { font-size: 68px; letter-spacing: -1px; }
-.wordmark--compact { font-size: 24px; letter-spacing: 0.5px; }
+.state:hover::after { opacity: .08; }
+.state:active::after { opacity: .12; }
 
-/* MARK: PrimaryButtonStyle / SecondaryButtonStyle */
+/* MARK: Wordmark: the Horizon ARTWORK, never a font (web Wordmark.tsx) */
+.wordmark { display: block; height: auto; user-select: none; -webkit-user-drag: none; }
+.wordmark--hero { width: 300px; }
+.wordmark--compact { width: 84px; }
+.wordmark--white { filter: brightness(0) invert(1); }
+
+/* MARK: Buttons.
+ * Primary = the site's md-filled-button (blue pill, trailing icon), at a
+ * phone CTA's height. Secondary = a frosted pill from the site's cards. */
 .btn {
   appearance: none; border: 0; margin: 0; cursor: pointer;
-  font: inherit;
-  display: block; width: 100%;
-  padding: 15px 0;
-  border-radius: var(--Space-corner);
-  font-size: var(--BumpFont-body-size);
-  line-height: var(--BumpFont-body-line);
-  letter-spacing: var(--BumpFont-body-track);
-  font-weight: 600;
-  text-align: center;
-  transition: opacity .12s, transform .12s;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; height: 54px; padding: 0 24px;
+  border-radius: var(--md-sys-shape-corner-full);
+  font: 600 16px/1 var(--bump-typeface); letter-spacing: -0.005em; text-align: center;
+  transition: translate var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+    box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
-.btn:active { opacity: .85; transform: scale(.985); }
-.btn--primary { background: var(--BumpColor-action); color: #fff; }
-.btn--secondary {
-  background: var(--BumpColor-surface); color: var(--BumpColor-navy);
-  box-shadow: inset 0 0 0 1px var(--BumpColor-hairline);
-}
-.btn--secondary:active { transform: none; }
-.btn--destructive { color: #FF3B30; }
-.btn[disabled] { opacity: .4; pointer-events: none; }
+.btn .ms { font-size: 20px; margin-right: -4px; }
+.btn--primary { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+.btn--primary:hover { box-shadow: 0 8px 20px color-mix(in srgb, var(--md-sys-color-primary) 28%, transparent); }
+.btn--secondary { background: var(--folk-card-fill); box-shadow: var(--folk-card-shadow); color: var(--md-sys-color-on-surface); }
+.btn--secondary:hover { box-shadow: var(--folk-card-shadow-hover); translate: 0 -1px; }
+.btn--tonal { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+/* Inverted on a blue panel, as on the site's closing CTA */
+.btn--onblue { background: #fff; color: var(--md-sys-color-primary); }
+.btn[disabled] { pointer-events: none; box-shadow: none; background: var(--folk-track); color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent); }
 
-/* Plain text buttons: Button("...").font(...).foregroundStyle(...) */
 :where(.link) {
-  appearance: none; border: 0; background: none; padding: 0; margin: 0;
-  font: inherit; cursor: pointer; color: inherit; text-align: inherit;
+  appearance: none; border: 0; background: none; margin: 0; padding: 0; cursor: pointer;
+  font: inherit; color: inherit; text-align: inherit;
 }
-:where(.link):active { opacity: .5; }
+.link { border-radius: var(--md-sys-shape-corner-full); font-weight: 600; }
+.link.tb { padding: 10px 12px; margin: -10px -12px; }
 
-/* MARK: BumpField */
-.field { display: flex; flex-direction: column; gap: var(--Space-xs); flex: 1; min-width: 0; }
-.field__label { font-size: var(--BumpFont-caption-size); line-height: var(--BumpFont-caption-line); color: var(--BumpColor-secondaryText); }
+/* The site's dark square "back to top" button, used for back / close */
+.sq-btn {
+  appearance: none; border: 0; cursor: pointer; flex: none;
+  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+  background: var(--folk-card-fill); box-shadow: var(--folk-card-shadow); color: var(--md-sys-color-on-surface);
+}
+.sq-btn--dark { background: var(--folk-ink); color: #fff; box-shadow: 0 6px 16px rgba(31, 42, 47, .25); }
+.sq-btn .ms { font-size: 20px; }
+
+/* MARK: BumpField: a frosted card holding the input */
+.field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+.field__label { font: 600 13px/1.3 var(--bump-typeface); color: var(--md-sys-color-on-surface-variant); padding-left: 4px; }
 .field__input {
-  font: inherit;
-  font-size: var(--BumpFont-body-size); line-height: var(--BumpFont-body-line);
-  letter-spacing: var(--BumpFont-body-track);
-  color: var(--BumpColor-navy);
-  padding: 13px var(--Space-m);
-  border: 0; outline: 0; resize: none; width: 100%;
-  background: var(--BumpColor-surface);
-  border-radius: var(--Space-corner);
-  box-shadow: inset 0 0 0 1px var(--BumpColor-hairline);
-  caret-color: var(--BumpColor-action);
+  font: 400 16px/1.5 var(--bump-typeface); color: var(--md-sys-color-on-surface);
+  min-height: 52px; padding: 13px 16px; width: 100%;
+  border: 0; outline: 0; resize: none;
+  background: #fff; border-radius: var(--folk-radius-card);
+  box-shadow: var(--folk-card-shadow);
+  caret-color: var(--md-sys-color-primary);
   field-sizing: content;
+  transition: box-shadow var(--md-sys-motion-duration-short4);
 }
-.field__input::placeholder { color: rgba(60, 60, 67, .3); }
+.field__input:focus { box-shadow: var(--folk-card-shadow), 0 0 0 2px var(--md-sys-color-primary); }
+.field__input::placeholder { color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent); }
 
-/* MARK: InterestChip */
+/* MARK: InterestChip = the site's .tag (shared = blue with a check) */
 .chip {
-  appearance: none; border: 0; margin: 0; font: inherit; cursor: default;
-  font-size: var(--BumpFont-caption-size); line-height: var(--BumpFont-caption-line);
-  letter-spacing: var(--BumpFont-caption-track);
-  padding: 9px 14px;
-  border-radius: 999px;
-  background: var(--BumpColor-paleBlue); color: var(--BumpColor-navy);
+  appearance: none; border: 0; margin: 0; cursor: default;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 7px 14px; border-radius: 999px;
+  font: 500 14px/1.3 var(--bump-typeface);
+  background: var(--folk-track); color: var(--md-sys-color-on-surface-variant);
 }
 button.chip { cursor: pointer; }
-.chip--selected { background: var(--BumpColor-action); color: #fff; }
-
-/* MARK: FlowLayout (spacing Space.s both ways) */
-.flow { display: flex; flex-wrap: wrap; gap: var(--Space-s); }
-
-/* MARK: Card */
-.card {
-  background: var(--BumpColor-surface);
-  border-radius: var(--Space-cornerLarge);
-  padding: var(--Space-m);
-  width: 100%;
+.chip--selected { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); font-weight: 600; padding-left: 9px; }
+.chip--selected::before {
+  content: "check"; font-family: "Material Symbols Rounded"; font-feature-settings: "liga";
+  font-size: 16px; line-height: 1; font-weight: 400;
 }
-.card--l { padding: var(--Space-l); }
+.chip--removable::before { content: none; }
+.chip--removable { padding-left: 14px; padding-right: 9px; }
+.chip .ms { font-size: 16px; }
+.flow { display: flex; flex-wrap: wrap; gap: 6px; }
 
-/* MARK: StatusPill */
+/* MARK: Card = .folk-card (frosted, layered soft shadow) */
+.card {
+  background: var(--folk-card-fill); box-shadow: var(--folk-card-shadow);
+  border-radius: 18px; padding: 18px; width: 100%;
+}
+.card--l { padding: 22px; }
+/* Bento = .folk-bento: pastel wash, label top-left, big line under it */
+.bento { border-radius: var(--folk-radius-bento); padding: 22px; width: 100%;
+  box-shadow: 0 0 0 .5px var(--folk-hairline), 0 10px 30px rgba(31, 42, 47, .05); }
+.bento--sky { background: var(--folk-wash-sky); }
+.bento--lilac { background: var(--folk-wash-lilac); }
+.bento--peach { background: var(--folk-wash-peach); }
+.bento--mint { background: var(--folk-wash-mint); }
+.bento__label { display: flex; align-items: center; gap: 8px; font: 600 14px/1.3 var(--bump-typeface); color: var(--md-sys-color-on-surface-variant); }
+.bento__label .ms { font-size: 18px; font-variation-settings: "FILL" 1; }
+/* Solid primary panel = the site's closing CTA */
+.panel-blue { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); border-radius: 26px; padding: 24px; width: 100%; }
+.panel-blue .c-navy, .panel-blue .c-secondary { color: inherit; }
+.panel-blue .c-secondary { opacity: .85; }
+
+/* MARK: StatusPill = .walkby__status (track pill) + a status dot */
 .pill {
-  display: inline-flex; align-items: center; gap: var(--Space-s);
-  padding: 8px 12px; border-radius: 999px;
-  background: var(--BumpColor-paleBlue); color: var(--BumpColor-navy);
-  font-size: var(--BumpFont-caption-size); line-height: var(--BumpFont-caption-line);
-  align-self: center;
+  display: inline-flex; align-items: center; gap: 8px; width: fit-content;
+  padding: 6px 13px 6px 11px; border-radius: 999px;
+  background: var(--folk-track); color: var(--md-sys-color-on-surface-variant);
+  font: 600 13px/1.3 var(--bump-typeface); align-self: center; white-space: nowrap;
 }
 .pill--lead { align-self: flex-start; }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-.tone-neutral { background: var(--BumpColor-secondaryText); }
-.tone-active { background: var(--BumpColor-action); }
-.tone-good { background: var(--BumpColor-positive); }
-.tone-warn { background: var(--BumpColor-warning); }
-.tone-bad { background: var(--BumpColor-negative); }
+.tone-neutral { background: var(--md-sys-color-outline); }
+.tone-active { background: var(--md-sys-color-primary); }
+.tone-good { background: var(--bump-color-success); }
+.tone-warn { background: var(--bump-color-warning); }
+.tone-bad { background: var(--md-sys-color-error); }
 
-/* MARK: Avatar (initials; tint at 22% opacity) */
-.avatar {
-  flex: none; border-radius: 50%;
-  display: grid; place-items: center;
-  font-weight: 700; color: var(--BumpColor-navy);
-  background: color-mix(in srgb, var(--tint, var(--BumpColor-brand)) 22%, transparent);
+/* MARK: Orb = .folk-orb (glossy sphere holding an icon or a letter) */
+.orb {
+  --orb: 44px;
+  display: inline-grid; place-items: center; flex: none;
+  width: var(--orb); height: var(--orb); border-radius: 50%;
+  background: var(--folk-orb-fill); box-shadow: var(--folk-orb-shadow);
+  color: var(--md-sys-color-primary);
 }
-.avatar--warm { --tint: var(--BumpColor-illustrationWarm); }
-.avatar-stack { display: flex; }
-.avatar-stack > * + * { margin-left: -10px; }
-.avatar-ring { box-shadow: 0 0 0 2px var(--BumpColor-background); }
+.orb .ms { font-size: calc(var(--orb) * .46); font-variation-settings: "FILL" 1; }
+.orb--secondary { color: var(--md-sys-color-secondary); }
+.orb--tertiary { color: var(--md-sys-color-tertiary); }
+.orb--orange { color: var(--brand-phone-orange); }
 
-/* MARK: PhotoPickerAvatar */
+/* Avatar = the site's .person__avatar: an orb with a coloured letter */
+.avatar { font: 700 calc(var(--orb) * .42)/1 var(--bump-typeface); color: var(--md-sys-color-primary); }
+.avatar--warm { color: var(--brand-phone-orange); }
+.avatar-stack { display: flex; }
+.avatar-stack > * + * { margin-left: -12px; }
+
+/* MARK: PhotoPickerAvatar: small blue badge on the orb */
 .photo-avatar { position: relative; flex: none; cursor: pointer; }
 .photo-avatar__badge {
-  position: absolute; right: 0; bottom: 0;
-  border-radius: 50%; background: var(--BumpColor-action);
-  box-shadow: 0 0 0 2px var(--BumpColor-background);
-  display: grid; place-items: center; color: #fff;
+  position: absolute; right: -2px; bottom: -2px; border-radius: 50%;
+  background: var(--md-sys-color-primary); color: #fff; display: grid; place-items: center;
+  box-shadow: 0 0 0 3px var(--md-sys-color-surface);
 }
 
-/* MARK: PhonesIllustration */
-.phones {
-  height: 150px; display: flex; align-items: center; justify-content: center;
-  gap: 64px; pointer-events: none;
-  --offset: 16px;
+/* MARK: Row = .folk-chip (pill row: orb + two lines) */
+.row-pill {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 10px 16px 10px 10px; border-radius: 999px;
+  background: var(--folk-card-fill); box-shadow: var(--folk-card-shadow);
+  color: var(--md-sys-color-on-surface); text-align: left;
 }
-.phones--animated { --offset: 24px; }
-.phone-art {
-  width: 78px; height: 140px; border-radius: 18px; position: relative; flex: none;
-}
-.phone-art--blue { background: var(--BumpColor-brand); transform: translateX(var(--offset)) rotate(-12deg); }
-.phone-art--warm { background: var(--BumpColor-illustrationWarm); transform: translateX(calc(-1 * var(--offset))) rotate(12deg); }
-.phone-art__cam {
-  position: absolute; left: 9px; top: 9px; width: 30px; height: 30px;
-  border-radius: 8px; background: rgba(255, 255, 255, .85);
-  display: flex; align-items: center; justify-content: center; gap: 3px;
-}
-.phone-art__cam i { width: 9px; height: 9px; border-radius: 50%; background: currentColor; opacity: .55; }
-.phone-art--blue .phone-art__cam { color: var(--BumpColor-brand); }
-.phone-art--warm .phone-art__cam { color: var(--BumpColor-illustrationWarm); }
+.row-pill--block { border-radius: 22px; align-items: flex-start; padding: 12px 14px 12px 12px; }
+button.row-pill, .row-pill[data-go] { cursor: pointer; appearance: none; border: 0; font: inherit;
+  transition: box-shadow 300ms var(--md-sys-motion-easing-standard), translate 300ms var(--md-sys-motion-easing-standard); }
+button.row-pill:hover, .row-pill[data-go]:hover { box-shadow: var(--folk-card-shadow-hover); translate: 0 -2px; }
+.row-pill__text { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.row-pill__title { font: 600 15.5px/1.25 var(--bump-typeface); }
+.row-pill__sub { font: 400 14px/1.35 var(--bump-typeface); color: var(--md-sys-color-on-surface-variant); }
+.row-pill__faint { font: 500 12px/1.3 var(--bump-typeface); color: color-mix(in srgb, var(--md-sys-color-on-surface) 45%, transparent); }
+.row-pill .chev { color: color-mix(in srgb, var(--md-sys-color-on-surface) 40%, transparent); }
 
+/* MARK: Pill tabs = .folk-pills (Picker .segmented) */
+.pill-tabs { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--folk-track); width: 100%; }
+.pill-tabs button {
+  flex: 1; appearance: none; border: 0; cursor: pointer; background: transparent;
+  font: 600 14.5px/1 var(--bump-typeface); padding: 10px 16px; border-radius: 999px;
+  color: color-mix(in srgb, var(--md-sys-color-on-surface) 50%, transparent);
+}
+.pill-tabs button.on { background: #fff; color: var(--md-sys-color-on-surface);
+  box-shadow: 0 0 0 .5px var(--folk-hairline), 0 1px 3px rgba(31, 42, 47, .1); }
+
+/* MARK: Chat bubbles = .float-bubble (them frosted, me brand blue) */
+.bubble {
+  max-width: 88%; padding: 11px 16px; border-radius: 20px 20px 20px 6px;
+  background: var(--folk-card-fill); box-shadow: var(--folk-card-shadow);
+  font: 400 15.5px/1.4 var(--bump-typeface); color: var(--md-sys-color-on-surface);
+}
+.bubble--me {
+  align-self: flex-end; border-radius: 20px 20px 6px 20px;
+  background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--md-sys-color-primary) 28%, transparent);
+}
+.bubble__who { font: 600 12px/1.3 var(--bump-typeface); color: color-mix(in srgb, var(--md-sys-color-on-surface) 45%, transparent); margin: 0 0 2px 6px; }
+
+/* MARK: Toast = .walkby__notice (app tile + two lines) */
+.toast {
+  display: flex; gap: 12px; align-items: center; width: 100%;
+  padding: 14px 16px; border-radius: 20px;
+  background: color-mix(in srgb, #fff 86%, transparent); box-shadow: var(--folk-card-shadow);
+}
+.toast__app { width: 40px; height: 40px; border-radius: 11px; flex: none; display: grid; place-items: center;
+  background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+.toast__app .ms { font-size: 22px; font-variation-settings: "FILL" 1; }
+
+/* MARK: Shared badge = SharedBadge.tsx: pale circle, a darker MD3 shape
+ * inside that turns and morphs, the text fixed on top. */
+.badge { position: relative; display: grid; place-items: center; flex: none; width: 200px; aspect-ratio: 1; }
+.badge__oval { position: absolute; inset: 0; border-radius: 50%; background: var(--badge-c, var(--md-sys-color-primary-container)); }
+.badge__form { position: absolute; inset: 7%; background: var(--badge, var(--md-sys-color-primary)); }
+.badge__text { position: relative; display: grid; justify-items: center; gap: 2px; max-width: 74%; text-align: center; color: var(--on-badge, #fff); }
+.badge__kicker { font: 600 11.5px/1.3 var(--bump-typeface); opacity: .85; white-space: nowrap; }
+.badge__interest { font: 700 20px/1.12 var(--bump-typeface); letter-spacing: -0.01em; }
+.badge--sm { width: 120px; }
+.badge--sm .badge__interest { font-size: 14px; }
+.badge--sm .badge__kicker { font-size: 10px; }
+.badge--recording { --badge-c: var(--md-sys-color-error-container); --badge: var(--md-sys-color-error); }
+/* The site's loop is ~9.2s (4 morphs of 1.4s + 0.9s holds, one full turn).
+ * The app runs it at 0.4x that speed: 9.2 / 0.4 = 23s. */
 @media (prefers-reduced-motion: no-preference) {
-  /* animated: offset 4 <-> 26, easeInOut 1.1s, autoreverse */
+  .badge__form { animation: badge-morph 23s ease-in-out infinite, badge-turn 23s linear infinite; }
+  .badge--fast .badge__form { animation-duration: 6s, 6s; }
+}
+/* A badge that pops in (spring overshoot) and cycles through several shared
+ * interests, one at a time, 4s each. */
+.badge--lg { width: 300px; }
+.badge--lg .badge__kicker { font-size: 13.5px; }
+.badge--lg .badge__interest { font-size: 27px; }
+.badge--lg .badge__text { max-width: 64%; gap: 4px; }
+.badge__cycle { display: grid; justify-items: center; align-items: center; }
+.badge__cycle > * { grid-area: 1 / 1; opacity: 0; }
+.badge__cycle > :first-child { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .badge--pop { animation: badge-pop 700ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  .badge__cycle > * { animation: badge-cycle 12s ease-in-out infinite both; }
+  .badge__cycle > :first-child { opacity: 0; }
+  .badge__cycle > :nth-child(2) { animation-delay: 4s; }
+  .badge__cycle > :nth-child(3) { animation-delay: 8s; }
+}
+@keyframes badge-pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes badge-cycle { 0% { opacity: 0; transform: translateY(6px); } 5%, 30% { opacity: 1; transform: none; } 35%, 100% { opacity: 0; transform: translateY(-6px); } }
+
+/* MARK: Backdrop = HeroBackdrop.tsx: dot grid fading in from the edges,
+ * plus faint MD3 shapes (line + 6% fill) in the corners. */
+.backdrop { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+.backdrop__dots {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent) 1.1px, transparent 1.6px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse 70% 62% at 50% 50%, transparent 30%, #000 100%);
+}
+.backdrop svg { position: absolute; overflow: visible; }
+.backdrop .line path { fill: none; stroke: color-mix(in srgb, var(--tone, var(--md-sys-color-primary)) 18%, transparent); stroke-width: 1.5px; }
+.backdrop .fill path { fill: color-mix(in srgb, var(--tone, var(--md-sys-color-primary)) 6%, transparent); }
+.backdrop .glyph { position: absolute; color: color-mix(in srgb, var(--md-sys-color-primary) 11%, transparent); font-variation-settings: "FILL" 1; }
+.has-backdrop { position: relative; }
+.has-backdrop > :not(.backdrop) { position: relative; z-index: 1; }
+
+/* MARK: PhonesIllustration: the two drawn phones, brand blue and the
+ * orange phone, drifting together. Not the hero's hand photographs. */
+.phones { height: 150px; display: flex; align-items: center; justify-content: center; gap: 64px; pointer-events: none; --offset: 16px; }
+.phones--animated { --offset: 24px; }
+.phones--apart { --offset: 2px; }
+.phone-art { width: 78px; height: 140px; border-radius: 18px; position: relative; flex: none; }
+.phone-art--blue { background: var(--brand-wordmark-ink); transform: translateX(var(--offset)) rotate(-12deg); }
+.phone-art--warm { background: var(--brand-phone-orange); transform: translateX(calc(-1 * var(--offset))) rotate(12deg); }
+.phone-art__cam { position: absolute; left: 9px; top: 9px; width: 30px; height: 30px; border-radius: 8px; background: rgba(255, 255, 255, .85);
+  display: flex; align-items: center; justify-content: center; gap: 3px; }
+.phone-art__cam i { width: 9px; height: 9px; border-radius: 50%; background: currentColor; opacity: .55; }
+.phone-art--blue .phone-art__cam { color: var(--brand-wordmark-ink); }
+.phone-art--warm .phone-art__cam { color: var(--brand-phone-orange); }
+@media (prefers-reduced-motion: no-preference) {
   .phones--animated .phone-art--blue { animation: drift-blue 1.1s ease-in-out infinite alternate; }
   .phones--animated .phone-art--warm { animation: drift-warm 1.1s ease-in-out infinite alternate; }
 }
-@keyframes drift-blue {
-  from { transform: translateX(4px) rotate(-12deg); }
-  to   { transform: translateX(26px) rotate(-12deg); }
-}
-@keyframes drift-warm {
-  from { transform: translateX(-4px) rotate(12deg); }
-  to   { transform: translateX(-26px) rotate(12deg); }
-}
+@keyframes drift-blue { from { transform: translateX(4px) rotate(-12deg); } to { transform: translateX(26px) rotate(-12deg); } }
+@keyframes drift-warm { from { transform: translateX(-4px) rotate(12deg); } to { transform: translateX(-26px) rotate(12deg); } }
 
-/* MARK: PulseRings (BumpTutorial.swift) */
+/* MARK: Floating bubbles: the site's hero floaters, tilted stickers laid
+ * over a composition. Decoration only (aria-hidden). */
+.floaters { position: relative; width: 100%; }
+.floaters__layer { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.floaters__layer > * { position: absolute; }
+.floaters__layer .bubble { font-size: 14px; padding: 9px 13px; max-width: 200px; }
+
+/* MARK: PulseRings */
 .pulse-wrap { position: relative; display: grid; place-items: center; width: 100%; }
 .pulse-wrap > * { grid-area: 1 / 1; }
-.pulse { width: 200px; height: 200px; position: relative; pointer-events: none; }
-.pulse i {
-  position: absolute; inset: 0; border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--BumpColor-brand) 35%, transparent);
-  transform: scale(.6);
-}
+.pulse { width: 220px; height: 220px; position: relative; pointer-events: none; }
+.pulse i { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--md-sys-color-primary) 28%, transparent); transform: scale(.6); }
 @media (prefers-reduced-motion: no-preference) {
-  .pulse--active i { animation: pulse 2.4s ease-out infinite; }
+  .pulse--active i { animation: pulse 2.4s var(--md-sys-motion-easing-emphasized-decelerate) infinite; }
   .pulse--active i:nth-child(2) { animation-delay: .8s; }
   .pulse--active i:nth-child(3) { animation-delay: 1.6s; }
 }
-@keyframes pulse {
-  from { transform: scale(.6); opacity: 1; }
-  to   { transform: scale(1.6); opacity: 0; }
-}
+@keyframes pulse { from { transform: scale(.6); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
 
-/* MARK: ConfirmBadge (BumpTutorial.swift) */
-.confirm-badge {
-  width: 78px; height: 140px; border-radius: 18px; display: grid; place-items: center;
-}
-.confirm-badge span {
-  width: 48px; height: 48px; border-radius: 50%; background: #fff;
-  display: grid; place-items: center; color: var(--BumpColor-positive);
-}
+/* MARK: Onboarding progress: segmented, primary */
+.progress { display: flex; gap: 5px; flex: 1; align-items: center; }
+.progress i { flex: 1; height: 5px; border-radius: 999px; background: var(--folk-track); transition: background 300ms var(--md-sys-motion-easing-standard); }
+.progress i.on { background: var(--md-sys-color-primary); }
 
-/* MARK: SectionHeading */
-.section-heading { display: flex; flex-direction: column; gap: var(--Space-xs); width: 100%; }
-
-/* MARK: StepIndicator (OnboardingFlow.swift) */
-.steps { display: flex; gap: 6px; }
-.steps i { height: 8px; width: 8px; border-radius: 999px; background: var(--BumpColor-hairline); transition: width .25s, background .25s; }
-.steps i.on { background: var(--BumpColor-action); }
+/* Tutorial page dots */
+.steps { display: flex; gap: 6px; align-items: center; }
+.steps i { height: 7px; width: 7px; border-radius: 999px; background: var(--folk-track); transition: width 300ms var(--md-sys-motion-easing-standard); }
+.steps i.on { background: var(--md-sys-color-primary); }
 .steps i.current { width: 22px; }
 
-/* MARK: NoticeText (OnboardingFlow.swift) */
-.notice {
-  display: flex; gap: var(--Space-s); align-items: flex-start;
-  padding: var(--Space-m); border-radius: var(--Space-corner);
-  background: var(--BumpColor-paleBlue); color: var(--BumpColor-navy); width: 100%;
-}
-.notice svg { color: var(--BumpColor-warning); flex: none; margin-top: 1px; }
+/* MARK: NoticeText */
+.notice { display: flex; gap: 10px; align-items: flex-start; width: 100%; padding: 14px 16px; border-radius: var(--folk-radius-card); background: var(--folk-wash-peach); color: var(--md-sys-color-on-surface); }
+.notice .ms { color: var(--bump-color-warning); font-size: 20px; }
 
-/* MARK: ProgressView (system spinner) */
-.spinner {
-  width: 20px; height: 20px; flex: none; position: relative; color: var(--BumpColor-action);
-}
-.spinner i {
-  position: absolute; left: 9px; top: 1px; width: 2.2px; height: 5.5px; border-radius: 2px;
-  background: currentColor; transform-origin: 1.1px 9px;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .spinner { animation: spin 1s steps(8) infinite; }
-}
+/* MARK: ProgressView: MD3 circular indicator */
+.spinner { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 3px solid var(--md-sys-color-primary-container); border-top-color: var(--md-sys-color-primary); }
+@media (prefers-reduced-motion: no-preference) { .spinner { animation: spin 1s linear infinite; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* MARK: RecordButton + LevelMeter (OnboardingFlow.swift) */
-.record-btn {
-  appearance: none; border: 0; cursor: pointer; margin-top: var(--Space-m);
-  width: 88px; height: 88px; border-radius: 50%; background: var(--BumpColor-action);
-  display: grid; place-items: center; color: #fff;
-}
-.record-btn .stop { width: 28px; height: 28px; border-radius: 6px; background: #fff; }
-.level { width: 180px; height: 8px; border-radius: 999px; background: var(--BumpColor-paleBlue); overflow: hidden; }
-.level i { display: block; height: 100%; width: 40%; border-radius: 999px; background: var(--BumpColor-brand); }
-@media (prefers-reduced-motion: no-preference) {
-  .level i { animation: level 0.9s ease-in-out infinite alternate; }
-}
+/* MARK: RecordButton: a large orb */
+.record-btn { appearance: none; border: 0; cursor: pointer; margin-top: var(--Space-s); --orb: 116px; }
+.record-btn .ms { font-size: 46px; }
+.level { width: 180px; height: 5px; border-radius: 999px; background: var(--folk-track); overflow: hidden; }
+.level i { display: block; height: 100%; width: 40%; border-radius: 999px; background: var(--md-sys-color-error); }
+@media (prefers-reduced-motion: no-preference) { .level i { animation: level .9s ease-in-out infinite alternate; } }
 @keyframes level { from { width: 18%; } to { width: 72%; } }
 
-/* MARK: Numbered step (BumpScreen.howItWorks) */
-.num {
-  width: 24px; height: 24px; border-radius: 50%; flex: none;
-  background: var(--BumpColor-action); color: #fff; display: grid; place-items: center;
-  font-size: var(--BumpFont-caption-size); font-weight: 700;
-}
+/* MARK: Step number orb (how it works) */
+.num { --orb: 40px; font: 700 16px/1 var(--bump-typeface); }
 
-/* MARK: Card-step rows (OnboardingFlow.CardStep.row) */
-.rows { background: var(--BumpColor-surface); border-radius: var(--Space-corner); width: 100%; }
-.row { display: flex; gap: var(--Space-s); align-items: flex-start; padding: var(--Space-s); }
-/* Divider().padding(.leading, 44) */
-.divider { height: 0.5px; background: rgba(60, 60, 67, .29); margin-left: 44px; }
-.divider--full { margin-left: 0; }
-:where(.check) {
-  appearance: none; border: 0; background: none; padding: 0; cursor: pointer;
-  width: 32px; height: 32px; display: grid; place-items: center; flex: none;
-  color: var(--BumpColor-secondaryText);
-}
-.check.on { color: var(--BumpColor-action); }
-.struck { text-decoration: line-through; text-decoration-color: var(--BumpColor-secondaryText); }
+/* MARK: Checkbox (MD3, as the site's md-checkbox) */
+:where(.check) { appearance: none; border: 0; background: none; padding: 0; cursor: pointer; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+.cbx { width: 20px; height: 20px; border-radius: 6px; box-shadow: inset 0 0 0 2px var(--md-sys-color-outline); display: grid; place-items: center; color: #fff; }
+.check.on .cbx { background: var(--md-sys-color-primary); box-shadow: none; }
+.cbx .ms { font-size: 16px; font-variation-settings: "FILL" 0, "wght" 700, "GRAD" 0, "opsz" 20; }
+.check:not(.on) .cbx .ms { display: none; }
+.icon-btn { appearance: none; border: 0; background: none; cursor: pointer; flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--md-sys-color-on-surface-variant); }
+.struck { text-decoration: line-through; opacity: .6; }
+.divider { height: 1px; background: var(--folk-hairline); }
+.divider--full { margin: 0; }
 
-/* MARK: Reveal entrance (RevealView) */
+/* MARK: Toggle: MD3 switch */
+.md-switch { appearance: none; border: 0; cursor: pointer; flex: none; position: relative; width: 52px; height: 32px; border-radius: 999px;
+  background: var(--md-sys-color-surface-container-highest); box-shadow: inset 0 0 0 2px var(--md-sys-color-outline); }
+.md-switch i { position: absolute; top: 50%; left: 16px; width: 16px; height: 16px; border-radius: 50%; background: var(--md-sys-color-outline);
+  transform: translate(-50%, -50%); display: grid; place-items: center; color: var(--md-sys-color-primary); transition: all 300ms var(--md-sys-motion-easing-standard); }
+.md-switch i .ms { font-size: 16px; opacity: 0; }
+.md-switch.on { background: var(--md-sys-color-primary); box-shadow: none; }
+.md-switch.on i { left: 36px; width: 24px; height: 24px; background: #fff; }
+.md-switch.on i .ms { opacity: 1; }
+
+/* MARK: Disclosure */
+:where(.disclosure) { appearance: none; border: 0; background: none; font: inherit; cursor: pointer; padding: 0; display: flex; align-items: center; gap: 4px; color: var(--md-sys-color-primary); font-weight: 600; }
+.disclosure .ms { transition: transform 300ms var(--md-sys-motion-easing-standard); }
+.disclosure.open .ms { transform: rotate(180deg); }
+
+/* MARK: Entrance, the site's emphasized decelerate */
 @media (prefers-reduced-motion: no-preference) {
-  .reveal-in { animation: reveal-in .35s ease-out both; }
+  .reveal-in { animation: reveal-in 500ms var(--md-sys-motion-easing-emphasized-decelerate) both; }
 }
-@keyframes reveal-in { from { opacity: 0; transform: translateY(12px); } }
+@keyframes reveal-in { from { opacity: 0; transform: translateY(14px); } }

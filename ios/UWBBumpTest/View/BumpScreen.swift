@@ -12,7 +12,7 @@ struct BumpScreen: View {
 
     var body: some View {
         NavigationStack {
-            Screen {
+            Screen(backdrop: .hero) {
                 VStack(alignment: .leading, spacing: Space.l) {
                     header
 
@@ -79,66 +79,52 @@ struct BumpScreen: View {
     private var roomSetup: some View {
         VStack(spacing: Space.l) {
             PhonesIllustration(animated: true)
-                .frame(maxWidth: .infinity)
-                .padding(.top, Space.l)
+                .padding(.vertical, 40)
+                .floaters([
+                    Floater(text: FloaterLine.mixer, alignment: .topLeading, offset: CGSize(width: -4, height: -6), rotation: -3),
+                    Floater(text: FloaterLine.film, isMe: true, alignment: .bottomTrailing, offset: CGSize(width: 4, height: 6), rotation: 4),
+                ])
 
-            VStack(spacing: Space.s) {
-                Text("Meet someone new")
-                    .font(BumpFont.screenTitle)
-                    .foregroundStyle(BumpColor.navy)
-                    .multilineTextAlignment(.center)
-                Text("Tap phones with the person in front of you and see what you have in common.")
-                    .font(BumpFont.body)
-                    .foregroundStyle(BumpColor.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+            title("Meet someone new",
+                  "Tap phones with the person in front of you and see what you have in common.")
+
+            Button { engine.startNearby() } label: {
+                TrailingIconLabel("Start bumping", systemImage: "iphone.radiowaves.left.and.right")
             }
-            .padding(.horizontal, Space.m)
-
-            Button("Start bumping") { engine.startNearby() }
-                .buttonStyle(.bumpPrimary)
-                .padding(.top, Space.s)
+            .buttonStyle(.bumpPrimary)
 
             howItWorks
 
             Button("Have an event code?") { showEventCode = true }
-                .font(BumpFont.caption.weight(.semibold))
+                .font(BumpFont.captionEmphasis)
                 .foregroundStyle(BumpColor.secondaryText)
         }
         .frame(maxWidth: .infinity)
     }
 
-    /// Three quiet steps, always visible on the home screen.
+    /// Three quiet steps, always visible on the home screen: the site's
+    /// "bump, confirm, connect" cards, as pill rows with orbs.
     private var howItWorks: some View {
-        Card {
-            VStack(alignment: .leading, spacing: Space.m) {
-                HStack {
-                    Text("How it works")
-                        .font(BumpFont.bodyEmphasis)
-                        .foregroundStyle(BumpColor.navy)
-                    Spacer()
-                    Button("Watch the tour") { showTutorial = true }
-                        .font(BumpFont.caption.weight(.semibold))
-                        .foregroundStyle(BumpColor.action)
-                }
-                step(1, "You both tap Start bumping")
-                step(2, "Gently tap your phones together")
-                step(3, "Both confirm, then see what you share")
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack {
+                Eyebrow("How it works")
+                Spacer()
+                Button("Watch the tour") { showTutorial = true }
+                    .font(BumpFont.captionEmphasis)
+                    .foregroundStyle(BumpColor.primary)
             }
+            .padding(.horizontal, Space.xs)
+            step("iphone.radiowaves.left.and.right", BumpColor.primary, "You both tap Start bumping")
+            step("person.crop.circle.badge.checkmark", BumpColor.secondary, "Gently tap your phones together")
+            step("sparkles", BumpColor.tertiary, "Both confirm, then see what you share")
         }
     }
 
-    private func step(_ n: Int, _ text: String) -> some View {
-        HStack(spacing: Space.m) {
-            Text("\(n)")
-                .font(BumpFont.caption.weight(.bold))
-                .foregroundStyle(.white)
-                .frame(width: 24, height: 24)
-                .background(Circle().fill(BumpColor.action))
-            Text(text)
-                .font(BumpFont.body)
-                .foregroundStyle(BumpColor.navy)
-                .fixedSize(horizontal: false, vertical: true)
+    private func step(_ systemImage: String, _ tint: Color, _ text: String) -> some View {
+        RowPill {
+            IconOrb(systemImage: systemImage, size: 44, tint: tint)
+        } content: {
+            RowText.title(text)
         }
         .accessibilityElement(children: .combine)
     }
@@ -155,17 +141,17 @@ struct BumpScreen: View {
                     BumpField(label: "Event code", placeholder: "hackgt", text: $roomCode)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    Button("Join this event") { showEventCode = false; engine.join(roomCode: roomCode) }
-                        .buttonStyle(.bumpPrimary)
-                        .disabled(roomCode.trimmed().isEmpty)
-                    Button("Host it on this phone") { showEventCode = false; engine.host(roomCode: roomCode) }
-                        .buttonStyle(.bumpSecondary)
-                        .disabled(roomCode.trimmed().isEmpty)
+                    VStack(spacing: Space.s) {
+                        Button("Join this event") { showEventCode = false; engine.join(roomCode: roomCode) }
+                            .buttonStyle(.bumpPrimary)
+                            .disabled(roomCode.trimmed().isEmpty)
+                        Button("Host it on this phone") { showEventCode = false; engine.host(roomCode: roomCode) }
+                            .buttonStyle(.bumpSecondary)
+                            .disabled(roomCode.trimmed().isEmpty)
+                    }
                     if !engine.transport.discoveredRooms.isEmpty {
                         VStack(alignment: .leading, spacing: Space.s) {
-                            Text("Events nearby")
-                                .font(BumpFont.caption)
-                                .foregroundStyle(BumpColor.secondaryText)
+                            Eyebrow("Events nearby")
                             FlowLayout {
                                 ForEach(engine.transport.discoveredRooms.keys.sorted().filter { $0 != BumpEngine.nearbyRoom }, id: \.self) { code in
                                     InterestChip(title: code) {
@@ -184,6 +170,7 @@ struct BumpScreen: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationCornerRadius(28)
     }
 
     // MARK: Room active
@@ -201,6 +188,7 @@ struct BumpScreen: View {
 
         case .waitingForPartner:
             statusCard(
+                systemImage: "person.crop.circle.badge.checkmark",
                 title: "Waiting for them to confirm",
                 body: "They need to tap confirm on their phone too.",
                 tone: .active,
@@ -210,6 +198,7 @@ struct BumpScreen: View {
 
         case .exchanging:
             statusCard(
+                systemImage: "sparkles",
                 title: "Swapping interests",
                 body: "Only the two of you see each other's profiles.",
                 tone: .active, busy: true, actions: []
@@ -217,6 +206,7 @@ struct BumpScreen: View {
 
         case .checking:
             statusCard(
+                systemImage: "iphone.radiowaves.left.and.right",
                 title: "Felt that. Finding who you bumped…",
                 body: "Hold still for a moment.",
                 tone: .active, busy: true,
@@ -225,6 +215,7 @@ struct BumpScreen: View {
 
         case .timedOut:
             statusCard(
+                systemImage: "person.fill.questionmark",
                 title: "Nobody bumped back",
                 body: "Make sure they're in the same event and tapped ready too.",
                 tone: .warn, busy: false,
@@ -234,6 +225,7 @@ struct BumpScreen: View {
 
         case .ambiguous(let count):
             statusCard(
+                systemImage: "person.3.fill",
                 title: "A few people bumped at once",
                 body: "\(count) bumps landed at almost the same moment, so BUMP can't tell who was yours. Try again with a little space, or pick them from the room.",
                 tone: .warn, busy: false,
@@ -243,6 +235,7 @@ struct BumpScreen: View {
 
         case .needsRetry(let reason):
             statusCard(
+                systemImage: "arrow.clockwise",
                 title: "Didn't connect",
                 body: reason,
                 tone: .warn, busy: false,
@@ -252,6 +245,7 @@ struct BumpScreen: View {
 
         case .unavailable(let reason):
             statusCard(
+                systemImage: "exclamationmark.triangle.fill",
                 title: "Can't use the sensors",
                 body: reason,
                 tone: .bad, busy: false,
@@ -263,7 +257,8 @@ struct BumpScreen: View {
             readyState
 
         case .preparing:
-            statusCard(title: "Getting ready", body: "Starting the sensors.", tone: .active, busy: true, actions: [])
+            statusCard(systemImage: "iphone.radiowaves.left.and.right", title: "Getting ready", body: "Starting the sensors.",
+                       tone: .active, busy: true, actions: [])
 
         case .connected:
             EmptyView()          // shown in the full-screen reveal
@@ -275,19 +270,27 @@ struct BumpScreen: View {
 
     private var notReadyState: some View {
         VStack(spacing: Space.l) {
-            ZStack {
-                PulseRings(active: true)
-                PhonesIllustration()
-            }
-            .frame(maxWidth: .infinity)
-
             if engine.nearbyMode && engine.members.isEmpty {
+                ZStack {
+                    PulseRings(active: true)
+                    IconOrb(systemImage: "location.magnifyingglass", size: 96)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, Space.l)
+                .floaters([Floater(text: FloaterLine.lecture, alignment: .topLeading, rotation: -4)])
                 title("Looking for people nearby…",
                       "Ask the person you want to meet to open BUMP and tap Start bumping.")
             } else {
+                ZStack {
+                    PulseRings(active: false)
+                    PhonesIllustration(apart: true)
+                }
+                .frame(maxWidth: .infinity)
                 title("Ready when you are", "Tap below, then gently tap phones with the person you want to meet.")
-                Button("Ready to bump") { engine.setReady(true) }
-                    .buttonStyle(.bumpPrimary)
+                Button { engine.setReady(true) } label: {
+                    TrailingIconLabel("Ready to bump", systemImage: "iphone.radiowaves.left.and.right")
+                }
+                .buttonStyle(.bumpPrimary)
             }
 
             nearbyPeople
@@ -305,6 +308,7 @@ struct BumpScreen: View {
                 PhonesIllustration(animated: true)
             }
             .frame(maxWidth: .infinity)
+            .floaters([Floater(text: FloaterLine.film, isMe: true, alignment: .topTrailing, rotation: 4)])
 
             title("Tap your phones together",
                   "A gentle tap, back to back, with the person you want to meet. BUMP is listening.")
@@ -321,18 +325,14 @@ struct BumpScreen: View {
 
     private func title(_ heading: String, _ detail: String) -> some View {
         VStack(spacing: Space.s) {
-            Text(heading)
-                .font(BumpFont.screenTitle)
-                .foregroundStyle(BumpColor.navy)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+            ScreenTitle(heading, alignment: .center)
             Text(detail)
                 .font(BumpFont.body)
                 .foregroundStyle(BumpColor.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, Space.m)
+        .padding(.horizontal, Space.s)
     }
 
     /// Who else has BUMP open nearby. Names only; interests stay private
@@ -340,16 +340,18 @@ struct BumpScreen: View {
     @ViewBuilder
     private var nearbyPeople: some View {
         if !engine.members.isEmpty {
-            VStack(spacing: Space.s) {
-                StatusPill(text: engine.members.count == 1 ? "1 person nearby" : "\(engine.members.count) people nearby",
-                           tone: .good)
-                HStack(spacing: -10) {
-                    ForEach(engine.members.prefix(6)) { member in
-                        Avatar(name: member.displayName, size: 36)
-                            .overlay(Circle().strokeBorder(BumpColor.background, lineWidth: 2))
+            RowPill {
+                HStack(spacing: -12) {
+                    ForEach(Array(engine.members.prefix(3).enumerated()), id: \.element.id) { i, member in
+                        Avatar(name: member.displayName, size: 40,
+                               tint: i.isMultiple(of: 2) ? BumpColor.illustrationWarm : BumpColor.primary)
                     }
                 }
                 .accessibilityHidden(true)
+            } content: {
+                RowText.title(engine.members.count == 1 ? "1 person nearby" : "\(engine.members.count) people nearby")
+            } trail: {
+                Circle().fill(BumpColor.positive).frame(width: 8, height: 8).padding(.trailing, 4)
             }
         }
     }
@@ -372,7 +374,7 @@ struct BumpScreen: View {
             // demo data must never appear unlabelled.
             VStack(spacing: 0) {
                 if DemoMode.active != nil { DemoBadge() }
-                    RevealView(
+                RevealView(
                     result: result,
                     myName: store.profile.displayName,
                     myPhoto: store.profile.photo,
@@ -398,23 +400,25 @@ struct BumpScreen: View {
                             .font(BumpFont.body)
                             .foregroundStyle(BumpColor.secondaryText)
                     }
-                    ForEach(engine.members) { member in
-                        Button {
-                            showManualPicker = false
-                            engine.proposeManually(with: member)
-                        } label: {
-                            HStack(spacing: Space.m) {
-                                Avatar(name: member.displayName, size: 40)
-                                Text(member.displayName)
-                                    .font(BumpFont.bodyEmphasis)
-                                    .foregroundStyle(BumpColor.navy)
-                                Spacer()
+                    VStack(spacing: Space.s) {
+                        ForEach(Array(engine.members.enumerated()), id: \.element.id) { i, member in
+                            Button {
+                                showManualPicker = false
+                                engine.proposeManually(with: member)
+                            } label: {
+                                RowPill {
+                                    Avatar(name: member.displayName, size: 44,
+                                           tint: i.isMultiple(of: 2) ? BumpColor.illustrationWarm : BumpColor.primary)
+                                } content: {
+                                    RowText.title(member.displayName)
+                                } trail: {
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(BumpColor.faint)
+                                }
                             }
-                            .padding(Space.m)
-                            .background(RoundedRectangle(cornerRadius: Space.corner, style: .continuous)
-                                .fill(BumpColor.surface))
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -426,29 +430,46 @@ struct BumpScreen: View {
                 }
             }
         }
+        .presentationCornerRadius(28)
     }
 
     // MARK: Status card
 
-    private func statusCard(title: String, body: String, tone: StatusTone, busy: Bool,
+    /// Busy: an orb in pulse rings over a toast with a spinner.
+    /// Stopped: a peach bento with the problem, then the actions.
+    @ViewBuilder
+    private func statusCard(systemImage: String, title: String, body: String, tone: StatusTone, busy: Bool,
                             actions: [(String, () -> Void, Bool)]) -> some View {
         VStack(alignment: .leading, spacing: Space.m) {
-            Card {
-                VStack(alignment: .leading, spacing: Space.m) {
-                    HStack(spacing: Space.s) {
-                        if busy { ProgressView().tint(BumpColor.action) }
-                        StatusPill(text: title, tone: tone)
-                    }
+            if busy {
+                ZStack {
+                    PulseRings(active: true)
+                    IconOrb(systemImage: systemImage, size: 96)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, Space.l)
+                Toast(systemImage: systemImage, title: title, message: body) {
+                    ProgressView().tint(BumpColor.primary)
+                }
+            } else {
+                Bento(wash: .peach) {
+                    IconOrb(systemImage: systemImage, size: 52,
+                            tint: tone == .bad ? BumpColor.negative : BumpColor.illustrationWarm)
+                    ScreenTitle(title)
                     Text(body)
                         .font(BumpFont.body)
                         .foregroundStyle(BumpColor.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .padding(.top, Space.m)
             }
-            ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
-                Button(action.0, action: action.1)
-                    .buttonStyle(action.2 ? AnyButtonStyleWrapper(.bumpPrimary) : AnyButtonStyleWrapper(.bumpSecondary))
+            VStack(spacing: Space.s) {
+                ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
+                    Button(action.0, action: action.1)
+                        .buttonStyle(action.2 ? AnyButtonStyleWrapper(.bumpPrimary) : AnyButtonStyleWrapper(.bumpSecondary))
+                }
             }
+            .padding(.top, Space.s)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

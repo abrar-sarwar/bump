@@ -1,24 +1,27 @@
 /*
- * ios-chrome.css: the parts iOS draws for you. Status bar, navigation bar,
- * tab bar, sheets, switches, lists. Nothing here gets ported: SwiftUI
- * provides it. It exists so screens are judged in context, not floating.
+ * ios-chrome.css: the frame around the screens. Status bar, top bar, tab bar,
+ * sheets. The phone is always an iPhone 16 (393 x 852 pt, safe areas 59 / 34).
  *
- * Device: iPhone 16 / 15 (393 x 852 pt). Top safe area 59, bottom 34.
- * Two chrome styles: iOS 26 (Liquid Glass, what Xcode 26 builds show on an
- * iOS 26 phone) and iOS 18 (flat bars, what an iOS 17/18 phone shows).
+ * Chrome styles, switchable in the toolbar:
+ *   bump   the marketing site's pieces: frosted square buttons (its back-to-
+ *          top), a frosted floating tab bar (its header pill), the wordmark.
+ *   md3    Material 3 top app bar, navigation bar and bottom sheet. These are
+ *          NOT free on iOS: each is a custom SwiftUI view to build.
+ *   ios26  what SwiftUI draws for free on an iOS 26 phone (Liquid Glass).
+ *   ios18  what SwiftUI draws for free on an iOS 17/18 phone.
  */
 
 .device {
   --safe-top: 59px;
   --safe-bottom: 34px;
-  --label: #000;
+  --label: var(--md-sys-color-on-surface);
   --tab-inactive: #1c1c1e;
   position: relative;
   width: 393px; height: 852px;
   border-radius: 55px;
   overflow: hidden;
   background: var(--BumpColor-background);
-  color: var(--BumpColor-navy);
+  color: var(--md-sys-color-on-surface);
   font-family: var(--font-system);
   -webkit-font-smoothing: antialiased;
   box-shadow:
@@ -31,14 +34,13 @@
 .device *, .device *::before, .device *::after { box-sizing: border-box; }
 .device[data-chrome="ios18"] { --tab-inactive: #999; }
 
-/* MARK: Status bar + Dynamic Island */
+/* MARK: Status bar + Dynamic Island (always iOS) */
 .statusbar {
   position: absolute; inset: 0 0 auto 0; height: 54px; z-index: 50;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 34px 0 50px; pointer-events: none;
-  color: var(--label); font-weight: 600; font-size: 17px; letter-spacing: -0.4px;
+  color: #000; font: 600 17px/1 -apple-system, "SF Pro Text", "Inter", sans-serif; letter-spacing: -0.4px;
 }
-.statusbar.on-dark { color: #fff; }
 .statusbar__icons { display: flex; gap: 6px; align-items: center; }
 .island {
   position: absolute; top: 11px; left: 50%; transform: translateX(-50%);
@@ -56,46 +58,55 @@
   padding-top: var(--safe-top);
   background: var(--BumpColor-background);
 }
-.scroll {
-  flex: 1 1 auto; overflow-y: auto; overflow-x: hidden;
-  scrollbar-width: none;
-}
+.scroll { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
 .scroll::-webkit-scrollbar { display: none; }
-/* Screen { }: gutters 20, vertical padding 24 */
 .screen-pad { padding: var(--Space-l) var(--Space-gutter); }
-/* room for the floating iOS 26 tab bar / flat iOS 18 one */
-.has-tabs .scroll { padding-bottom: 96px; }
-.device[data-chrome="ios18"] .has-tabs .scroll { padding-bottom: 0; }
 .safe-bottom { padding-bottom: var(--safe-bottom); }
+.device[data-chrome="ios26"] .has-tabs .scroll { padding-bottom: 96px; }
+.device[data-chrome="ios18"] .has-tabs { padding-bottom: calc(49px + var(--safe-bottom)); }
+.device[data-chrome="md3"] .has-tabs { padding-bottom: calc(80px + 20px); }
 
-/* MARK: Navigation bar (inline) */
+/* MARK: Top bar */
 .nav {
   height: 44px; flex: none; display: grid; grid-template-columns: 1fr auto 1fr;
   align-items: center; padding: 0 16px; position: relative; z-index: 5;
 }
-.nav__title { font-size: 17px; line-height: 22px; font-weight: 600; letter-spacing: -0.43px; color: var(--label); text-align: center; }
+.nav__title { font: 600 17px/22px var(--font-system); letter-spacing: -0.2px; color: var(--label); text-align: center; }
 .nav__lead { justify-self: start; }
 .nav__trail { justify-self: end; }
 .navbtn {
   appearance: none; border: 0; background: none; font: inherit; cursor: pointer;
-  color: var(--BumpColor-action); font-size: 17px; letter-spacing: -0.43px;
+  color: var(--md-sys-color-primary); font-size: 17px;
   display: inline-flex; align-items: center; gap: 4px; padding: 0;
 }
+.navbtn .ms { font-size: 24px; }
+.navbtn .ic-md { display: none; }
+.nav-large { padding: 3px 16px 8px; font: 700 34px/41px var(--font-system); color: var(--label); flex: none; }
+
+/* iOS 26: glass capsules */
 .device[data-chrome="ios26"] .navbtn {
   height: 44px; min-width: 44px; padding: 0 14px; border-radius: 999px; justify-content: center;
-  color: var(--label);
-  background: rgba(255, 255, 255, .72);
+  color: #000; background: rgba(255, 255, 255, .72);
   box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 4px 14px rgba(0, 0, 0, .08);
-  backdrop-filter: blur(12px);
-  margin-left: -4px;
+  backdrop-filter: blur(12px); margin-left: -4px;
 }
 .device[data-chrome="ios26"] .navbtn--icon { padding: 0; width: 44px; }
 .device[data-chrome="ios26"] .navbtn .navbtn__backlabel { display: none; }
 .device[data-chrome="ios18"] .navbtn { margin-left: -8px; }
-.nav-large {
-  padding: 3px 16px 8px; font-size: 34px; line-height: 41px; font-weight: 700;
-  letter-spacing: 0.37px; color: var(--label); flex: none;
+
+/* MD3: small top app bar (64dp), title left, 48dp icon buttons */
+.device[data-chrome="md3"] .nav { height: 64px; grid-template-columns: auto 1fr auto; gap: 4px; padding: 0 4px; }
+.device[data-chrome="md3"] .nav__title { text-align: left; font: var(--md-sys-typescale-title-large); padding-left: 12px; }
+.device[data-chrome="md3"] .nav__title:has(.wordmark) { text-align: center; padding: 0; }
+.device[data-chrome="md3"] .nav__lead:not(:empty) + .nav__title { padding-left: 0; }
+.device[data-chrome="md3"] .navbtn {
+  height: 48px; min-width: 48px; padding: 0 12px; border-radius: 999px; justify-content: center;
+  color: var(--md-sys-color-primary); font: var(--md-sys-typescale-label-large);
 }
+.device[data-chrome="md3"] .navbtn--icon { padding: 0; width: 48px; color: var(--md-sys-color-on-surface); }
+.device[data-chrome="md3"] .navbtn .navbtn__backlabel, .device[data-chrome="md3"] .navbtn .ic-ios { display: none; }
+.device[data-chrome="md3"] .navbtn .ic-md { display: inline-block; }
+.device[data-chrome="md3"] .nav-large { font: var(--md-sys-typescale-headline-medium); font-weight: var(--bump-headline-weight); padding: 0 16px 20px; }
 
 /* MARK: Tab bar */
 .tabbar { position: absolute; z-index: 20; display: flex; }
@@ -104,35 +115,50 @@
   display: flex; flex-direction: column; align-items: center; gap: 1px;
   color: var(--tab-inactive);
 }
-.tab.on { color: var(--BumpColor-action); }
-.tab svg { width: 26px; height: 26px; }
+.tab.on { color: var(--md-sys-color-primary); }
+.tab .ms { font-size: 26px; }
 
 .device[data-chrome="ios26"] .tabbar {
-  left: 22px; right: 22px; bottom: 21px; height: 62px; padding: 4px;
-  border-radius: 999px;
+  left: 22px; right: 22px; bottom: 21px; height: 62px; padding: 4px; border-radius: 999px;
   background: rgba(255, 255, 255, .6);
-  backdrop-filter: blur(16px) saturate(1.6);
-  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  backdrop-filter: blur(16px) saturate(1.6); -webkit-backdrop-filter: blur(16px) saturate(1.6);
   box-shadow: 0 0 0 .5px rgba(0, 0, 0, .07), 0 8px 30px rgba(0, 0, 0, .10);
 }
-.device[data-chrome="ios26"] .tab { flex: 1; justify-content: center; border-radius: 999px; font-size: 10px; font-weight: 600; }
+.device[data-chrome="ios26"] .tab { flex: 1; justify-content: center; border-radius: 999px; font: 600 10px/1.2 var(--font-system); }
 .device[data-chrome="ios26"] .tab.on { background: rgba(0, 0, 0, .06); }
 
 .device[data-chrome="ios18"] .tabbar {
-  left: 0; right: 0; bottom: 0; height: calc(49px + var(--safe-bottom));
-  padding-bottom: var(--safe-bottom);
-  background: rgba(249, 249, 249, .94);
-  backdrop-filter: blur(20px);
+  left: 0; right: 0; bottom: 0; height: calc(49px + var(--safe-bottom)); padding-bottom: var(--safe-bottom);
+  background: rgba(249, 249, 249, .94); backdrop-filter: blur(20px);
   box-shadow: 0 -0.5px 0 rgba(0, 0, 0, .3);
 }
-.device[data-chrome="ios18"] .has-tabs { padding-bottom: calc(49px + var(--safe-bottom)); }
-.device[data-chrome="ios18"] .tab { flex: 1; justify-content: center; font-size: 10px; font-weight: 500; padding-top: 2px; }
+.device[data-chrome="ios18"] .tab { flex: 1; justify-content: center; font: 500 10px/1.2 var(--font-system); padding-top: 2px; }
+
+/* MD3 navigation bar: 80dp, pill active indicator behind a filled icon */
+.device[data-chrome="md3"] .tabbar {
+  left: 0; right: 0; bottom: 0; height: calc(80px + 20px); padding: 12px 8px 20px;
+  background: var(--md-sys-color-surface-container);
+}
+.device[data-chrome="md3"] .tab {
+  flex: 1; justify-content: flex-start; gap: 4px;
+  color: var(--md-sys-color-on-surface-variant); font: var(--md-sys-typescale-label-medium); letter-spacing: .5px;
+}
+.device[data-chrome="md3"] .tab .ms {
+  width: 64px; height: 32px; border-radius: 999px; display: grid; place-items: center; font-size: 24px;
+  transition: background var(--md-sys-motion-duration-short);
+}
+.device[data-chrome="md3"] .tab.on { color: var(--md-sys-color-on-surface); font-weight: 700; }
+.device[data-chrome="md3"] .tab.on .ms {
+  background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
+  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+}
 
 /* MARK: Sheets */
 .sheet-layer { position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column; justify-content: flex-end; }
 .sheet-dim { position: absolute; inset: 0; background: rgba(0, 0, 0, .25); }
 .sheet {
-  position: relative; background: var(--BumpColor-background);
+  --field-bg: var(--md-sys-color-surface);
+  position: relative; background: var(--md-sys-color-surface);
   border-radius: 38px 38px 0 0; overflow: hidden;
   display: flex; flex-direction: column;
   box-shadow: 0 -4px 30px rgba(0, 0, 0, .12);
@@ -143,48 +169,48 @@
 .sheet .nav { margin-top: 8px; }
 .grabber { width: 36px; height: 5px; border-radius: 3px; background: rgba(60, 60, 67, .3); margin: 5px auto 0; flex: none; }
 
-/* MARK: Toggle (system switch) */
-.switch {
-  appearance: none; border: 0; cursor: pointer; flex: none;
-  width: 51px; height: 31px; border-radius: 999px; padding: 2px;
-  background: rgba(120, 120, 128, .16); position: relative; transition: background .2s;
+/* MD3 bottom sheet: 28dp top corners, surface-container-low, drag handle */
+.device[data-chrome="md3"] .sheet-dim { background: color-mix(in srgb, var(--md-sys-color-scrim) 32%, transparent); }
+.device[data-chrome="md3"] .sheet {
+  --field-bg: var(--md-sys-color-surface-container-low);
+  background: var(--md-sys-color-surface-container-low);
+  border-radius: var(--md-sys-shape-corner-extra-large) var(--md-sys-shape-corner-extra-large) 0 0;
+  box-shadow: var(--md-sys-elevation-level1);
 }
-.switch::after {
-  content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%;
-  background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, .15), 0 3px 1px rgba(0, 0, 0, .06);
-  transition: transform .2s;
+.device[data-chrome="md3"] .sheet .nav { margin-top: 0; }
+.device[data-chrome="md3"] .grabber {
+  width: 32px; height: 4px; border-radius: 2px; margin: 22px auto 0;
+  background: color-mix(in srgb, var(--md-sys-color-on-surface-variant) 40%, transparent);
 }
-.switch.on { background: var(--BumpColor-action); }
-.switch.on::after { transform: translateX(20px); }
 
-/* MARK: Segmented picker */
-.segmented {
-  display: flex; padding: 2px; border-radius: 9px; background: rgba(118, 118, 128, .12); width: 100%;
+/* ── BUMP chrome: pieces of the marketing site ─────────────────────────── */
+.device[data-chrome="bump"] .has-tabs .scroll { padding-bottom: 112px; }
+.device[data-chrome="bump"] .nav { height: 56px; grid-template-columns: 1fr auto 1fr; padding: 0 16px; }
+.device[data-chrome="bump"] .nav__title { font: 700 17px/1.2 var(--bump-typeface); letter-spacing: -0.01em; }
+.device[data-chrome="bump"] .navbtn {
+  height: 36px; padding: 0 14px; border-radius: 999px; font: 600 14px/1 var(--bump-typeface);
+  color: var(--md-sys-color-on-surface); background: var(--folk-card-fill); box-shadow: var(--folk-card-shadow);
 }
-.device[data-chrome="ios26"] .segmented { border-radius: 999px; padding: 3px; }
-.segmented button {
-  flex: 1; appearance: none; border: 0; background: none; font: inherit; cursor: pointer;
-  font-size: 13px; line-height: 18px; font-weight: 500; color: var(--label);
-  padding: 6px 0; border-radius: 7px;
-}
-.device[data-chrome="ios26"] .segmented button { border-radius: 999px; }
-.segmented button.on { background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, .12), 0 3px 1px rgba(0, 0, 0, .04); font-weight: 600; }
+.device[data-chrome="bump"] .navbtn--icon { width: 40px; height: 40px; padding: 0; border-radius: 12px; justify-content: center; }
+.device[data-chrome="bump"] .navbtn .navbtn__backlabel, .device[data-chrome="bump"] .navbtn .ic-ios { display: none; }
+.device[data-chrome="bump"] .navbtn .ic-md { display: inline-block; }
+.device[data-chrome="bump"] .nav-large { font: 800 32px/1.05 var(--bump-typeface); letter-spacing: -0.025em; padding: 4px 20px 14px; }
 
-/* MARK: List (inset grouped) */
-.list { margin: 8px 16px; background: var(--BumpColor-surface); border-radius: 10px; overflow: hidden; }
-.device[data-chrome="ios26"] .list { border-radius: 26px; }
-.list-row {
-  display: flex; align-items: center; gap: 12px; padding: 11px 16px; min-height: 44px; cursor: pointer;
-  position: relative;
+.device[data-chrome="bump"] .tabbar {
+  left: 16px; right: 16px; bottom: 24px; height: 66px; padding: 5px; gap: 4px; border-radius: 22px;
+  background: linear-gradient(rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.84));
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: var(--folk-card-shadow-hover);
 }
-.list-row + .list-row::before {
-  content: ""; position: absolute; top: 0; right: 0; left: 76px; height: .5px; background: rgba(60, 60, 67, .29);
+.device[data-chrome="bump"] .tab {
+  flex: 1; justify-content: center; gap: 2px; border-radius: 17px;
+  color: var(--md-sys-color-on-surface-variant); font: 600 11.5px/1.2 var(--bump-typeface);
+  transition: background 200ms var(--md-sys-motion-easing-standard), color 200ms;
 }
-.list-row:active { background: #e5e5ea; }
-.chev { color: #c4c4c6; flex: none; margin-left: auto; }
+.device[data-chrome="bump"] .tab .ms { font-size: 24px; }
+.device[data-chrome="bump"] .tab.on { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+.device[data-chrome="bump"] .tab.on .ms { font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24; }
 
-/* MARK: DisclosureGroup */
-:where(.disclosure) { appearance: none; border: 0; background: none; font: inherit; cursor: pointer; padding: 0;
-  display: flex; align-items: center; justify-content: space-between; width: 100%; color: var(--BumpColor-action); }
-.disclosure svg { transition: transform .2s; }
-.disclosure.open svg { transform: rotate(90deg); }
+.device[data-chrome="bump"] .sheet { border-radius: 28px 28px 0 0; background: var(--BumpColor-background); }
+.device[data-chrome="bump"] .grabber { width: 36px; height: 5px; background: var(--folk-track); margin-top: 8px; }
+.device[data-chrome="bump"] .sheet .nav { margin-top: 4px; }

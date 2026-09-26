@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Talking points, split into what both people listed and what's merely
 /// related. A complementary point is framed as something to ask about — never
-/// as a claim that the two people share it.
+/// as a claim that the two people share it. Shown as chat bubbles, with the
+/// evidence from both cards under each.
 struct TalkingPointsSection: View {
     let points: [TalkingPoint]
 
@@ -21,8 +22,9 @@ struct TalkingPointsSection: View {
             }
             if let label = sourceLabel {
                 Text(label)
-                    .font(BumpFont.caption)
-                    .foregroundStyle(BumpColor.secondaryText)
+                    .font(BumpFont.caption2)
+                    .foregroundStyle(BumpColor.faint)
+                    .padding(.horizontal, 6)
             }
         }
     }
@@ -36,21 +38,17 @@ struct TalkingPointsSection: View {
 
     private func group(_ title: String, _ items: [TalkingPoint]) -> some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            Text(title)
-                .font(BumpFont.caption)
-                .foregroundStyle(BumpColor.secondaryText)
+            Eyebrow(title)
+                .padding(.horizontal, Space.xs)
             ForEach(items) { point in
-                Card {
+                ChatBubble {
                     VStack(alignment: .leading, spacing: Space.xs) {
                         Text(point.prompt)
                             .font(BumpFont.bodyEmphasis)
-                            .foregroundStyle(BumpColor.navy)
-                            .fixedSize(horizontal: false, vertical: true)
                         // Evidence from BOTH approved cards.
                         Text("You: “\(point.yourEntry)” · Them: “\(point.theirEntry)”")
-                            .font(BumpFont.caption)
-                            .foregroundStyle(BumpColor.secondaryText)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .font(BumpFont.caption2)
+                            .foregroundStyle(BumpColor.faint)
                     }
                 }
                 .accessibilityElement(children: .combine)
@@ -65,19 +63,19 @@ struct TalkingPromptLine: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: Space.s) {
-            Image(systemName: "bubble.left")
-                .font(.caption)
-                .foregroundStyle(BumpColor.action)
-                .padding(.top, 2)
+            Image(systemName: "bubble.left.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(BumpColor.primary)
+                .padding(.top, 3)
             VStack(alignment: .leading, spacing: 2) {
                 Text(point.prompt)
-                    .font(BumpFont.body)
-                    .foregroundStyle(BumpColor.navy)
+                    .font(BumpFont.captionEmphasis)
+                    .foregroundStyle(BumpColor.primary)
                     .fixedSize(horizontal: false, vertical: true)
                 if point.source == .grok {
                     Text(point.source.label)
-                        .font(.caption2)
-                        .foregroundStyle(BumpColor.secondaryText)
+                        .font(BumpFont.caption2)
+                        .foregroundStyle(BumpColor.faint)
                 }
             }
         }

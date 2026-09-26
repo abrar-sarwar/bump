@@ -34,8 +34,10 @@ struct BumpTutorial: View {
     var body: some View {
         ZStack {
             BumpColor.background.ignoresSafeArea()
+            Backdrop(style: .soft).ignoresSafeArea()
             VStack(spacing: 0) {
                 HStack {
+                    Eyebrow("How it works")
                     Spacer()
                     Button("Skip", action: onDone)
                         .font(BumpFont.bodyEmphasis)
@@ -47,27 +49,9 @@ struct BumpTutorial: View {
 
                 TabView(selection: $page) {
                     ForEach(Array(pages.enumerated()), id: \.offset) { index, item in
-                        VStack(spacing: Space.l) {
-                            Spacer(minLength: Space.m)
-                            art(item.art, active: page == index)
-                                .frame(height: 220)
-                            VStack(spacing: Space.s) {
-                                Text(item.title)
-                                    .font(BumpFont.screenTitle)
-                                    .foregroundStyle(BumpColor.navy)
-                                    .multilineTextAlignment(.center)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Text(item.body)
-                                    .font(BumpFont.body)
-                                    .foregroundStyle(BumpColor.secondaryText)
-                                    .multilineTextAlignment(.center)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .padding(.horizontal, Space.xl)
-                            Spacer()
-                        }
-                        .tag(index)
-                        .accessibilityElement(children: .combine)
+                        pageView(item, active: page == index)
+                            .tag(index)
+                            .accessibilityElement(children: .combine)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
@@ -75,15 +59,52 @@ struct BumpTutorial: View {
                 StepIndicator(current: page, total: pages.count)
                     .padding(.bottom, Space.l)
 
-                Button(page == pages.count - 1 ? "Let's bump" : "Next") {
+                Button {
                     if page == pages.count - 1 { onDone() }
                     else { withAnimation(.easeInOut(duration: 0.25)) { page += 1 } }
+                } label: {
+                    TrailingIconLabel(page == pages.count - 1 ? "Let's bump" : "Next", systemImage: "arrow.right")
                 }
                 .buttonStyle(.bumpPrimary)
                 .padding(.horizontal, Space.gutter)
                 .padding(.bottom, Space.l)
             }
         }
+    }
+
+    @ViewBuilder
+    private func pageView(_ item: Page, active: Bool) -> some View {
+        if item.art == .share {
+            // The badge alone, centred in the free space; the words sit low,
+            // just above the page dots.
+            VStack(spacing: 0) {
+                Spacer(minLength: Space.m)
+                art(item.art, active: active)
+                Spacer(minLength: Space.m)
+                titleBlock(item)
+                    .padding(.bottom, Space.xl)
+            }
+        } else {
+            VStack(spacing: Space.l) {
+                Spacer(minLength: Space.m)
+                art(item.art, active: active)
+                    .frame(height: 260)
+                titleBlock(item)
+                Spacer()
+            }
+        }
+    }
+
+    private func titleBlock(_ item: Page) -> some View {
+        VStack(spacing: Space.s) {
+            ScreenTitle(item.title, alignment: .center)
+            Text(item.body)
+                .font(BumpFont.body)
+                .foregroundStyle(BumpColor.secondaryText)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, Space.xl)
     }
 
     // MARK: Art
@@ -94,28 +115,55 @@ struct BumpTutorial: View {
         case .open:
             ZStack {
                 PulseRings(active: active && !reduceMotion)
-                PhonesIllustration(animated: false)
+                HStack(spacing: -12) {
+                    Avatar(name: "You", size: 72)
+                    Avatar(name: "Them", size: 72, tint: BumpColor.illustrationWarm)
+                }
             }
+            .frame(maxWidth: .infinity)
+            .floaters([
+                Floater(text: FloaterLine.lecture, alignment: .topLeading, rotation: -4),
+                Floater(text: FloaterLine.film, isMe: true, alignment: .bottomTrailing, rotation: 3),
+            ])
+            .padding(.horizontal, Space.gutter)
         case .tap:
             PhonesIllustration(animated: active)
+                .padding(.vertical, 40)
+                .floaters([Floater(text: FloaterLine.mixer, alignment: .topLeading, offset: CGSize(width: 0, height: -20), rotation: -3)])
+                .padding(.horizontal, Space.gutter)
         case .confirm:
-            HStack(spacing: Space.xl) {
-                ConfirmBadge(tint: BumpColor.brand)
-                ConfirmBadge(tint: BumpColor.illustrationWarm)
+            // The site's hero floater "did you bump with dev?", as the moment.
+            Card {
+                VStack(alignment: .leading, spacing: Space.m) {
+                    HStack(spacing: Space.m) {
+                        Avatar(name: "Them", size: 48, tint: BumpColor.illustrationWarm)
+                        Text("Did you bump with them?")
+                            .font(BumpFont.bodyEmphasis)
+                            .foregroundStyle(BumpColor.navy)
+                    }
+                    HStack(spacing: Space.s) {
+                        Text("Not them")
+                            .font(BumpFont.captionEmphasis)
+                            .foregroundStyle(BumpColor.navy)
+                            .frame(maxWidth: .infinity, minHeight: 40)
+                            .frostedCapsule()
+                        Label("Confirm", systemImage: "checkmark")
+                            .font(BumpFont.captionEmphasis)
+                            .foregroundStyle(BumpColor.onPrimaryContainer)
+                            .frame(maxWidth: .infinity, minHeight: 40)
+                            .background(Capsule().fill(BumpColor.primaryContainer))
+                    }
+                }
             }
+            .frame(width: 290)
+            .rotationEffect(.degrees(-2))
+            .accessibilityHidden(true)
         case .share:
-            VStack(spacing: Space.s) {
-                HStack(spacing: -12) {
-                    Avatar(name: "You", size: 64)
-                    Avatar(name: "Them", size: 64, tint: BumpColor.illustrationWarm)
-                }
-                FlowLayout {
-                    InterestChip(title: "Climbing", selected: true)
-                    InterestChip(title: "Cold brew", selected: true)
-                    InterestChip(title: "Collecting")
-                }
-                .frame(width: 260)
-            }
+            // Pops in and cycles what two people might have in common.
+            SharedBadge(kicker: "You both share this",
+                        interests: ["35mm photography", "Climbing", "Cold brew"],
+                        size: 300,
+                        popIn: active)
         }
     }
 }
@@ -129,7 +177,7 @@ struct PulseRings: View {
         ZStack {
             ForEach(0..<3) { i in
                 Circle()
-                    .stroke(BumpColor.brand.opacity(0.35), lineWidth: 2)
+                    .stroke(BumpColor.primary.opacity(0.28), lineWidth: 1.5)
                     .scaleEffect(expand ? 1.6 : 0.6)
                     .opacity(expand ? 0 : 1)
                     .animation(active
@@ -141,22 +189,6 @@ struct PulseRings: View {
         .frame(width: 200, height: 200)
         .onAppear { if active { expand = true } }
         .onChange(of: active) { _, on in expand = on }
-        .accessibilityHidden(true)
-    }
-}
-
-private struct ConfirmBadge: View {
-    let tint: Color
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(tint)
-                .frame(width: 78, height: 140)
-            Circle().fill(.white).frame(width: 48, height: 48)
-            Image(systemName: "checkmark")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(BumpColor.positive)
-        }
         .accessibilityHidden(true)
     }
 }

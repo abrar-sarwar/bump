@@ -6,6 +6,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var stage: Stage
+    @State private var tab: MainTab = .bump
     /// DEBUG demo only: a pre-seeded onboarding model with sample data.
     @State private var demoOnboarding: OnboardingModel?
 
@@ -42,15 +43,23 @@ struct RootView: View {
                 .transition(.opacity)
 
             case .main:
-                TabView {
+                // The system tab bar is hidden; the site's frosted floating
+                // pill (its header nav) stands in, with a blue active tab.
+                TabView(selection: $tab) {
                     BumpScreen(engine: engine, store: store)
-                        .tabItem { Label("Bump", systemImage: "hand.tap.fill") }
+                        .tag(MainTab.bump)
+                        .toolbar(.hidden, for: .tabBar)
                     ConnectionsScreen(store: store)
-                        .tabItem { Label("Connections", systemImage: "person.2.fill") }
+                        .tag(MainTab.connections)
+                        .toolbar(.hidden, for: .tabBar)
                     YouScreen(store: store, engine: engine)
-                        .tabItem { Label("You", systemImage: "person.crop.circle") }
+                        .tag(MainTab.you)
+                        .toolbar(.hidden, for: .tabBar)
                 }
                 .tint(BumpColor.action)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    FloatingTabBar(selection: $tab)
+                }
             }
         }
         .animation(.easeInOut(duration: 0.25), value: stage)
@@ -104,5 +113,66 @@ struct RootView: View {
             stage = .main
         }
         #endif
+    }
+}
+
+// MARK: - Floating tab bar
+
+enum MainTab: Hashable, CaseIterable {
+    case bump, connections, you
+
+    var title: String {
+        switch self {
+        case .bump: return "Bump"
+        case .connections: return "Connections"
+        case .you: return "You"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .bump: return "iphone.radiowaves.left.and.right"
+        case .connections: return "person.2.fill"
+        case .you: return "person.crop.circle"
+        }
+    }
+}
+
+/// The site's header pill, as a tab bar: frosted, floating, the active tab a
+/// solid blue pill.
+struct FloatingTabBar: View {
+    @Binding var selection: MainTab
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(MainTab.allCases, id: \.self) { tab in
+                let on = tab == selection
+                Button {
+                    withAnimation(BumpMotion.standard) { selection = tab }
+                } label: {
+                    VStack(spacing: 2) {
+                        Image(systemName: tab.systemImage)
+                            .font(.system(size: 19, weight: .semibold))
+                        Text(tab.title)
+                            .font(BumpFont.archivo(Archivo.semibold, 11.5, relativeTo: .caption2))
+                    }
+                    .foregroundStyle(on ? BumpColor.onPrimary : BumpColor.secondaryText)
+                    .frame(maxWidth: .infinity, minHeight: 56)
+                    .background {
+                        if on {
+                            RoundedRectangle(cornerRadius: 17, style: .continuous).fill(BumpColor.primary)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(tab.title)
+                .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+            }
+        }
+        .padding(5)
+        .background(FrostedBackground(shape: RoundedRectangle(cornerRadius: 22, style: .continuous), raised: true))
+        .padding(.horizontal, Space.m)
+        .padding(.bottom, Space.xs)
     }
 }

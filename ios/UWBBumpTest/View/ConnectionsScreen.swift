@@ -19,55 +19,62 @@ struct ConnectionsScreen: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: Space.m) {
-            Spacer()
-            PhonesIllustration()
-            Text("Nobody yet")
-                .font(BumpFont.screenTitle)
-                .foregroundStyle(BumpColor.navy)
-            Text("The people you bump show up here, with what you have in common and the question you started on.")
-                .font(BumpFont.body)
-                .foregroundStyle(BumpColor.secondaryText)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, Space.xl)
-            Spacer()
-            Spacer()
+        ZStack {
+            BumpColor.background.ignoresSafeArea()
+            Backdrop(style: .soft).ignoresSafeArea()
+            VStack(spacing: Space.m) {
+                Spacer()
+                PhonesIllustration(apart: true)
+                    .padding(.top, 60)
+                    .floaters([Floater(text: FloaterLine.lecture, alignment: .topLeading,
+                                       offset: CGSize(width: 0, height: -10), rotation: -3)])
+                    .padding(.horizontal, Space.gutter)
+                ScreenTitle("Nobody yet", alignment: .center)
+                Text("The people you bump show up here, with what you have in common and the question you started on.")
+                    .font(BumpFont.body)
+                    .foregroundStyle(BumpColor.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Space.xl)
+                Spacer()
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
-        .background(BumpColor.background)
     }
 
+    /// A plain List, kept for swipe to delete, with each row a frosted pill.
     private var list: some View {
         List {
-            ForEach(store.connections) { connection in
+            ForEach(Array(store.connections.enumerated()), id: \.element.id) { index, connection in
                 NavigationLink {
                     ConnectionDetail(connection: connection, store: store)
                 } label: {
-                    row(connection)
+                    row(connection, warm: index.isMultiple(of: 2))
                 }
-                .listRowBackground(BumpColor.surface)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 5, leading: Space.gutter, bottom: 5, trailing: Space.gutter))
             }
             .onDelete { store.deleteConnections(at: $0) }
         }
+        .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(BumpColor.background)
     }
 
-    private func row(_ connection: SavedConnection) -> some View {
-        HStack(spacing: Space.m) {
-            Avatar(name: connection.partnerName, size: 44, photo: connection.partnerPhoto)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(connection.partnerName)
-                    .font(BumpFont.bodyEmphasis)
-                    .foregroundStyle(BumpColor.navy)
-                Text(summary(connection))
-                    .font(BumpFont.caption)
-                    .foregroundStyle(BumpColor.secondaryText)
-                    .lineLimit(2)
-            }
+    private func row(_ connection: SavedConnection, warm: Bool) -> some View {
+        RowPill(block: true) {
+            Avatar(name: connection.partnerName, size: 48,
+                   tint: warm ? BumpColor.illustrationWarm : BumpColor.primary,
+                   photo: connection.partnerPhoto)
+        } content: {
+            RowText.title(connection.partnerName)
+            Text(summary(connection))
+                .font(BumpFont.caption)
+                .foregroundStyle(BumpColor.secondaryText)
+                .lineLimit(2)
         }
-        .padding(.vertical, Space.xs)
     }
 
     private func summary(_ connection: SavedConnection) -> String {
@@ -84,29 +91,28 @@ struct ConnectionDetail: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        Screen {
+        Screen(backdrop: .soft) {
             VStack(alignment: .leading, spacing: Space.l) {
-                HStack(spacing: Space.m) {
-                    Avatar(name: connection.partnerName, size: 64, photo: connection.partnerPhoto)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(connection.partnerName)
-                            .font(BumpFont.screenTitle)
-                            .foregroundStyle(BumpColor.navy)
-                        Text("\(connection.metOn.formatted(date: .abbreviated, time: .shortened)) · \(connection.roomName)")
-                            .font(BumpFont.caption)
-                            .foregroundStyle(BumpColor.secondaryText)
-                    }
-                }
-
-                StatusPill(text: connection.pairingEvidence.label,
-                           tone: connection.pairingEvidence == .manualSelection ? .warn : .good)
-
-                if !connection.partnerBio.isEmpty {
-                    Card {
-                        Text(connection.partnerBio)
-                            .font(BumpFont.body)
-                            .foregroundStyle(BumpColor.navy)
-                            .fixedSize(horizontal: false, vertical: true)
+                Card(padding: 22) {
+                    VStack(alignment: .leading, spacing: Space.m) {
+                        HStack(spacing: Space.m) {
+                            Avatar(name: connection.partnerName, size: 72, tint: BumpColor.illustrationWarm,
+                                   photo: connection.partnerPhoto)
+                            VStack(alignment: .leading, spacing: Space.xs) {
+                                Text(connection.partnerName)
+                                    .font(BumpFont.sectionTitle)
+                                    .foregroundStyle(BumpColor.navy)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Text("\(connection.metOn.formatted(date: .abbreviated, time: .shortened)) · \(connection.roomName)")
+                                    .font(BumpFont.caption)
+                                    .foregroundStyle(BumpColor.secondaryText)
+                                StatusPill(text: connection.pairingEvidence.label,
+                                           tone: connection.pairingEvidence == .manualSelection ? .warn : .good)
+                            }
+                        }
+                        if !connection.partnerBio.isEmpty {
+                            ChatBubble(connection.partnerBio)
+                        }
                     }
                 }
 
@@ -115,20 +121,17 @@ struct ConnectionDetail: View {
                         .font(BumpFont.body)
                         .foregroundStyle(BumpColor.secondaryText)
                 } else {
-                    SectionHeading(title: "Specific things you share")
-                    ForEach(connection.insight.highlights) { highlight in
-                        Card {
-                            VStack(alignment: .leading, spacing: Space.xs) {
-                                Text(highlight.statement)
-                                    .font(BumpFont.bodyEmphasis)
-                                    .foregroundStyle(BumpColor.navy)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Text(highlight.yourEntry == highlight.theirEntry
+                    VStack(alignment: .leading, spacing: Space.s) {
+                        Eyebrow("Specific things you share")
+                            .padding(.horizontal, Space.xs)
+                        ForEach(connection.insight.highlights) { highlight in
+                            RowPill(block: true) {
+                                IconOrb(systemImage: "sparkles", size: 44)
+                            } content: {
+                                RowText.title(highlight.statement)
+                                RowText.subtitle(highlight.yourEntry == highlight.theirEntry
                                      ? "Both of you list “\(highlight.yourEntry)”"
                                      : "You listed “\(highlight.yourEntry)” · they listed “\(highlight.theirEntry)”")
-                                    .font(BumpFont.caption)
-                                    .foregroundStyle(BumpColor.secondaryText)
-                                    .fixedSize(horizontal: false, vertical: true)
                                 if let point = connection.insight.point(for: highlight) {
                                     TalkingPromptLine(point: point)
                                 }
@@ -141,16 +144,12 @@ struct ConnectionDetail: View {
                     TalkingPointsSection(points: connection.insight.unattachedPoints)
                 }
 
-                SectionHeading(title: "Something to talk about")
-                Card {
-                    VStack(alignment: .leading, spacing: Space.s) {
+                VStack(alignment: .leading, spacing: Space.s) {
+                    Eyebrow("Something to talk about")
+                        .padding(.horizontal, Space.xs)
+                    ChatBubble(isMe: true, who: connection.insight.openerSource.label) {
                         Text(connection.insight.opener)
-                            .font(BumpFont.sectionTitle)
-                            .foregroundStyle(BumpColor.navy)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(connection.insight.openerSource.label)
-                            .font(BumpFont.caption)
-                            .foregroundStyle(BumpColor.secondaryText)
+                            .font(BumpFont.archivo(Archivo.semibold, 19, relativeTo: .title3))
                     }
                 }
 

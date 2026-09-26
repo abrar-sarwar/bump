@@ -36,12 +36,12 @@
   const prefs = load();
   let current = byId[location.hash.slice(1)] ? location.hash.slice(1) : (prefs.screen || "welcome");
   let mode = prefs.mode || "flow";
-  let chrome = prefs.chrome || "ios26";
+  let chrome = prefs.chrome || "bump";
   let zoom = prefs.zoom || "fit";
   let autoTimer = null;
 
-  function load() { try { return JSON.parse(localStorage.getItem("bump-mockup") || "{}"); } catch { return {}; } }
-  function save() { try { localStorage.setItem("bump-mockup", JSON.stringify({ screen: current, mode, chrome, zoom })); } catch { /* private window */ } }
+  function load() { try { return JSON.parse(localStorage.getItem("bump-mockup-v3") || "{}"); } catch { return {}; } }
+  function save() { try { localStorage.setItem("bump-mockup-v3", JSON.stringify({ screen: current, mode, chrome, zoom })); } catch { /* private window */ } }
 
   // MARK: Device
 

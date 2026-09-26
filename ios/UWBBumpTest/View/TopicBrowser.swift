@@ -38,7 +38,7 @@ struct TopicBrowser: View {
                 }
                 .padding(Space.m)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: Space.corner, style: .continuous).fill(BumpColor.surface))
+                .frostedCard()
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }

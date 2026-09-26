@@ -14,7 +14,7 @@ struct ProfileEditor: View {
     private var selectedIDs: Set<String> { Set(profile.interests.map(\.id)) }
 
     var body: some View {
-        Screen {
+        Screen(backdrop: .soft) {
             VStack(alignment: .leading, spacing: Space.l) {
 
                 if isOnboarding {
@@ -54,12 +54,11 @@ struct ProfileEditor: View {
 
                 if !profile.interests.isEmpty {
                     VStack(alignment: .leading, spacing: Space.s) {
-                        Text("Your interests (\(profile.interests.count))")
-                            .font(BumpFont.caption)
-                            .foregroundStyle(BumpColor.secondaryText)
+                        Eyebrow("Your interests (\(profile.interests.count))")
+                            .padding(.horizontal, Space.xs)
                         FlowLayout {
                             ForEach(profile.interests) { interest in
-                                InterestChip(title: "\(interest.label)  ✕", selected: true) {
+                                InterestChip(title: interest.label, selected: true, removable: true) {
                                     profile.interests.removeAll { $0.id == interest.id }
                                 }
                                 .accessibilityLabel("Remove \(interest.label)")
@@ -72,27 +71,24 @@ struct ProfileEditor: View {
                     SectionHeading(title: "Experiences & goals",
                                    subtitle: "Shared with confirmed partners, like your interests.")
                     ForEach(profile.details) { fact in
-                        HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(fact.text).font(BumpFont.body).foregroundStyle(BumpColor.navy)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Text(fact.kind == .goal ? "Goal" : "Experience")
-                                    .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
-                            }
-                            Spacer()
+                        RowPill(block: true) {
+                            IconOrb(systemImage: fact.kind == .goal ? "flag.fill" : "briefcase.fill", size: 40)
+                        } content: {
+                            RowText.title(fact.text)
+                            RowText.faint(fact.kind == .goal ? "Goal" : "Experience")
+                        } trail: {
                             Button {
                                 profile.details.removeAll { $0.id == fact.id }
                             } label: {
-                                Image(systemName: "xmark.circle.fill").foregroundStyle(BumpColor.secondaryText)
+                                Image(systemName: "xmark.circle.fill").foregroundStyle(BumpColor.faint)
                             }
+                            .buttonStyle(.plain)
                             .accessibilityLabel("Remove \(fact.text)")
                         }
                     }
-                    Picker("Kind", selection: $detailKind) {
-                        Text("Experience").tag(ProfileFact.Kind.experience)
-                        Text("Goal").tag(ProfileFact.Kind.goal)
-                    }
-                    .pickerStyle(.segmented)
+                    PillTabs(selection: $detailKind,
+                             options: [(value: ProfileFact.Kind.experience, label: "Experience"),
+                                       (value: ProfileFact.Kind.goal, label: "Goal")])
                     BumpField(label: "Add one", placeholder: detailKind == .goal ? "e.g. Find a climbing partner" : "e.g. Built a weather station",
                               text: $detailEntry)
                         .onSubmit(addDetail)
@@ -101,9 +97,12 @@ struct ProfileEditor: View {
                         .disabled(detailEntry.trimmed().isEmpty)
                 }
 
-                Button(isOnboarding ? "Start bumping" : "Save", action: onDone)
-                    .buttonStyle(.bumpPrimary)
-                    .disabled(!profile.isComplete)
+                Button(action: onDone) {
+                    TrailingIconLabel(isOnboarding ? "Start bumping" : "Save",
+                                      systemImage: isOnboarding ? "iphone.radiowaves.left.and.right" : "checkmark")
+                }
+                .buttonStyle(.bumpPrimary)
+                .disabled(!profile.isComplete)
 
                 if !profile.isComplete {
                     Text("Add a name and at least one interest, experience or goal to continue.")

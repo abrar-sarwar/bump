@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Mutual confirmation. Nothing is exchanged until BOTH sides tap confirm.
+/// Styled as the site's hero moment "did you bump with dev?", full size.
 struct ConfirmPartnerView: View {
     let proposal: BumpEngine.Proposal
     var onConfirm: () -> Void
@@ -8,32 +9,34 @@ struct ConfirmPartnerView: View {
 
     var body: some View {
         VStack(spacing: Space.l) {
-            Avatar(name: proposal.partner.displayName, size: 96)
-                .padding(.top, Space.m)
+            Card(padding: 22) {
+                VStack(spacing: Space.l) {
+                    Avatar(name: proposal.partner.displayName, size: 104, tint: BumpColor.illustrationWarm)
+                        .padding(.top, Space.s)
 
-            VStack(spacing: Space.s) {
-                Text("Did you bump with")
-                    .font(BumpFont.body)
-                    .foregroundStyle(BumpColor.secondaryText)
-                Text(proposal.partner.displayName)
-                    .font(BumpFont.screenTitle)
-                    .foregroundStyle(BumpColor.navy)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                    VStack(spacing: Space.s) {
+                        Eyebrow("Did you bump with")
+                        ScreenTitle(proposal.partner.displayName, alignment: .center)
+                    }
 
-            if proposal.manual {
-                StatusPill(text: "You picked them manually", tone: .warn)
-            } else if proposal.uwbCorroborated {
-                StatusPill(text: "Your phones were touching", tone: .good)
-            }
+                    if proposal.manual {
+                        StatusPill(text: "You picked them manually", tone: .warn)
+                    } else if proposal.uwbCorroborated {
+                        StatusPill(text: "Your phones were touching", tone: .good)
+                    }
 
-            VStack(spacing: Space.s) {
-                Button("Confirm & share interests", action: onConfirm)
-                    .buttonStyle(.bumpPrimary)
-                Button("Not this person", action: onDecline)
-                    .buttonStyle(.bumpSecondary)
+                    VStack(spacing: Space.s) {
+                        Button(action: onConfirm) {
+                            TrailingIconLabel("Confirm & share interests", systemImage: "checkmark")
+                        }
+                        .buttonStyle(.bumpPrimary)
+                        Button("Not this person", action: onDecline)
+                            .buttonStyle(.bumpSecondary)
+                    }
+                }
+                .frame(maxWidth: .infinity)
             }
+            .padding(.top, Space.m)
 
             Text("Your interests are only shared after you both confirm.")
                 .font(BumpFont.caption)
