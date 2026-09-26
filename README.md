@@ -7,7 +7,7 @@ actually have in common, plus a few grounded talking points to start on.
 
 ```
 bump/
-├── web/        # React website (not built yet)
+├── web/        # React marketing site (Vite + GSAP scroll sequence)
 ├── ios/        # SwiftUI app: onboarding, motion, UWB, pairing, talking points
 ├── backend/    # The BUMP server between the app and xAI (bump-api)
 └── README.md
@@ -16,7 +16,7 @@ bump/
 | | What it is | Status |
 |---|---|---|
 | [**`ios/`**](ios/README.md) | The product. Swift + SwiftUI, Core Motion, Nearby Interaction, MultipeerConnectivity, voice-intro onboarding, Grok talking points with Apple Intelligence and deterministic fallbacks. | Builds clean, 100 unit tests (96 pass, 4 server contract tests skipped), UI inspected in the Simulator and on one iPhone. **Unproven on two physical phones.** |
-| [`web/`](web/README.md) | The website. | Placeholder. |
+| [`web/`](web/README.md) | The marketing site. React + TypeScript + Vite, with one scroll-driven opening sequence built on GSAP/ScrollTrigger. | Built. Verified across both breakpoints, reduced motion, resize and fast scroll. |
 | [`backend/`](backend/README.md) | The BUMP server (`bump-api`), a Node service between the app and xAI: speech-to-text and Grok structured outputs. Holds the `XAI_API_KEY`. | 42 mocked tests pass; live smoke test against xAI passed. |
 | [`RESULTS.md`](RESULTS.md) | Blank results templates for the MVP and the original spikes. | To fill in on test day. |
 
@@ -35,6 +35,9 @@ open ios/UWBBumpTest.xcodeproj      # then follow ios/README.md
 # The BUMP server (voice + Grok)
 cd backend && cp .env.example .env  # put your XAI_API_KEY in .env
 npm start                           # http://0.0.0.0:8787
+
+# The marketing site
+cd web && npm install && npm run dev  # http://localhost:5173
 ```
 
 Prerequisites: a Mac with **Xcode 26+** and **two iPhones**. Deployment target is

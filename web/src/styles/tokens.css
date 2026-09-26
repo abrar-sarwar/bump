@@ -1,0 +1,31 @@
+/* BUMP design tokens. Sampled from the brand artwork, not guessed:
+   ivory #FEF9F0 and wordmark blue #7DA9F3 come straight out of the source PNGs. */
+:root {
+  --ivory: #fff9f0;
+  --ivory-deep: #f7efe2;
+  --blue: #73a9f5;          /* brand blue — the wordmark, large shapes */
+  --blue-ink: #2f6fd0;      /* AA-contrast blue for buttons + links on ivory */
+  --navy: #183555;          /* primary text */
+  --navy-soft: #5a7290;     /* secondary text, ~4.9:1 on ivory */
+  --hairline: #e6ddcd;
+  --white: #ffffff;
+  --orange: #f0955a;        /* from the phone photograph only — never UI chrome */
+
+  --shell: min(1280px, 100% - 2 * var(--gutter));
+  --gutter: clamp(20px, 5vw, 64px);
+
+  --step-0: clamp(1rem, 0.96rem + 0.2vw, 1.125rem);
+  --step-1: clamp(1.25rem, 1.1rem + 0.7vw, 1.6rem);
+  --step-2: clamp(1.75rem, 1.4rem + 1.6vw, 2.75rem);
+  --step-3: clamp(2.5rem, 1.6rem + 4vw, 5rem);
+  --step-4: clamp(3.25rem, 1.5rem + 7.5vw, 8rem);
+
+  --space-s: 8px;
+  --space-m: 16px;
+  --space-l: 32px;
+  --space-xl: clamp(56px, 9vw, 120px);
+  --space-section: clamp(96px, 14vw, 200px);
+
+  --radius: 14px;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}

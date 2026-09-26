@@ -1,0 +1,177 @@
+.hero {
+  position: relative;
+  background: var(--ivory);
+}
+
+.hero__stage {
+  position: relative;
+  height: 100svh;          /* svh: stable while mobile browser chrome collapses */
+  min-height: 520px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+/* --- the wordmark, behind everything --------------------------------- */
+.hero__mark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% 0;
+  width: 92vw;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+}
+
+/* --- the two photographic layers ------------------------------------- */
+.hero__phone {
+  position: absolute;
+  top: 50%;
+  height: auto;
+  z-index: 2;
+  pointer-events: none;
+  user-select: none;
+  /* transforms only — never width/height/top/left during the timeline */
+  transform-origin: 50% 50%;
+}
+
+/* The blue phone's body sits at the RIGHT end of its image (arm enters from
+   the left), so its right edge is the contact edge. */
+.hero__phone--blue {
+  left: 0;
+  width: 46vw;
+  transform-origin: 20% 50%;
+  margin-top: -2vh;
+}
+
+/* The orange phone's body sits at the LEFT end of its image. */
+.hero__phone--orange {
+  right: 0;
+  width: 46vw;
+  transform-origin: 80% 50%;
+  margin-top: 6vh;
+}
+
+/* --- contact mark ----------------------------------------------------- */
+.hero__spark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16vw;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  margin-top: 1vh;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(115, 169, 245, 0.42) 0%, rgba(115, 169, 245, 0) 68%);
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* --- scroll cue -------------------------------------------------------- */
+.hero__cue {
+  position: absolute;
+  bottom: clamp(24px, 5vh, 56px);
+  left: 50%;
+  translate: -50% 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--navy-soft);
+  white-space: nowrap;
+}
+
+.hero__cue-line {
+  width: 1px;
+  height: clamp(28px, 5vh, 46px);
+  background: linear-gradient(to bottom, transparent, var(--navy-soft));
+}
+
+/* --- the reveal copy --------------------------------------------------- */
+.hero__reveal {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% 0;
+  margin-top: clamp(64px, 11vw, 150px);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(18px, 2.4vw, 30px);
+  text-align: center;
+  width: min(560px, 88vw);
+  opacity: 0;                     /* the timeline brings it in */
+}
+
+.hero__tagline {
+  font-size: var(--step-1);
+  font-weight: 500;
+  color: var(--navy);
+  text-wrap: balance;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Mobile: recomposed, not shrunk. Phones are larger relative to the frame
+   and meet lower; the wordmark rides above them.                          */
+@media (max-width: 860px) {
+  .hero__phone--blue,
+  .hero__phone--orange { width: 82vw; }
+  .hero__phone--blue { margin-top: -13vh; }
+  .hero__phone--orange { margin-top: 13vh; }
+  .hero__mark { width: 92vw; }
+  .hero__spark { width: 34vw; }
+  .hero__reveal { margin-top: clamp(64px, 22vw, 130px); }
+}
+
+/* Ultrawide: cap the artwork so the photographs never stretch into the void. */
+@media (min-width: 1700px) {
+  .hero__phone--blue,
+  .hero__phone--orange { width: min(46vw, 820px); }
+  .hero__mark { width: min(92vw, 1560px); }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Reduced motion: no pin, no scrub. A readable static composition with the
+   phones already met, and all copy present in normal flow.                */
+@media (prefers-reduced-motion: reduce) {
+  .hero__stage {
+    height: auto;
+    min-height: 0;
+    padding: clamp(80px, 14vh, 140px) 0 clamp(48px, 8vh, 90px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-l);
+    overflow: visible;
+  }
+  .hero__mark,
+  .hero__phone,
+  .hero__spark {
+    position: static;
+    translate: none;
+    margin: 0;
+  }
+  .hero__mark { width: min(88vw, 900px); order: 1; }
+  .hero__phones-static { order: 2; }
+  .hero__phone { width: min(44vw, 380px); order: 2; }
+  .hero__phone--blue { align-self: flex-start; }
+  .hero__phone--orange { align-self: flex-end; margin-top: -8vw; }
+  .hero__spark { display: none; }
+  .hero__cue { display: none; }
+  .hero__reveal {
+    position: static;
+    translate: none;
+    opacity: 1;
+    order: 3;
+    margin-top: var(--space-m);
+  }
+}
