@@ -12,7 +12,7 @@ struct StreetPassSheet: View {
 
     @ScaledMetric(relativeTo: .body) private var avatarSize: CGFloat = 104
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// One clock for both loops, so the rings and the button share a start.
+    /// Drives the radar loop; never set under Reduce Motion.
     @State private var animating = false
 
     var body: some View {
@@ -49,13 +49,6 @@ struct StreetPassSheet: View {
             VStack(spacing: Space.xs) {
                 Button("Bump them", action: onBumpThem)
                     .buttonStyle(.bumpPrimary)
-                    // A slow breath on the CTA itself. Scale only — a glow
-                    // would fight the button's own M3 chrome — and offset
-                    // from the radar's period so they never pulse in lockstep.
-                    .scaleEffect(animating && !reduceMotion ? 1.03 : 1)
-                    .animation(reduceMotion ? nil
-                               : .easeInOut(duration: 1.6).repeatForever(autoreverses: true),
-                               value: animating)
                 Button("Not now", action: onNotNow)
                     .buttonStyle(.bumpText)
             }
