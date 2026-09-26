@@ -247,9 +247,19 @@ App active + profile complete
   init (same `NISession.deviceCapabilities` check `RangingService` already
   does); StreetPass simply never triggers on that device. No Bluetooth-only
   fallback is added (explicitly deferred, decision 1).
-- **Backgrounding**: `StreetPassEngine` pauses/clears ranging and transport
-  the moment `scenePhase` leaves `.active`, exactly like `BumpEngine`
-  already does for its own ranging. Nothing persists across this boundary.
+- **Backgrounding**: `StreetPassEngine` pauses ranging (`StreetPassRanging.pauseAll()`)
+  the moment `scenePhase` leaves `.active`, matching what `BumpEngine` actually
+  does — `BumpEngine.handleScenePhase` only pauses its own ranging and stops
+  motion sensing on `.background`/`.inactive`; it never disconnects its room
+  transport. StreetPass follows the same shape: the transport connection and
+  each peer's `StreetPassEncounterGate` state (cooldown/latch) stay alive
+  through a transient `.inactive` (a momentary system interruption — an
+  incoming call, Control Center, the app switcher — is not a real departure
+  from foreground use), so a brief interruption cannot cause a peer already
+  in range to trigger a duplicate encounter. State only truly resets when a
+  peer disconnects or the process itself is suspended/terminated by iOS,
+  consistent with "resetting only after the peer has clearly moved away or
+  disconnected."
 - **Notification tap after a cold relaunch**: the app just opens normally.
   Since nothing is persisted, if the peer happens to still be in range the
   gate re-evaluates fresh (starting its consecutive-reading count over) —

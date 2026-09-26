@@ -1194,8 +1194,17 @@ final class StreetPassEngine: ObservableObject {
             guard store.profile.isComplete else { return }
             if !isActive { start() } else { ranging.resumeAll() }
         case .background, .inactive:
+            // Pause ranging only — matches what BumpEngine actually does on
+            // .background/.inactive (it never disconnects its transport
+            // either). A transient .inactive (a phone call, Control Center,
+            // the app switcher) is not a real departure from foreground use,
+            // so the transport connection and each peer's
+            // StreetPassEncounterGate cooldown/latch state must survive it —
+            // otherwise a brief interruption would silently double-trigger a
+            // peer already in range, exactly what the gate exists to prevent.
             isAppActive = false
-            stop()
+            guard isActive else { return }
+            ranging.pauseAll()
         @unknown default: break
         }
     }
