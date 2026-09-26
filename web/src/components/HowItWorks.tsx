@@ -4,7 +4,7 @@ const STEPS = [
   {
     n: '01',
     title: 'Bump',
-    body: 'Both of you open BUMP and tap ready. Bring your phones together — a gentle tap, back to back.',
+    body: 'Both of you open BUMP and tap ready. Bring your phones together: a gentle tap, back to back.',
     note: 'Nothing happens until both people are ready. BUMP never scans the room for strangers.',
   },
   {

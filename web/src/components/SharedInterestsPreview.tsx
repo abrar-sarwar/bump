@@ -5,7 +5,7 @@ import './sections.css'
  * An ILLUSTRATIVE preview of what appears after two people connect.
  *
  * These are fictional example people. Every claimed overlap is present in both
- * example profiles below — the data is the single source of truth for the
+ * example profiles below. The data is the single source of truth for the
  * highlighted interest and the opener, so the two can never drift apart. This
  * is not a live match and nothing here calls a model.
  */
@@ -75,7 +75,7 @@ export default function SharedInterestsPreview() {
                       className={interest === ex.shared ? 'chip chip--shared' : 'chip'}
                     >
                       {interest}
-                      {interest === ex.shared && <span className="sr-only"> — shared interest</span>}
+                      {interest === ex.shared && <span className="sr-only">, shared interest</span>}
                     </li>
                   ))}
                 </ul>
@@ -92,7 +92,7 @@ export default function SharedInterestsPreview() {
             <blockquote className="overlap__opener">{ex.opener}</blockquote>
             <p className="overlap__evidence">
               Both profiles list “{ex.shared}”. BUMP only ever shows what’s genuinely in
-              both — and ranks by how specific it is, not by how rare, because we don’t
+              both, and ranks by how specific it is, not by how rare, because we don’t
               have data on how common an interest is.
             </p>
 

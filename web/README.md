@@ -68,8 +68,19 @@ it exactly.
 | `approachIn` | 0.15 | phones start closing |
 | `contact` | 0.50 | edges meet; contact mark blooms |
 | `recoilOut` | 0.62 | recoil settles |
-| `revealIn` | 0.66 | phones part, wordmark takes focus, copy arrives |
+| `revealIn` | 0.66 | the wordmark opens out of the meeting point |
 | `settled` | 0.90 | composition holds before release |
+
+**The hero wordmark does not exist on screen until the phones have bumped.** It
+starts masked to a zero-width sliver at the centre, exactly where the phones
+meet, and `revealIn` opens that mask outwards so the word grows from the contact
+point. The initial closed state lives in `BumpHero.css`, not just in JS, so it
+can never flash before the timeline initialises. Masking rather than `scaleX`
+keeps the letterforms undistorted at every frame.
+
+Order inside the reveal: wordmark opens (`revealIn`), phones move aside
+(`+12%`), then the supporting line and CTA (`+50%`). `revealIn` at 0.66 is
+strictly after the recoil and the contact mark, which both finish by ~0.60.
 
 The timeline is explicitly normalised to a duration of **1** (`tl.set({}, {}, 1)`)
 so those fractions mean what they say. Without it the timeline ends at `settled`
@@ -83,7 +94,8 @@ and every beat lands ~10% late.
 | `travel` | inward distance to contact (vw on desktop, vh on mobile) |
 | `axis` | `'x'` desktop, `'y'` mobile — see below |
 | `partX` / `partY` | how far the phones clear the frame during the reveal |
-| `markRest` / `markReveal` | wordmark width before and after |
+| `markReveal` | wordmark width once revealed |
+| `markFrom` | uniform scale it starts at, kept near 1 so letters never squash |
 
 Scroll length is the second argument to `build(...)`: **320vh** desktop,
 **240vh** mobile.
@@ -130,6 +142,22 @@ recomputed on resize and across the 860px breakpoint (3780 → 2940 → 2720 →
 scrolling back to the top restores the rest pose · fast-scroll burst · all three
 anchors land · reload partway down · no dead links · **no console errors and no
 horizontal overflow at any size**.
+
+`scripts/verify-reveal.mjs` asserts the wordmark timing numerically on both
+breakpoints: unmasked fraction is 0.000 at load, approach, pre-contact, contact
+and recoil; 0.62 mid-reveal; 1.000 when settled; and back to 0.000 after
+scrolling upward past the reveal. It also fails if any em dash reaches rendered
+copy.
+
+```bash
+node scripts/verify-reveal.mjs http://localhost:4173
+```
+
+## Copy
+
+No em dashes anywhere in the site, including headings, body, buttons, the
+`<title>`, and screen-reader-only text. Sentences were rewritten with periods,
+commas or colons rather than swapped for en dashes.
 
 ## Known limitations
 

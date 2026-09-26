@@ -3,13 +3,13 @@
 :root {
   --ivory: #fff9f0;
   --ivory-deep: #f7efe2;
-  --blue: #73a9f5;          /* brand blue — the wordmark, large shapes */
+  --blue: #73a9f5;          /* brand blue: the wordmark, large shapes */
   --blue-ink: #2f6fd0;      /* AA-contrast blue for buttons + links on ivory */
   --navy: #183555;          /* primary text */
   --navy-soft: #5a7290;     /* secondary text, ~4.9:1 on ivory */
   --hairline: #e6ddcd;
   --white: #ffffff;
-  --orange: #f0955a;        /* from the phone photograph only — never UI chrome */
+  --orange: #f0955a;        /* from the phone photograph only, never UI chrome */
 
   --shell: min(1280px, 100% - 2 * var(--gutter));
   --gutter: clamp(20px, 5vw, 64px);

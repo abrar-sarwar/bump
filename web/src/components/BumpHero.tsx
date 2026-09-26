@@ -10,10 +10,10 @@ gsap.registerPlugin(ScrollTrigger)
  * The opening scroll sequence.
  *
  * One pinned scene, one scrub timeline. Scroll progress drives the visual
- * timeline — we never hijack the wheel, never snap, and the whole thing plays
+ * timeline. We never hijack the wheel, never snap, and the whole thing plays
  * backwards correctly because every step is a tween on a scrubbed timeline.
  *
- * TUNING — everything worth adjusting lives in STAGE and LAYOUT below.
+ * TUNING: everything worth adjusting lives in STAGE and LAYOUT below.
  *   STAGE   when each beat happens, as a fraction of scroll through the section
  *   LAYOUT  where the phones start and where their edges meet, per breakpoint
  *
@@ -43,8 +43,8 @@ type Layout = {
   drift: number
   /**
    * Which way the phones close.
-   *  'x' — desktop: wide frame, the phones meet side by side near centre.
-   *  'y' — mobile: the frame is too narrow for a side-by-side meeting, so the
+   *  'x' is desktop: wide frame, the phones meet side by side near centre.
+   *  'y' is mobile: the frame is too narrow for a side-by-side meeting, so the
    *        phones are already horizontally overlapped and close VERTICALLY,
    *        blue descending from upper-left, orange rising from lower-right.
    */
@@ -52,21 +52,24 @@ type Layout = {
   /** how far the phones part, and drop, during the logo reveal */
   partX: number
   partY: number
-  /** wordmark width at rest / at reveal, in vw */
-  markRest: number
+  /** wordmark width once revealed, in vw. It has no "rest" size: the hero
+   *  wordmark does not exist on screen until the phones have bumped. */
   markReveal: number
+  /** uniform scale the wordmark starts at before it opens out. Kept close to 1
+   *  so the letterforms never look squashed: the width comes from the mask. */
+  markFrom: number
 }
 
 const DESKTOP: Layout = {
   restOffset: 26, travel: 19.3, drift: 0, axis: 'x',
-  partX: 15, partY: 31, markRest: 92, markReveal: 76,
+  partX: 15, partY: 31, markReveal: 76, markFrom: 0.9,
 }
 
 const MOBILE: Layout = {
   // Recomposed, not shrunk: bigger phones, a vertical meeting, and the
   // wordmark reading across the middle rather than hiding behind the photos.
   restOffset: 34, travel: 7.4, drift: 2.5, axis: 'y',
-  partX: 19, partY: 31, markRest: 94, markReveal: 90,
+  partX: 19, partY: 31, markReveal: 90, markFrom: 0.92,
 }
 
 export default function BumpHero() {
@@ -109,7 +112,20 @@ export default function BumpHero() {
         // Rest pose.
         gsap.set(blue, { xPercent: -L.restOffset, yPercent: -50, rotation: -3, x: 0, y: 0 })
         gsap.set(orange, { xPercent: L.restOffset, yPercent: -50, rotation: 3, x: 0, y: 0 })
-        gsap.set(mark, { width: `${L.markRest}vw`, yPercent: -50, opacity: 1 })
+        // Hidden from the very first frame. Width is fixed at its final size
+        // and only `scale` animates, so the bloom is a transform, not a layout
+        // change. CSS already sets opacity: 0 so it cannot flash before GSAP runs.
+        gsap.set(mark, {
+          width: `${L.markReveal}vw`, yPercent: -50,
+          // Fully opaque but masked to a zero-width sliver at the centre, which
+          // is exactly where the phones meet. The reveal opens that mask
+          // outwards, so the WORD grows from the contact point instead of
+          // fading in. Masking rather than scaleX keeps the letterforms
+          // undistorted at every frame.
+          opacity: 1,
+          clipPath: 'inset(0% 50% 0% 50%)',
+          scale: L.markFrom,
+        })
         gsap.set(spark, { scale: 0.4, opacity: 0 })
 
         const tl = gsap.timeline({
@@ -140,7 +156,6 @@ export default function BumpHero() {
           ...orangeIn, rotation: -1.5,
           duration: approach, ease: 'power1.in',
         }, STAGE.approachIn)
-        tl.to(mark, { opacity: 0.55, duration: approach }, STAGE.approachIn)
 
         // ---- contact: a short, readable beat, then a restrained recoil
         const beat = STAGE.recoilOut - STAGE.contact
@@ -158,35 +173,46 @@ export default function BumpHero() {
         const reveal = STAGE.settled - STAGE.revealIn
         // Part outwards, clearing the centre for the wordmark and the copy.
         // Desktop: both sink toward the lower outside corners.
-        // Mobile: they separate back along the axis they closed on — blue up,
-        // orange down — so the tagline and button get a clean band between them.
+        // Mobile: they separate back along the axis they closed on: blue up,
+        // orange down, so the tagline and button get a clean band between them.
         const partX = L.partX * vw()
         const partY = L.partY * vh()
+        // 1. the wordmark blooms out of the meeting point. This starts at
+        //    STAGE.revealIn, which is strictly after the recoil and the contact
+        //    mark have finished (see the assertion below).
+        tl.fromTo(mark,
+          { clipPath: 'inset(0% 50% 0% 50%)', scale: L.markFrom },
+          {
+            clipPath: 'inset(0% 0% 0% 0%)', scale: 1,
+            duration: reveal * 0.6, ease: 'power2.out',
+          },
+          STAGE.revealIn,
+        )
+
+        // 2. the phones move aside so it becomes fully readable
         const blueOut = L.axis === 'x'
           ? { x: blueRest.x - partX, y: blueRest.y + partY }
           : { x: blueRest.x - partX, y: blueRest.y - partY }
         const orangeOut = { x: orangeRest.x + partX, y: orangeRest.y + partY }
         tl.to(blue, {
           ...blueOut, rotation: -9,
-          duration: reveal, ease: 'power1.inOut',
-        }, STAGE.revealIn)
+          duration: reveal * 0.88, ease: 'power1.inOut',
+        }, STAGE.revealIn + reveal * 0.12)
         tl.to(orange, {
           ...orangeOut, rotation: 9,
-          duration: reveal, ease: 'power1.inOut',
-        }, STAGE.revealIn)
-        tl.to(mark, {
-          width: `${L.markReveal}vw`, opacity: 1,
-          duration: reveal, ease: 'power1.inOut',
-        }, STAGE.revealIn)
+          duration: reveal * 0.88, ease: 'power1.inOut',
+        }, STAGE.revealIn + reveal * 0.12)
+
+        // 3. only then the supporting line and the CTA
         tl.fromTo('.hero__reveal',
           { opacity: 0, y: 24 },
-          { opacity: 1, y: 0, duration: reveal * 0.6, ease: 'power2.out' },
-          STAGE.revealIn + reveal * 0.35,
+          { opacity: 1, y: 0, duration: reveal * 0.5, ease: 'power2.out' },
+          STAGE.revealIn + reveal * 0.5,
         )
 
         // The STAGE numbers are fractions of the WHOLE scroll, so the timeline
         // has to be exactly 1 unit long. Without this it ends at `settled`
-        // (0.90) and every beat lands ~10% late — the reveal never finishes.
+        // (0.90) and every beat lands ~10% late, and the reveal never finishes.
         tl.set({}, {}, 1)
       }
 
@@ -205,7 +231,7 @@ export default function BumpHero() {
       <div className="hero__stage">
         {/* The real heading for assistive tech and SEO; the artwork is decorative. */}
         <h1 id="hero-heading" className="sr-only">
-          BUMP — meet someone, find your overlap
+          BUMP. Meet someone, find your overlap.
         </h1>
 
         <img className="hero__mark" src={wordmark} alt="" aria-hidden="true" />

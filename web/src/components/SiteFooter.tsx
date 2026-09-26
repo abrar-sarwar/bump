@@ -4,7 +4,7 @@ export default function SiteFooter() {
   return (
     <footer className="footer">
       <div className="shell footer__inner">
-        <p className="footer__note">BUMP — a HackGT project.</p>
+        <p className="footer__note">BUMP, a HackGT project.</p>
         <nav aria-label="Footer">
           <ul className="footer__links">
             <li>

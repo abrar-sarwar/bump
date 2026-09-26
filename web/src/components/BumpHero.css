@@ -23,6 +23,10 @@
   pointer-events: none;
   user-select: none;
   z-index: 1;
+  /* The hero wordmark does not exist until the phones bump. Masked shut here,
+     in the initial styles, so it can never flash before the timeline
+     initialises. The timeline opens the mask outwards from the centre. */
+  clip-path: inset(0% 50% 0% 50%);
 }
 
 /* --- the two photographic layers ------------------------------------- */
@@ -33,7 +37,7 @@
   z-index: 2;
   pointer-events: none;
   user-select: none;
-  /* transforms only — never width/height/top/left during the timeline */
+  /* transforms only, never width/height/top/left during the timeline */
   transform-origin: 50% 50%;
 }
 
@@ -160,7 +164,7 @@
     translate: none;
     margin: 0;
   }
-  .hero__mark { width: min(88vw, 900px); order: 1; }
+  .hero__mark { width: min(88vw, 900px); order: 1; clip-path: none; }
   .hero__phones-static { order: 2; }
   .hero__phone { width: min(44vw, 380px); order: 2; }
   .hero__phone--blue { align-self: flex-start; }

@@ -11,7 +11,7 @@ export default function ClosingCTA() {
         <Wordmark className="cta__mark" label="BUMP" />
         <p className="cta__line">
           BUMP is being built at HackGT. The iOS app runs entirely between nearby
-          phones — no account, no server, no cloud.
+          phones. No account, no server, no cloud.
         </p>
         <div className="cta__actions">
           {/* Real destinations only: an in-page anchor and the actual repository.
