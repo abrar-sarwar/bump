@@ -28,7 +28,7 @@ both confirm → shared interests + a conversation opener → save the connectio
 |---|---|
 | **Welcome** | Hero wordmark, one action. |
 | **Onboarding** | Name → spoken intro (≤ 45 s, or type) → up to 3 follow-ups → an editable card you approve. See [Onboarding](#onboarding-pre). Profile editor still available later from You. |
-| **Bump** | Host/join an event, ready state, all the error states, manual pick. |
+| **Bump** | Home with **Start bumping** (automatic nearby room, no codes), a first-run tour of how bumping works, "Tap your phones together" with who's nearby, all the error states, manual pick. Event codes live behind "Have an event code?". |
 | **Confirm partner** | "Did you bump with X?" — both sides must confirm before anything is exchanged. |
 | **Reveal** | Up to three grounded shared interests with evidence, one opener, save. |
 | **Connections** | Locally saved people, detail view, swipe to delete, empty state. |
@@ -104,15 +104,14 @@ limit, not a bug.
    correctly say you share nothing. For Grok talking points, both must allow
    cloud processing and at least one must reach a bump-api with a key
    (You ▸ Cloud processing shows the status).
-2. **Phone A** → Bump tab → type an event code (e.g. `hackgt`) → **Host it on
-   this phone**.
-3. **Phone B** → same code → **Join this event**. A's name appears in "In this
-   event" within a second or two.
-4. Both: **Ready to bump**.
-5. Tap the phones together, back to back, once.
-6. Both see "Did you bump with …?" → **Confirm & share interests** on both.
-7. Reveal appears on both with the same shared interests and the same opener.
-8. **Save connection** → it shows up under Connections.
+2. Both phones: Bump tab → **Start bumping**. Each joins the shared "nearby"
+   room, or becomes its coordinator if nobody is hosting yet; if two start at
+   once, the one with the higher transient id steps down and joins the other.
+   Wait for "1 person nearby".
+3. Tap the phones together, back to back, once.
+4. Both see "Did you bump with …?" → **Confirm & share interests** on both.
+5. Reveal appears on both with the same shared interests and the same opener.
+6. **Save connection** → it shows up under Connections.
 
 ## Detection
 

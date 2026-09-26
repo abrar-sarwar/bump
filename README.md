@@ -38,11 +38,14 @@ degrades cleanly without either. The Simulator cannot validate UWB or motion.
 
 1. Build and run on both phones (`uwb-ios/README.md` has the signing steps).
 2. Onboard on both (speak or type an intro, approve your card). **Give them at least one interest in common.**
-3. Phone A: event code `hackgt` → **Host it on this phone**.
-4. Phone B: same code → **Join this event**.
-5. Both: **Ready to bump** → tap the phones together once.
-6. Both: **Confirm & share interests**.
-7. Shared interests + opener appear on both → **Save connection**.
+3. Both: Bump tab → **Start bumping**. The phones find each other automatically
+   (one quietly becomes the coordinator); no event code needed.
+4. When "1 person nearby" shows, tap the phones together once.
+5. Both: **Confirm & share interests**.
+6. Shared interests + talking points appear on both → **Save connection**.
+
+For a big event, **Have an event code?** on the Bump tab still gives named
+rooms (8 phones each).
 
 Instrumentation lives in **You ▸ Testing tools** (live acceleration, live UWB
 distance, pairing sliders, event log, diagnostics export). It is deliberately

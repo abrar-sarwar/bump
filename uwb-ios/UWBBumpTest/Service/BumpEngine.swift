@@ -153,6 +153,10 @@ final class BumpEngine: ObservableObject {
         transport.$connected
             .sink { [weak self] peers in self?.rosterChanged(peers) }
             .store(in: &cancellables)
+
+        transport.$discoveredRooms
+            .sink { [weak self] rooms in self?.resolveDuplicateNearbyHost(rooms) }
+            .store(in: &cancellables)
     }
 
     /// Push the user's testing-tools settings into the components that use them.
@@ -195,6 +199,68 @@ final class BumpEngine: ObservableObject {
         refreshCloudStatus()
         phase = .notReady
         note("joining room \"\(code)\"")
+    }
+
+    // MARK: Nearby (automatic room)
+
+    /// The shared room everyone joins by default, so nobody types a code. One
+    /// phone still coordinates matching (see `PairingMatcher`); which one is
+    /// decided automatically.
+    static let nearbyRoom = "nearby"
+    /// True while the user has asked to bump with whoever is nearby.
+    @Published private(set) var nearbyMode = false
+    private var nearbyTimer: Timer?
+
+    /// One tap: find the nearby room (or start it) and get ready to bump.
+    ///
+    /// Join first and listen for a coordinator. If nobody answers within a
+    /// short, slightly random wait, become the coordinator. If two phones do
+    /// that at the same moment, `resolveDuplicateNearbyHost` makes one of them
+    /// step down and join the other.
+    func startNearby() {
+        nearbyMode = true
+        joinNearbyOrHost()
+    }
+
+    /// Stop bumping and leave the nearby room.
+    func stopNearby() {
+        nearbyMode = false
+        nearbyTimer?.invalidate(); nearbyTimer = nil
+        leaveRoom()
+    }
+
+    private func joinNearbyOrHost() {
+        nearbyTimer?.invalidate()
+        join(roomCode: Self.nearbyRoom)
+        setReady(true)
+        // Jitter breaks the tie when several phones start at once.
+        let wait = 2.0 + Double.random(in: 0...1.5)
+        nearbyTimer = Timer.scheduledTimer(withTimeInterval: wait, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.nearbyMode, case .joined = self.room,
+                      self.transport.connected.isEmpty else { return }
+                self.note("nobody hosting nearby yet, so this phone will")
+                self.host(roomCode: Self.nearbyRoom)
+                self.setReady(true)
+            }
+        }
+    }
+
+    /// Two phones both started the nearby room. The one with the higher id
+    /// steps down and joins the other, so everyone ends up in one room.
+    private func resolveDuplicateNearbyHost(_ rooms: [String: Wire.Member]) {
+        guard nearbyMode, case .hosting(let code) = room, code == Self.nearbyRoom,
+              let other = rooms[Self.nearbyRoom],
+              Self.shouldYield(me: transport.myID, otherHost: other.id),
+              proposals.isEmpty, myProposal == nil else { return }
+        note("another phone is already hosting nearby; joining it")
+        leaveRoom()
+        joinNearbyOrHost()
+    }
+
+    /// Deterministic, so both hosts agree on who steps down.
+    nonisolated static func shouldYield(me: String, otherHost: String) -> Bool {
+        !otherHost.isEmpty && otherHost != me && otherHost < me
     }
 
     func leaveRoom() {
@@ -731,7 +797,21 @@ final class BumpEngine: ObservableObject {
             if let code = room.code {
                 room = .hostLost(code: code)
                 motion.stop()
-                phase = .needsRetry("The phone hosting \"\(code)\" went away. Rejoin, or host the room yourself.")
+                if nearbyMode && code == Self.nearbyRoom {
+                    // Nearby mode heals itself: find (or become) a new host.
+                    phase = .notReady
+                    note("nearby host left; reconnecting")
+                    let delay = 0.5 + Double.random(in: 0...1.5)
+                    Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+                        Task { @MainActor in
+                            guard let self, self.nearbyMode, case .hostLost = self.room else { return }
+                            self.leaveRoom()
+                            self.joinNearbyOrHost()
+                        }
+                    }
+                } else {
+                    phase = .needsRetry("The phone hosting \"\(code)\" went away. Rejoin, or host the room yourself.")
+                }
             }
         }
         if let proposal = myProposal, proposal.partner.id == peer {
