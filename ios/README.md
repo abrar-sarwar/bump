@@ -6,7 +6,7 @@ Two people tap phones, confirm each other, and get the specific things they
 actually have in common plus grounded talking points. **No account, and no API
 key in the app.** Bumping, matching and the partner-only profile exchange run on
 the phones in the room. The optional voice intro, Grok profile drafting and Grok
-talking points go through our own [`bump-api`](../bump-api/README.md) server to
+talking points go through our own [`bump-api`](../backend/README.md) server to
 xAI — only after the person allows it, and for talking points only when **both**
 people allowed it.
 
@@ -14,8 +14,9 @@ This evolved from the Nearby Interaction spike that used to live here. The
 working `NISession` / `NINearbyPeerConfiguration` / MultipeerConnectivity code
 was kept and refactored into `RangingService` and `PeerTransport`; the old
 `UWBExperiment`/`ContentView` test dashboard is gone, and its instrumentation now
-lives behind **You ▸ Testing tools**. The web spike in `../bump-web` is untouched
-and still useful for Android testing — the native app does not depend on it.
+lives behind **You ▸ Testing tools**. The earlier Node + Socket.io web spike has
+been removed from the tree; it is still in git history at commit `278d2e0` if the
+matching algorithm or the browser `devicemotion` work is ever needed again.
 
 ---
 
@@ -68,7 +69,7 @@ on-device AI needs iOS 26, so **neither the newest iPhone nor the newest OS is
 required**; both degrade cleanly.
 
 ```bash
-open uwb-ios/UWBBumpTest.xcodeproj
+open ios/UWBBumpTest.xcodeproj
 
 # compile check, no signing, no device
 xcodebuild -project UWBBumpTest.xcodeproj -scheme UWBBumpTest \
@@ -191,8 +192,8 @@ server and app both replace any that slip through.
 
 ## Grok and the BUMP server
 
-The app talks only to `bump-api` (see its [README](../bump-api/README.md) and
-[CONTRACT](../bump-api/CONTRACT.md)). Server URL: build setting
+The app talks only to `bump-api` (see its [README](../backend/README.md) and
+[CONTRACT](../backend/CONTRACT.md)). Server URL: build setting
 `BUMP_API_BASE_URL` (default `http://localhost:8787`, fine for the Simulator),
 overridable at runtime in **You ▸ Testing tools ▸ BUMP server**, which also has
 a health check.
