@@ -55,6 +55,17 @@ struct StreetPassSheet: View {
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
+                // Blurred UI reads as a loading state or a bug without a word
+                // explaining it. This one line names the blur and the action,
+                // and carries the real overlap for VoiceOver, which cannot see
+                // the blurred pills at all.
+                if !encounter.teasedMutualStatements.isEmpty {
+                    Text("bump to see the rest")
+                        .font(BumpFont.caption)
+                        .foregroundStyle(BumpColor.onSurfaceVariant)
+                        .padding(.top, Space.xs)
+                        .accessibilityLabel("\(encounter.teasedMutualStatements.count) more things in common. Bump to see the rest.")
+                }
             }
 
             Spacer(minLength: 0)
