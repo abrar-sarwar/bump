@@ -51,6 +51,7 @@ test('MOCKED healthz reports config and never leaks the key', async () => {
   assert.deepEqual(JSON.parse(text), {
     ok: true,
     grokConfigured: true,
+    relay: true,
     model: 'grok-4.3',
     sttModel: 'grok-voice-transcribe-2.0',
   });

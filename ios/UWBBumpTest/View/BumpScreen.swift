@@ -153,8 +153,25 @@ struct BumpScreen: View {
                 Button("Resume") { engine.resume() }
                     .buttonStyle(.bumpPrimary)
 
-            case .gettingReady:
-                title("Getting ready", "Finding the phones around you.")
+            case .preparing:
+                title("Getting ready", "Starting BUMP on this phone.")
+
+            case .lookingForPhones(let hint):
+                title("Looking for nearby phones", hint ?? "Ask the person in front of you to open BUMP too.")
+                if hint != nil {
+                    Button("Open Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                    .buttonStyle(.bumpSecondary)
+                }
+
+            case .connecting:
+                title("Connecting", "Found a nearby phone. Joining it now.")
+
+            case .reconnecting:
+                title("Reconnecting", "The other phone went away. Finding it again.")
 
             case .listening:
                 if engine.members.isEmpty {
@@ -180,9 +197,18 @@ struct BumpScreen: View {
     private var readinessIndicator: some View {
         HStack(spacing: Space.s) {
             switch engine.autoStatus {
-            case .gettingReady:
+            case .preparing:
                 LoadingIndicator(size: 14)
                 Text("Getting ready…")
+            case .lookingForPhones:
+                LoadingIndicator(size: 14)
+                Text("Looking for phones")
+            case .connecting:
+                LoadingIndicator(size: 14)
+                Text("Connecting…")
+            case .reconnecting:
+                LoadingIndicator(size: 14)
+                Text("Reconnecting…")
             case .listening:
                 BreathingDot()
                 Text("Ready to bump")
@@ -205,7 +231,10 @@ struct BumpScreen: View {
 
     private var readinessLabel: String {
         switch engine.autoStatus {
-        case .gettingReady: return "Getting ready"
+        case .preparing: return "Getting ready"
+        case .lookingForPhones(let hint): return "Looking for nearby phones. \(hint ?? "")"
+        case .connecting: return "Connecting to a nearby phone"
+        case .reconnecting: return "Reconnecting"
         case .listening: return "Ready to bump. Tap your phones together."
         case .paused: return "Paused"
         case .blocked(let step): return "Setup needed. \(step)"
@@ -343,7 +372,9 @@ struct BumpScreen: View {
                 title: "Felt that. Finding who you bumped…",
                 body: "Hold still for a moment.",
                 tone: .active, busy: true,
-                actions: [("Cancel", { engine.setReady(false) }, false)]
+                // bumpAgain, not setReady(false): that parked the phase at
+                // .notReady with motion off and nothing to restart it.
+                actions: [("Cancel", { engine.bumpAgain() }, false)]
             )
 
         case .timedOut:

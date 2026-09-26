@@ -37,6 +37,22 @@ final class Store: ObservableObject {
         /// Overrides the build's `BumpAPIBaseURL` (e.g. your Mac's LAN address
         /// when testing on a phone). Optional, so older settings files still load.
         var apiBaseURL: String?
+        /// How phones reach each other. nil means automatic: the BUMP server's
+        /// relay when it answers, Multipeer otherwise. Optional so older
+        /// settings files still load.
+        var transport: TransportPreference?
+
+        enum TransportPreference: String, Codable, CaseIterable, Identifiable {
+            case automatic, server, nearby
+            var id: String { rawValue }
+            var label: String {
+                switch self {
+                case .automatic: return "Automatic"
+                case .server: return "Server only"
+                case .nearby: return "Nearby only"
+                }
+            }
+        }
 
         enum DetectionMode: String, Codable, CaseIterable, Identifiable {
             case motionOnly, uwbOnly, combined

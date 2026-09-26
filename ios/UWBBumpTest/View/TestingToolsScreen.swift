@@ -16,12 +16,32 @@ struct TestingToolsScreen: View {
                 NoticeText(text: "Engineering instrumentation for tuning on real phones. Values here are live sensor readings, not part of the normal BUMP experience.",
                            icon: "wrench.and.screwdriver.fill", tone: .neutral)
 
+                // MARK: Two-phone diagnostics
+                SectionHeading(title: "Two-phone diagnostics",
+                               subtitle: "Compare this card on both phones after a trial. Export both logs if a trial fails.")
+                TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+                    Card(style: .filled) {
+                        VStack(alignment: .leading, spacing: Space.xs) {
+                            ForEach(Array(engine.diagnosticsRows().enumerated()), id: \.offset) { _, row in
+                                metric(row.0, row.1)
+                            }
+                        }
+                    }
+                }
+
                 // MARK: Mode
                 SectionHeading(title: "Detection mode",
                                subtitle: "Combined uses motion as the gesture and fresh UWB as evidence about which peer.")
                 BumpSegmented(selection: $store.settings.detectionMode,
                               options: Store.Settings.DetectionMode.allCases.map { ($0, $0.label) })
                 .onChange(of: store.settings.detectionMode) { _, _ in engine.applySettings() }
+
+                // MARK: Transport
+                SectionHeading(title: "Connection",
+                               subtitle: "Automatic uses the BUMP server relay when it answers, and nearby (Multipeer) otherwise. Changes apply after Reset sensors & reconnect.")
+                BumpSegmented(selection: Binding(get: { store.settings.transport ?? .automatic },
+                                                 set: { store.settings.transport = $0 }),
+                              options: Store.Settings.TransportPreference.allCases.map { ($0, $0.label) })
 
                 // MARK: Server
                 ServerSettingsSection(store: store, engine: engine)
@@ -151,10 +171,7 @@ struct TestingToolsScreen: View {
                 VStack(spacing: Space.sm) {
                     Button("Export diagnostics", systemImage: "square.and.arrow.up") { shareItem = ShareItem(text: diagnosticsReport()) }
                         .buttonStyle(.bumpPrimary)
-                    Button("Reset sensors & reconnect") {
-                        engine.leaveRoom()
-                        engine.applySettings()
-                    }
+                    Button("Reset sensors & reconnect") { engine.resetAndReconnect() }
                     .buttonStyle(.bumpSecondary)
                     Button("Clear log") { engine.clearLog() }
                         .buttonStyle(.bumpSecondary)
@@ -217,6 +234,9 @@ struct TestingToolsScreen: View {
     /// raw discovery tokens. Peer names are reduced to their transient suffix.
     private func diagnosticsReport() -> String {
         var out = ["BUMP diagnostics", "generated \(Date().formatted(date: .abbreviated, time: .standard))", ""]
+        out.append("snapshot:")
+        for row in engine.diagnosticsRows() { out.append("  \(row.0): \(row.1)") }
+        out.append("")
         out.append("device: \(UIDevice.current.model), iOS \(UIDevice.current.systemVersion)")
         out.append("role: \(engine.isCoordinator ? "coordinator" : "guest")")
         out.append("room: \(engine.room.code == nil ? "none" : "set")")
@@ -235,8 +255,12 @@ struct TestingToolsScreen: View {
         out.append(String(format: "  uwb freshness: %.2f s", store.settings.uwbFreshness))
         out.append("")
         out.append("log (newest first):")
-        for line in engine.log.prefix(120) {
-            out.append("  \(line.at.formatted(date: .omitted, time: .standard))  \(line.text)")
+        // Millisecond wall-clock stamps so two phones' logs can be interleaved.
+        // Phone clocks differ by up to a second or so; matching never uses them.
+        let stamp = DateFormatter()
+        stamp.dateFormat = "HH:mm:ss.SSS"
+        for line in engine.log {
+            out.append("  \(stamp.string(from: line.at))  \(line.text)")
         }
         return out.joined(separator: "\n")
     }

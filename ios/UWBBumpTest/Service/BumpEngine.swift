@@ -68,7 +68,30 @@ final class BumpEngine: ObservableObject {
     }
 
     @Published private(set) var phase: Phase = .notReady {
-        didSet { if phase != oldValue { syncPresentation() } }
+        didSet {
+            guard phase != oldValue else { return }
+            transition("phase", Self.describe(oldValue), Self.describe(phase), proposal: myProposal?.id)
+            scheduleRearmIfResting()
+            syncPresentation()
+        }
+    }
+
+    /// Short labels for logs. Never includes profile content.
+    nonisolated static func describe(_ phase: Phase) -> String {
+        switch phase {
+        case .notReady: return "notReady"
+        case .preparing: return "preparing"
+        case .ready: return "ready"
+        case .checking: return "checking"
+        case .confirming(let p): return "confirming(\(p.id.prefix(8)))"
+        case .waitingForPartner: return "waitingForPartner"
+        case .exchanging: return "exchanging"
+        case .connected: return "connected"
+        case .timedOut: return "timedOut"
+        case .ambiguous(let n): return "ambiguous(\(n))"
+        case .needsRetry(let why): return "needsRetry(\(why))"
+        case .unavailable(let why): return "unavailable(\(why))"
+        }
     }
     @Published private(set) var room: RoomState = .none
     @Published private(set) var members: [Wire.Member] = [] {
@@ -157,6 +180,38 @@ final class BumpEngine: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
+    // MARK: Diagnostics
+
+    /// Scene state as last reported, for the testing panel.
+    @Published private(set) var lifecycle = "launching"
+    /// Counters for comparing the two phones' logs after a trial.
+    struct Counters: Equatable {
+        var bumpsDetected = 0          // local spikes accepted as a bump
+        var bumpsSuppressed = 0        // crossings swallowed by cooldown or a non-ready phase
+        var bumpsSent = 0              // handed to a connected coordinator
+        var bumpsNotSent = 0           // felt, but nobody to send to
+        var bumpsReceived = 0          // coordinator only: events that arrived
+        var outcomes = 0               // proposal / timeout / ambiguous replies received
+    }
+    @Published private(set) var counters = Counters()
+    /// Last readiness we reported, so a change can be logged once.
+    private var lastLoggedStatus: AutoStatus?
+    /// Set 15 s into a room with no BUMP phone ever seen. iOS gives Multipeer no
+    /// error when Local Network access is declined, so this is the only signal.
+    @Published private(set) var searchStalled = false
+    private var searchStallTimer: Timer?
+    static let searchStallAfter: TimeInterval = 15
+    /// Brings a resting outcome (timeout, rejection) back to listening, so the
+    /// next encounter never needs a tap or a restart.
+    private var rearmTimer: Timer?
+    static let restingOutcomeDuration: TimeInterval = 4
+    /// Bounded recovery of invalidated UWB sessions, per peer.
+    private var uwbRecoveries: [String: Int] = [:]
+    static let maxUWBRecoveries = 3
+    /// Bounded deferral of "become the host" while a coordinator is in reach.
+    private var hostDeferrals = 0
+    static let maxHostDeferrals = 3
+
     init(store: Store) {
         self.store = store
         wireUp()
@@ -171,6 +226,14 @@ final class BumpEngine: ObservableObject {
 
     private func wireUp() {
         motion.onSpike = { [weak self] magnitude in self?.handleLocalSpike(magnitude) }
+        motion.onSuppressed = { [weak self] magnitude in
+            guard let self else { return }
+            self.counters.bumpsSuppressed += 1
+            self.note(String(format: "[motion] crossing suppressed by %.1f s cooldown (%.1f m/s²)",
+                             self.motion.config.cooldown, magnitude))
+        }
+        ranging.onSessionInvalidated = { [weak self] peer in self?.recoverRanging(peer) }
+        transport.onCoordinatorChanged = { [weak self] id in self?.relayCoordinatorChanged(id) }
         ranging.onMeasurement = { [weak self] peer, distance in self?.handleMeasurement(peer, distance) }
         ranging.onLog = { [weak self] line in self?.note(line) }
         transport.onLog = { [weak self] line in self?.note(line) }
@@ -221,6 +284,19 @@ final class BumpEngine: ObservableObject {
         transport.$discoveredRooms
             .sink { [weak self] rooms in self?.resolveDuplicateNearbyHost(rooms) }
             .store(in: &cancellables)
+
+        // Readiness is derived from these. @Published fires in willSet, so
+        // re-evaluate one hop later when the new values are in place.
+        Publishers.MergeMany(
+            transport.$connected.map { _ in () }.eraseToAnyPublisher(),
+            transport.$joinInFlight.map { _ in () }.eraseToAnyPublisher(),
+            transport.$peersSeen.map { _ in () }.eraseToAnyPublisher(),
+            motion.$isRunning.map { _ in () }.eraseToAnyPublisher()
+        )
+        .sink { [weak self] in
+            Task { @MainActor [weak self] in self?.statusInputsChanged() }
+        }
+        .store(in: &cancellables)
     }
 
     /// Push the user's testing-tools settings into the components that use them.
@@ -252,6 +328,7 @@ final class BumpEngine: ObservableObject {
         startResolving()
         refreshCloudStatus()
         phase = .notReady
+        armSearchStallTimer()
         note("hosting room \"\(code)\", capacity \(PeerTransport.maxPeers) phones including you")
     }
 
@@ -262,6 +339,7 @@ final class BumpEngine: ObservableObject {
         room = .joined(code: code)
         refreshCloudStatus()
         phase = .notReady
+        armSearchStallTimer()
         note("joining room \"\(code)\"")
     }
 
@@ -283,7 +361,92 @@ final class BumpEngine: ObservableObject {
     /// step down and join the other.
     func startNearby() {
         nearbyMode = true
-        joinNearbyOrHost()
+        let preference = store.settings.transport ?? .automatic
+        guard preference != .nearby, let client = apiClient else {
+            if preference == .server { return serverUnreachable("No BUMP server is set. Add one in Testing tools.") }
+            joinNearbyOrHost()
+            return
+        }
+        // Brief and bounded: "Getting ready" for at most `relayCheckTimeout`.
+        note("[net] checking for the BUMP server relay at \(client.baseURL.host ?? "")")
+        relayCheck?.cancel()
+        relayCheck = Task { [weak self] in
+            let ok = await Self.relayAvailable(client, timeout: Self.relayCheckTimeout)
+            guard let self, !Task.isCancelled, self.nearbyMode, self.room == .none else { return }
+            if ok {
+                self.startRelayRoom(client.baseURL)
+            } else if preference == .server {
+                self.serverUnreachable("Can't reach the BUMP server at \(client.baseURL.host ?? "the set address"). Check it is running, then BUMP will try again.")
+            } else {
+                self.note("[net] server relay unavailable; using nearby (Multipeer)")
+                self.joinNearbyOrHost()
+            }
+        }
+    }
+
+    // MARK: Server relay
+
+    private var relayCheck: Task<Void, Never>?
+    static let relayCheckTimeout: TimeInterval = 4
+
+    nonisolated static func relayAvailable(_ client: BumpAPIClient, timeout: TimeInterval) async -> Bool {
+        await withTaskGroup(of: Bool.self) { group in
+            group.addTask { (try? await client.health())?.relay == true }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                return false
+            }
+            let first = await group.next() ?? false
+            group.cancelAll()
+            return first
+        }
+    }
+
+    private func serverUnreachable(_ why: String) {
+        // Clear nearbyMode so the resting-outcome rearm can try again.
+        nearbyMode = false
+        note("[net] \(why)")
+        phase = .needsRetry(why)
+    }
+
+    private func startRelayRoom(_ baseURL: URL) {
+        transport.startRelay(baseURL: baseURL, roomCode: Self.nearbyRoom, displayName: store.profile.displayName)
+        room = .joined(code: Self.nearbyRoom)
+        matcher.reset()
+        refreshCloudStatus()
+        phase = .notReady
+        armSearchStallTimer()
+        setReady(true)
+        note("joined \"\(Self.nearbyRoom)\" through the server relay")
+    }
+
+    /// The server names the coordinator: the earliest phone still in the room.
+    /// No timers or tie-breaks, so two phones can never both host.
+    private func relayCoordinatorChanged(_ coordinator: String) {
+        guard transport.isRelay, let code = room.code else { return }
+        if coordinator == transport.myID {
+            guard case .joined = room else { return }
+            room = .hosting(code: code)
+            matcher.reset()
+            membersByID[transport.myID] = Wire.Member(id: transport.myID,
+                                                     displayName: store.profile.displayName,
+                                                     supportsUWB: ranging.isSupported)
+            if ConversationService.onDeviceModelAvailable { aiCapable.insert(transport.myID) }
+            startResolving()
+            broadcastRoster()
+            note("[net] the server made this phone the coordinator")
+        } else {
+            if case .hosting = room {
+                stopResolving()
+                for id in Array(proposals.keys) { close(id, reason: "The phone coordinating changed. Bump again.") }
+                room = .joined(code: code)
+            }
+            note("[net] coordinator is \(name(coordinator))")
+            transport.send(.hello(displayName: store.profile.displayName, roomCode: code,
+                                  supportsUWB: ranging.isSupported,
+                                  supportsAI: ConversationService.onDeviceModelAvailable),
+                           to: [coordinator])
+        }
     }
 
     // MARK: Automatic readiness
@@ -298,19 +461,83 @@ final class BumpEngine: ObservableObject {
     /// of the services rather than stored, so the label can never claim the app
     /// is ready when it isn't.
     enum AutoStatus: Equatable {
-        case gettingReady
+        /// Local services starting. Brief; never used for "waiting on a peer".
+        case preparing
+        /// In a room, no other phone connected. `hint` explains a long search.
+        case lookingForPhones(hint: String?)
+        /// A coordinator was found and the session is forming.
+        case connecting
+        /// The phone coordinating the room went away; finding a new one.
+        case reconnecting
+        /// Connected to at least one phone with sensing actually running.
         case listening
         case paused
         /// A specific step the person has to complete, phrased for them.
         case blocked(String)
     }
 
+    static let relayHint = "Connected to the BUMP server, but no other phone has joined yet. Make sure BUMP is open on their phone and both phones use the same server."
+    static let localNetworkHint = "No other BUMP phone found yet. Make sure BUMP is open on their phone too. If you tapped Don't Allow when iOS asked about finding devices on your local network, turn Local Network on for BUMP in Settings."
+
     var autoStatus: AutoStatus {
-        if isPaused { return .paused }
-        if let blocker = setupBlocker { return .blocked(blocker) }
-        if case .unavailable(let why) = phase { return .blocked(why) }
-        if case .ready = phase { return .listening }
-        return .gettingReady
+        Self.readiness(.init(
+            paused: isPaused, blocker: setupBlocker, phase: phase, room: room,
+            connectedPeers: transport.connected.count, joinInFlight: transport.joinInFlight,
+            motionRunning: motion.isRunning, uwbOnly: store.settings.detectionMode == .uwbOnly,
+            backgrounded: isBackgrounded, freshUWB: ranging.measurements.values.contains { $0.age <= ranging.config.freshness && $0.distance != nil },
+            searchStalled: searchStalled, relay: transport.isRelay))
+    }
+
+    struct ReadinessInputs {
+        var paused = false
+        var blocker: String?
+        var phase: Phase = .notReady
+        var room: RoomState = .none
+        var connectedPeers = 0
+        var joinInFlight = false
+        var motionRunning = false
+        var uwbOnly = false
+        var backgrounded = false
+        var freshUWB = false
+        var searchStalled = false
+        var relay = false
+    }
+
+    /// Pure, so every combination is testable. "Ready" requires a connected
+    /// peer AND a live sensing path; a start function having been called is
+    /// not enough.
+    nonisolated static func readiness(_ i: ReadinessInputs) -> AutoStatus {
+        if i.paused { return .paused }
+        if let blocker = i.blocker { return .blocked(blocker) }
+        if case .unavailable(let why) = i.phase { return .blocked(why) }
+        switch i.room {
+        case .none: return .preparing
+        case .hostLost: return .reconnecting
+        case .hosting, .joined: break
+        }
+        if i.connectedPeers == 0 {
+            if i.joinInFlight { return .connecting }
+            return .lookingForPhones(hint: i.searchStalled ? (i.relay ? relayHint : localNetworkHint) : nil)
+        }
+        guard case .ready = i.phase else { return .preparing }
+        // Backgrounded there is no accelerometer; only fresh ranging counts.
+        if i.backgrounded || i.uwbOnly { return i.freshUWB ? .listening : .reconnecting }
+        return i.motionRunning ? .listening : .preparing
+    }
+
+    private func statusInputsChanged() {
+        if transport.peersSeen > 0 { searchStalled = false; searchStallTimer?.invalidate() }
+        objectWillChange.send()
+        let status = autoStatus
+        if status != lastLoggedStatus {
+            transition("readiness", lastLoggedStatus.map { "\($0)" } ?? "none", "\(status)",
+                       reason: "peers \(transport.connected.count), motion \(motion.isRunning ? "on" : "off"), phase \(Self.describe(phase))")
+            lastLoggedStatus = status
+        }
+        // A resting phase with motion stopped but a peer now connected (for
+        // example, the first peer arriving) should start sensing.
+        ensureSensing()
+        syncPresentation()
     }
 
     /// A step that genuinely prevents a session from existing at all.
@@ -349,9 +576,20 @@ final class BumpEngine: ObservableObject {
     /// from a resting phase, so it can never interrupt a live proposal, an
     /// in-flight bump or the reveal.
     private func ensureSensing() {
-        guard !isPaused, room != .none else { return }
-        guard case .notReady = phase else { return }
-        setReady(true)
+        guard !isPaused, room != .none, !isBackgrounded else { return }
+        if case .hostLost = room { return }     // the reconnect path owns this
+        switch phase {
+        case .notReady:
+            setReady(true)
+        case .ready where !motion.isRunning && store.settings.detectionMode != .uwbOnly:
+            // The phase said ready while the accelerometer was off. This is
+            // what stranded a phone after a system prompt: the prompt made the
+            // app inactive, that stopped motion, and nothing restarted it.
+            note("[motion] phase was ready with motion stopped; restarting motion")
+            motion.start()
+        default:
+            break
+        }
     }
 
     /// The small secondary control. Pausing keeps the peer session open and only
@@ -379,6 +617,16 @@ final class BumpEngine: ObservableObject {
         autoStart()
     }
 
+    /// Tear everything down and come straight back up, for the Testing tools
+    /// reset. `leaveRoom` alone left `nearbyMode` set, so autoStart believed a
+    /// start was in flight and the phone stayed disconnected.
+    func resetAndReconnect() {
+        note("reset requested; tearing down and restarting")
+        stopNearby()
+        applySettings()
+        autoStart()
+    }
+
     /// Stop bumping and leave the nearby room.
     func stopNearby() {
         nearbyMode = false
@@ -388,14 +636,29 @@ final class BumpEngine: ObservableObject {
 
     private func joinNearbyOrHost() {
         nearbyTimer?.invalidate()
+        hostDeferrals = 0
         join(roomCode: Self.nearbyRoom)
         setReady(true)
+        scheduleHostDecision()
+    }
+
+    /// Become the host if, after a jittered wait, nobody is hosting. Deferred
+    /// (bounded) while a coordinator is visible or an invitation is pending:
+    /// hosting at that moment restarted the transport and killed the very
+    /// session that was forming, which then left two hosts to fight it out.
+    private func scheduleHostDecision() {
         // Jitter breaks the tie when several phones start at once.
         let wait = 2.0 + Double.random(in: 0...1.5)
         nearbyTimer = Timer.scheduledTimer(withTimeInterval: wait, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.nearbyMode, case .joined = self.room,
                       self.transport.connected.isEmpty else { return }
+                if self.transport.coordinatorReachable, self.hostDeferrals < Self.maxHostDeferrals {
+                    self.hostDeferrals += 1
+                    self.note("[net] a nearby host is in reach; waiting to join it (\(self.hostDeferrals)/\(Self.maxHostDeferrals))")
+                    self.scheduleHostDecision()
+                    return
+                }
                 self.note("nobody hosting nearby yet, so this phone will")
                 self.host(roomCode: Self.nearbyRoom)
                 self.setReady(true)
@@ -406,7 +669,7 @@ final class BumpEngine: ObservableObject {
     /// Two phones both started the nearby room. The one with the higher id
     /// steps down and joins the other, so everyone ends up in one room.
     private func resolveDuplicateNearbyHost(_ rooms: [String: Wire.Member]) {
-        guard nearbyMode, case .hosting(let code) = room, code == Self.nearbyRoom,
+        guard nearbyMode, !transport.isRelay, case .hosting(let code) = room, code == Self.nearbyRoom,
               let other = rooms[Self.nearbyRoom],
               Self.shouldYield(me: transport.myID, otherHost: other.id),
               proposals.isEmpty, myProposal == nil else { return }
@@ -421,6 +684,10 @@ final class BumpEngine: ObservableObject {
     }
 
     func leaveRoom() {
+        relayCheck?.cancel(); relayCheck = nil
+        rearmTimer?.invalidate(); rearmTimer = nil
+        searchStallTimer?.invalidate(); searchStalled = false
+        uwbRecoveries.removeAll()
         setReady(false)
         stopResolving()
         transport.stop()
@@ -433,6 +700,19 @@ final class BumpEngine: ObservableObject {
         room = .none
         members = []
         phase = .notReady
+    }
+
+    private func armSearchStallTimer() {
+        searchStallTimer?.invalidate()
+        guard transport.peersSeen == 0 else { searchStalled = false; return }
+        searchStallTimer = Timer.scheduledTimer(withTimeInterval: Self.searchStallAfter, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.room != .none, self.transport.peersSeen == 0 else { return }
+                self.searchStalled = true
+                self.note("[net] no BUMP phone seen in \(Int(Self.searchStallAfter)) s (Local Network access or nobody nearby)")
+                self.statusInputsChanged()
+            }
+        }
     }
 
     private func sanitize(_ code: String) -> String {
@@ -469,8 +749,16 @@ final class BumpEngine: ObservableObject {
     // MARK: Local sensing
 
     private func handleLocalSpike(_ magnitude: Double) {
-        guard case .ready = phase else { return }
-        guard store.settings.detectionMode != .uwbOnly else { return }
+        guard case .ready = phase else {
+            counters.bumpsSuppressed += 1
+            note(String(format: "[motion] spike %.1f m/s² ignored: phase %@", magnitude, Self.describe(phase)))
+            return
+        }
+        guard store.settings.detectionMode != .uwbOnly else {
+            note("[motion] spike ignored: UWB-only mode")
+            return
+        }
+        counters.bumpsDetected += 1
         emitBump(magnitude: magnitude)
     }
 
@@ -519,6 +807,14 @@ final class BumpEngine: ObservableObject {
 
     private func emitBump(magnitude: Double) {
         localSequence += 1
+        // No connected phone means nobody can be matched. Say so now rather
+        // than waiting 3 seconds and blaming the other person.
+        guard !transport.connected.isEmpty else {
+            counters.bumpsNotSent += 1
+            note(String(format: "[bump] #%d felt (%.1f m/s²) but not sent: no phone connected", localSequence, magnitude))
+            phase = .needsRetry("Felt that, but no other phone is connected yet, so there was nobody to match with.")
+            return
+        }
         phase = .checking
         armPhaseDeadline(matcher.config.timeout + 0.75) { [weak self] in
             guard let self, case .checking = self.phase else { return }
@@ -526,18 +822,28 @@ final class BumpEngine: ObservableObject {
         }
         if isCoordinator {
             ingestBump(from: transport.myID)
+            counters.bumpsSent += 1
+            note(String(format: "[bump] #%d felt (%.1f m/s²), submitted locally as coordinator", localSequence, magnitude))
+        } else if transport.send(.bumpEvent(localSequence: localSequence, magnitude: magnitude),
+                                 to: coordinatorIDs()) {
+            counters.bumpsSent += 1
+            note(String(format: "[bump] #%d felt (%.1f m/s²), sent to coordinator", localSequence, magnitude))
         } else {
-            transport.send(.bumpEvent(localSequence: localSequence, magnitude: magnitude),
-                           to: coordinatorIDs())
+            // Never retried: a bump resent later would be matched against a
+            // different moment.
+            counters.bumpsNotSent += 1
+            note(String(format: "[bump] #%d felt (%.1f m/s²), NOT delivered to coordinator", localSequence, magnitude))
+            phase = .needsRetry("Felt that, but it could not reach the other phone. Try again.")
         }
-        note(String(format: "bump felt (%.1f m/s²), sent to coordinator", magnitude))
     }
 
     /// The coordinator's own bumps go through the exact same pipeline as guests'.
     private func ingestBump(from participant: String) {
         let event = PairingMatcher.Event(id: UUID().uuidString, participant: participant, arrival: monotonic())
+        if participant != transport.myID { counters.bumpsReceived += 1 }
+        note("[match] event from \(name(participant)) at \(String(format: "%.3f", event.arrival))")
         if let rejection = matcher.submit(event) {
-            note("rejected bump from \(name(participant)): \(rejection)")
+            note("[match] rejected bump from \(name(participant)): \(rejection)")
             if participant == transport.myID, case .checking = phase { phase = .needsRetry("That one came too soon after your last bump. Try again.") }
             else if participant != transport.myID {
                 transport.send(.bumpTimedOut, to: [participant])
@@ -570,6 +876,7 @@ final class BumpEngine: ObservableObject {
                 for p in participants { deliverAmbiguous(to: p, candidates: count) }
                 note("rejected \(participants.count) bumps as ambiguous")
             case .timedOut(let participant):
+                note("[match] \(name(participant))'s bump had no partner within \(Int(matcher.config.window * 1000)) ms; only one phone reported a bump")
                 deliverTimeout(to: participant)
             }
         }
@@ -684,6 +991,9 @@ final class BumpEngine: ObservableObject {
             } else {
                 room = .none
                 transport.stop()
+                // Clear nearby mode too, or autoStart would believe a start is
+                // still in flight and never try again.
+                nearbyMode = false
                 phase = .needsRetry(reason ?? "That room wouldn't let you in.")
             }
 
@@ -692,9 +1002,8 @@ final class BumpEngine: ObservableObject {
             for m in list { membersByID[m.id] = m }
 
         case .discoveryToken(let data):
-            ranging.acceptToken(data, from: peer)
-            // Reciprocate so both sides can range.
-            if let mine = ranging.prepareSession(for: peer) {
+            // Reciprocate only for a NEW token, so the exchange terminates.
+            if ranging.acceptToken(data, from: peer), let mine = ranging.prepareSession(for: peer) {
                 transport.send(.discoveryToken(mine), to: [peer])
             }
 
@@ -709,12 +1018,18 @@ final class BumpEngine: ObservableObject {
             matcher.record(.init(observer: peer, peer: subject, distance: distance, at: monotonic()))
 
         case .proposal(let id, let partner, let uwb, _):
+            counters.outcomes += 1
+            note("[bump] outcome from coordinator: proposal")
             receiveProposal(id: id, partner: partner, uwb: uwb, manual: false)
 
         case .bumpTimedOut:
+            counters.outcomes += 1
+            note("[bump] outcome from coordinator: bumpTimedOut")
             if case .checking = phase { phase = .timedOut }
 
         case .bumpAmbiguous(let candidates):
+            counters.outcomes += 1
+            note("[bump] outcome from coordinator: bumpAmbiguous")
             if case .checking = phase { phase = .ambiguous(candidates) }
 
         case .confirm(let proposalID):
@@ -992,7 +1307,9 @@ final class BumpEngine: ObservableObject {
                 close(proposal.id, reason: "\(name(peer)) disconnected.")
             }
             broadcastRoster()
-        } else if members.isEmpty || transport.connected.isEmpty {
+        } else if !transport.isRelay, members.isEmpty || transport.connected.isEmpty {
+            // (With the relay the server re-elects a coordinator itself, so
+            // there is nothing to rebuild here.)
             // Backgrounded, losing the coordinator is expected: Multipeer always
             // drops. Retrying would spin against a transport iOS has stopped, so
             // hold the session and let the foreground handler rebuild it.
@@ -1043,6 +1360,21 @@ final class BumpEngine: ObservableObject {
                                 supportsUWB: ranging.isSupported))
         members = list.filter { $0.id != transport.myID }
         transport.broadcast(.roster(members: list))
+    }
+
+    /// An NISession was invalidated. Its tokens are dead, so the only recovery
+    /// is a fresh session and a fresh exchange, and only while the peer is
+    /// still connected. Bounded so a persistent failure cannot spin.
+    private func recoverRanging(_ peer: String) {
+        guard transport.connected.contains(where: { $0.id == peer }) else { return }
+        let n = uwbRecoveries[peer, default: 0]
+        guard n < Self.maxUWBRecoveries else {
+            note("[uwb] not recovering \(name(peer)) again after \(n) attempts; motion matching still works")
+            return
+        }
+        uwbRecoveries[peer] = n + 1
+        note("[uwb] recreating session with \(name(peer)) (attempt \(n + 1))")
+        exchangeTokens(with: peer)
     }
 
     private func exchangeTokens(with peer: String) {
@@ -1138,10 +1470,17 @@ final class BumpEngine: ObservableObject {
         case .blocked(let why):
             c.state = .unavailable
             c.unavailableReason = why
-        case .gettingReady:
+        case .preparing:
             c.state = room == .none ? .preparing : .discovering
+        case .lookingForPhones, .connecting:
+            c.state = .discovering
+        case .reconnecting:
+            // Honest: a backgrounded session without fresh ranging is not
+            // ready, whatever the Live Activity last said.
+            c.state = isBackgrounded ? .unavailable : .discovering
+            if isBackgrounded { c.unavailableReason = "Open BUMP to reconnect." }
         case .listening:
-            c.state = members.isEmpty ? .discovering : .ready
+            c.state = .ready
         }
         return c
     }
@@ -1164,7 +1503,18 @@ final class BumpEngine: ObservableObject {
     // MARK: Lifecycle
 
     func handleScenePhase(_ scenePhase: ScenePhase) {
+        let old = lifecycle
+        lifecycle = "\(scenePhase)"
+        if old != lifecycle { transition("lifecycle", old, lifecycle) }
         switch scenePhase {
+        case .inactive:
+            // Inactive is NOT backgrounded. iOS makes the app inactive while a
+            // system prompt is up (Local Network, Nearby Interaction), and for
+            // Control Center or a notification pull-down. Stopping here used
+            // to kill motion during the permission prompt, and with a Live
+            // Activity running the phase stayed .ready, so nothing restarted
+            // it: the phone looked ready and ignored every bump.
+            note("inactive (system prompt or overlay); services kept running")
         case .active:
             isBackgrounded = false
             proximityGates.removeAll()
@@ -1183,7 +1533,7 @@ final class BumpEngine: ObservableObject {
             // Pick straight back up. No Start action, no reconnect prompt.
             autoStart()
             syncPresentation()
-        case .background, .inactive:
+        case .background:
             // Core Motion gets no background execution, so the accelerometer
             // stops either way. A bump that was mid-flight drops back to
             // resting, and returning to the app starts listening again on its
@@ -1218,7 +1568,9 @@ final class BumpEngine: ObservableObject {
     func retry() {
         cancelGeneration()
         myProposal = nil; partnerProfile = nil
-        phase = room == .none ? .notReady : .notReady
+        phase = .notReady
+        // .notReady alone is a dead end: something has to start sensing again.
+        autoStart()
     }
 
     func bumpAgain() {
@@ -1243,6 +1595,34 @@ final class BumpEngine: ObservableObject {
     }
 
     // MARK: Helpers
+
+    /// Resting outcomes return to listening on their own after a short pause,
+    /// long enough to read. Before this, the person had to tap Try again, and
+    /// the other phone (which may not have seen the message) sat stuck.
+    private func scheduleRearmIfResting() {
+        rearmTimer?.invalidate(); rearmTimer = nil
+        switch phase {
+        case .timedOut, .ambiguous, .needsRetry: break
+        default: return
+        }
+        let resting = phase
+        rearmTimer = Timer.scheduledTimer(withTimeInterval: Self.restingOutcomeDuration, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.phase == resting else { return }
+                self.note("returning to listening after \(Self.describe(resting))")
+                self.bumpAgain()
+            }
+        }
+    }
+
+    /// One structured transition line: subsystem, old -> new, reason, ids.
+    func transition(_ subsystem: String, _ from: String, _ to: String,
+                    reason: String? = nil, proposal: String? = nil) {
+        var line = "[\(subsystem)] \(from) -> \(to)"
+        if let reason { line += " | \(reason)" }
+        if let proposal { line += " | proposal \(proposal.prefix(8))" }
+        note(line)
+    }
 
     private func armPhaseDeadline(_ seconds: TimeInterval, _ action: @escaping () -> Void) {
         phaseDeadline?.invalidate()
@@ -1272,10 +1652,49 @@ final class BumpEngine: ObservableObject {
 
     func note(_ text: String) {
         log.insert(LogLine(at: Date(), text: text), at: 0)
-        if log.count > 200 { log.removeLast() }
+        if log.count > 500 { log.removeLast() }
     }
 
     func clearLog() { log.removeAll() }
+
+    /// Everything the two-phone panel shows, as label/value rows. Excludes
+    /// profile content, tokens and full peer names (only the transient suffix).
+    func diagnosticsRows() -> [(String, String)] {
+        func age(_ d: Date?) -> String { d.map { String(format: "%.1f s ago", Date().timeIntervalSince($0)) } ?? "never" }
+        func short(_ id: String) -> String { id.components(separatedBy: "#").last ?? "?" }
+        var rows: [(String, String)] = [
+            ("Session", String(sessionID.prefix(6))),
+            ("Peer id", short(transport.myID)),
+            ("Lifecycle", lifecycle),
+            ("Readiness", "\(autoStatus)"),
+            ("Phase", Self.describe(phase)),
+            ("Transport", "\(transport.isRelay ? "server relay\(transport.relayStreamUp ? "" : " (not reached)")" : "Multipeer"), \(transport.isActive ? "up" : "down"), \(isCoordinator ? "coordinator" : "guest")"),
+            ("Room", room.code ?? "none"),
+            ("Peers seen / connected", "\(transport.peersSeen) / \(transport.connected.map { short($0.id) }.joined(separator: ","))"),
+            ("Join in flight", transport.joinInFlight ? "yes" : "no"),
+            ("Msgs sent / undelivered / received", "\(transport.sentCount) / \(transport.undeliveredCount) / \(transport.receivedCount)"),
+            ("Local Network", transport.discoveryUnavailable != nil ? "failed to start" : (searchStalled ? "no phones seen in 15 s (possibly denied)" : "no error reported (iOS exposes no status)")),
+            ("Nearby Interaction permission", ranging.permissionDenied ? "denied" : "not denied (iOS exposes no status before a denial)"),
+            ("Motion", "\(motion.isRunning ? "running" : "stopped"), \(motion.isAvailable ? "available" : "unavailable")"),
+            ("Last sample", motion.sampleAge.map { String(format: "%.2f s ago", $0) } ?? "none"),
+            ("Samples", "\(motion.sampleCount)"),
+            ("|a| now / peak 3 s", String(format: "%.1f / %.1f m/s²", motion.currentMagnitude, motion.recentPeak)),
+            ("Last spike", motion.lastSpikeMagnitude.map { String(format: "%.1f m/s², %@", $0, age(motion.lastSpikeAt)) } ?? "none"),
+            ("Threshold / cooldown", String(format: "%.1f m/s² (gravity removed) / %.1f s", motion.config.threshold, motion.config.cooldown)),
+            ("Bumps detected / suppressed", "\(counters.bumpsDetected) / \(counters.bumpsSuppressed)"),
+            ("Bumps sent / not sent", "\(counters.bumpsSent) / \(counters.bumpsNotSent)"),
+            ("Events received (coord) / outcomes", "\(counters.bumpsReceived) / \(counters.outcomes)"),
+            ("UWB", ranging.isSupported ? "supported, direction \(ranging.supportsDirection ? "yes" : "no")" : "unsupported"),
+            ("Mode", store.settings.detectionMode.label),
+        ]
+        for (peer, state) in ranging.sessionStates.sorted(by: { $0.key < $1.key }) {
+            let m = ranging.measurements[peer]
+            rows.append(("UWB \(short(peer))", "\(state), \(ranging.callbackCounts[peer] ?? 0) callbacks, last \(age(ranging.lastCallbackAt[peer]))"))
+            rows.append(("  distance / direction", "\(m?.distance.map { String(format: "%.2f m", $0) } ?? "nil") / \(m?.direction == nil ? "nil" : "yes")"))
+        }
+        rows.append(("Proposal", myProposal.map { "\($0.id.prefix(8)) with \(short($0.partner.id))" } ?? "none"))
+        return rows
+    }
 
     #if DEBUG
     /// DEBUG-only: pose a phase for simulator screenshots and previews. Never

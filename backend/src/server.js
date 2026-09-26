@@ -13,6 +13,7 @@ import { ApiError, badRequest, notConfigured, tooLarge } from './errors.js';
 import { createRateLimiter } from './ratelimit.js';
 import { DRAFT, FOLLOWUP, TALKING_POINTS } from './prompts.js';
 import { generateJson, transcribe } from './xai.js';
+import { createRelay } from './relay.js';
 import {
   LIMITS,
   checkDraftOutput,
@@ -29,6 +30,7 @@ const BODY_LIMITS = {
   draft: 16 * 1024,
   followup: 16 * 1024,
   talkingPoints: 8 * 1024,
+  relay: 128 * 1024,
 };
 
 export const DEFAULTS = {
@@ -168,6 +170,7 @@ export function createServer(options = {}) {
   const sttLimiter = createRateLimiter({ limit: config.transcribeRateLimitPerMinute });
 
   const generator = (model) => ({ provider: 'xai', model });
+  const relay = createRelay({ log: config.log, limits: config.relayLimits });
 
   function requireKey() {
     if (!config.apiKey) throw notConfigured();
@@ -179,6 +182,7 @@ export function createServer(options = {}) {
     return {
       ok: true,
       grokConfigured: Boolean(config.apiKey),
+      relay: true,
       model: config.model,
       sttModel: config.sttModel,
     };
@@ -245,7 +249,29 @@ export function createServer(options = {}) {
     return { ...checkTalkingPointsOutput(data, input), generator: generator(model) };
   }
 
+  async function relaySendRoute(req) {
+    const body = await readJson(req, BODY_LIMITS.relay);
+    try {
+      return relay.send(body);
+    } catch (code) {
+      if (code === 'too_large') throw tooLarge();
+      if (code === 'not_a_member') throw new ApiError(409, 'not_a_member', 'Open the relay stream before sending.');
+      throw badRequest('room, from, to[] and data are required.');
+    }
+  }
+
+  async function relayLeaveRoute(req) {
+    try {
+      return relay.leave(await readJson(req, 1024));
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      throw badRequest('room and peer are required.');
+    }
+  }
+
   const routes = {
+    '/v1/relay/send': { POST: relaySendRoute },
+    '/v1/relay/leave': { POST: relayLeaveRoute },
     '/healthz': { GET: healthz },
     '/v1/transcribe': { POST: transcribeRoute },
     '/v1/profile/draft': { POST: draftRoute },
@@ -257,6 +283,7 @@ export function createServer(options = {}) {
 
   function checkRateLimit(req, pathname) {
     if (pathname === '/healthz') return; // cheap, and useful for the app to poll
+    if (pathname.startsWith('/v1/relay/')) return; // bump traffic, not Grok spend
     const ip = req.socket.remoteAddress ?? 'unknown';
     // Check every applicable limiter before charging any of them, so a
     // request blocked by one doesn't use up the other's quota.
@@ -273,6 +300,19 @@ export function createServer(options = {}) {
 
   async function handle(req, res) {
     const pathname = (req.url ?? '/').split('?')[0];
+    if (pathname === '/v1/relay/poll' && req.method === 'GET') {
+      const query = new URL(req.url, 'http://x').searchParams;
+      const abort = new AbortController();
+      res.once('close', () => abort.abort());
+      try {
+        const reply = await relay.poll(query, abort.signal);
+        if (!res.destroyed) sendJson(res, 200, reply);
+      } catch (code) {
+        if (code === 'room_full') throw new ApiError(409, 'room_full', 'This room is full.');
+        throw badRequest('room and peer are required.');
+      }
+      return;
+    }
     const route = routes[pathname];
     if (!route) throw new ApiError(404, 'not_found', 'No such endpoint.');
     const handler = route[req.method];
