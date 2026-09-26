@@ -19,7 +19,7 @@ import {
   argbFromHex, hexFromArgb, themeFromSourceColor, Hct,
 } from '@material/material-color-utilities'
 
-const SEED = '#73a9f5' // BUMP brand blue, sampled from the wordmark artwork
+const SEED = '#70aaf9' // BUMP wordmark ink, measured off assets-source/wordmark.source.png
 
 const theme = themeFromSourceColor(argbFromHex(SEED))
 const hct = Hct.fromInt(argbFromHex(SEED))

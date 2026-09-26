@@ -5,11 +5,11 @@
    whole scheme is derived from one seed colour by Google's own
    @material/material-color-utilities (HCT colour space, tonal palettes).
 
-       seed  #73a9f5   the BUMP brand blue, sampled from the wordmark artwork
-       HCT   hue 259.4 · chroma 48.2 · tone 68.5
+       seed  #70aaf9   the BUMP wordmark ink, measured off the Horizon artwork
+       HCT   hue 259.0 · chroma 49.8 · tone 68.8
 
-   The brand blue lands almost exactly on MD3 primary tone 70 (#77adf9), which
-   is why the seed needed no adjustment.
+   The wordmark ink lands almost exactly on MD3 primary tone 70, which is why
+   the seed needs no adjustment.
 
    NEUTRALS ARE MD3'S, NOT THE BRAND'S. The earlier palette used a warm ivory
    (#fff9f0) sampled from the artwork. MD3 derives neutrals from the seed hue,
@@ -25,17 +25,17 @@
      29 roles straight out of the generator. Every --md-sys-color-x has a
      matching --md-sys-color-on-x guaranteed to meet contrast against it. */
 
-  --md-sys-color-primary: #1e5fa6;
+  --md-sys-color-primary: #155fa9;
   --md-sys-color-on-primary: #ffffff;
   --md-sys-color-primary-container: #d4e3ff;
   --md-sys-color-on-primary-container: #001c3a;
 
-  --md-sys-color-secondary: #555f71;
+  --md-sys-color-secondary: #545f71;
   --md-sys-color-on-secondary: #ffffff;
   --md-sys-color-secondary-container: #d8e3f8;
   --md-sys-color-on-secondary-container: #111c2b;
 
-  --md-sys-color-tertiary: #6e5676;
+  --md-sys-color-tertiary: #6d5676;
   --md-sys-color-on-tertiary: #ffffff;
   --md-sys-color-tertiary-container: #f7d8ff;
   --md-sys-color-on-tertiary-container: #271430;
@@ -59,7 +59,7 @@
   --md-sys-color-scrim: #000000;
   --md-sys-color-inverse-surface: #2f3033;
   --md-sys-color-inverse-on-surface: #f1f0f4;
-  --md-sys-color-inverse-primary: #a6c8ff;
+  --md-sys-color-inverse-primary: #a5c8ff;
 
   /* Surface container ladder (MD3 2023). Tones off the same neutral palette.
      This is how MD3 separates stacked surfaces: by tone, not by shadow. */
@@ -73,10 +73,10 @@
 
   /* --- Brand reference ----------------------------------------------------
      Not part of the MD3 scheme and deliberately outside it. These sample the
-     photographs so tints can be keyed to the artwork. NEVER use them as UI
-     chrome: no buttons, no links, no text. */
-  --brand-seed: #73a9f5;
-  --brand-phone-blue: #73a9f5;
+     artwork so tints can be keyed to it. NEVER use them as UI chrome: no
+     buttons, no links, no text. */
+  --brand-seed: #70aaf9;          /* the wordmark ink, and the MD3 seed */
+  --brand-wordmark-ink: #70aaf9;  /* Horizon artwork, assets-source/wordmark.source.png */
   --brand-phone-orange: #f0955a;
 
   /* --- MD3 typescale ------------------------------------------------------
