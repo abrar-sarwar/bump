@@ -67,40 +67,84 @@ Then you put the phones down.
 
 **Bump feels like one gesture. Underneath, it solves four separate problems.**
 
+### Profile creation
+
 ```mermaid
 flowchart LR
-    subgraph PROFILE["Profile creation"]
-        A["Voice / text input"] --> B["Bump API"]
-        B --> C["xAI Grok<br/>transcription + profile drafting"]
-        C --> D["User-reviewed<br/>profile"]
-    end
-
-    subgraph DISCOVERY["Nearby discovery"]
-        D --> E["MultipeerConnectivity"]
-        E --> F["Nearby peers"]
-        F --> G["StreetPass<br/>1-interest teaser"]
-    end
-
-    subgraph PAIRING["Physical pairing"]
-        F --> H["Core Motion<br/>bump detection"]
-        F --> I["Nearby Interaction<br/>UWB distance evidence"]
-        H --> J["Pairing coordinator"]
-        I --> J
-        J --> K{"Unambiguous pair?"}
-        K -- No --> L["Reject / manual fallback"]
-        K -- Yes --> M["Mutual confirmation"]
-    end
-
-    subgraph MATCHING["Common ground"]
-        M --> N["Direct encrypted<br/>profile exchange"]
-        N --> O["Compute grounded<br/>shared + complementary facts"]
-        O --> P["Conversation starter generation"]
-        P --> Q["Grok<br/>if cloud enabled"]
-        P --> R["On-device model /<br/>deterministic fallback"]
-        Q --> S["Same result<br/>on both phones"]
-        R --> S
-    end
+    A["Voice or text input"] --> B["Bump API"]
+    B --> C["xAI Grok"]
+    C --> D["Transcription"]
+    C --> E["Profile drafting"]
+    D --> E
+    E --> F["User reviews + edits"]
+    F --> G["Approved profile"]
 ```
+
+Voice is optional input, not the source of truth. Grok helps structure what the person said, then the user approves the profile before it is used anywhere else.
+
+### Nearby discovery
+
+```mermaid
+flowchart LR
+    A["Approved profile"] --> B["MultipeerConnectivity"]
+    C["Nearby Bump user"] --> B
+    B --> D["Peer discovered"]
+    D --> E["Nearby Interaction<br/>when supported"]
+    E --> F["Close-range encounter"]
+    F --> G["Compute max 1<br/>mutual-interest teaser"]
+    G --> H["StreetPass"]
+```
+
+StreetPass uses its own nearby-discovery path. It reveals only enough information to make the encounter interesting, not the other person's full profile.
+
+### Physical pairing
+
+```mermaid
+flowchart LR
+    A["Core Motion"] --> C["Pairing coordinator"]
+    B["UWB distance evidence"] --> C
+    C --> D{"Clear candidate?"}
+
+    D -- "No" --> E["Reject ambiguity<br/>or manual fallback"]
+    D -- "Yes" --> F["Proposed pair"]
+    F --> G["Person A confirms"]
+    F --> H["Person B confirms"]
+    G --> I["Mutual confirmation"]
+    H --> I
+```
+
+**Core Motion answers “did a bump happen?”**  
+**Nearby Interaction helps answer “who was it with?”**
+
+Neither signal alone is treated as unquestionable proof.
+
+### Common-ground generation
+
+```mermaid
+flowchart LR
+    A["Mutual confirmation"] --> B["Direct encrypted<br/>profile exchange"]
+    B --> C["Approved profile A"]
+    B --> D["Approved profile B"]
+
+    C --> E["Grounded matching"]
+    D --> E
+
+    E --> F["Shared interests"]
+    E --> G["Complementary interests"]
+    E --> H["Goal ↔ experience links"]
+
+    F --> I["Conversation starter generation"]
+    G --> I
+    H --> I
+
+    I --> J["Grok<br/>if cloud enabled"]
+    I --> K["On-device /<br/>deterministic fallback"]
+
+    J --> L["Same selected result<br/>on both phones"]
+    K --> L
+```
+
+The important distinction is that **Bump finds the underlying overlap before AI writes anything**. Grok helps phrase grounded facts into natural conversation starters rather than inventing the connection.
 
 ### 1. Turn an introduction into a profile
 
