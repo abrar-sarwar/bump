@@ -69,13 +69,37 @@ Then you put the phones down.
 
 ```mermaid
 flowchart LR
-    A["introduce yourself"] --> B["approve your profile"]
-    B --> C["discover someone nearby"]
-    C --> D["detect + verify the bump"]
-    D --> E["both people confirm"]
-    E --> F["exchange approved profiles"]
-    F --> G["find grounded overlap"]
-    G --> H["start talking"]
+    subgraph PROFILE["Profile creation"]
+        A["Voice / text input"] --> B["Bump API"]
+        B --> C["xAI Grok<br/>transcription + profile drafting"]
+        C --> D["User-reviewed<br/>profile"]
+    end
+
+    subgraph DISCOVERY["Nearby discovery"]
+        D --> E["MultipeerConnectivity"]
+        E --> F["Nearby peers"]
+        F --> G["StreetPass<br/>1-interest teaser"]
+    end
+
+    subgraph PAIRING["Physical pairing"]
+        F --> H["Core Motion<br/>bump detection"]
+        F --> I["Nearby Interaction<br/>UWB distance evidence"]
+        H --> J["Pairing coordinator"]
+        I --> J
+        J --> K{"Unambiguous pair?"}
+        K -- No --> L["Reject / manual fallback"]
+        K -- Yes --> M["Mutual confirmation"]
+    end
+
+    subgraph MATCHING["Common ground"]
+        M --> N["Direct encrypted<br/>profile exchange"]
+        N --> O["Compute grounded<br/>shared + complementary facts"]
+        O --> P["Conversation starter generation"]
+        P --> Q["Grok<br/>if cloud enabled"]
+        P --> R["On-device model /<br/>deterministic fallback"]
+        Q --> S["Same result<br/>on both phones"]
+        R --> S
+    end
 ```
 
 ### 1. Turn an introduction into a profile
