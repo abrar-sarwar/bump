@@ -65,54 +65,54 @@ Then you put the phones down.
 
 ## How it works
 
+**Bump feels like one gesture. Underneath, it solves four separate problems.**
+
 ```mermaid
 flowchart LR
-  subgraph PhoneA["iPhone A"]
-    MA[CoreMotion → SpikeGate]
-    RA[NISession / UWB]
-    PA[MultipeerConnectivity]
-  end
-  subgraph PhoneB["iPhone B"]
-    MB[CoreMotion → SpikeGate]
-    RB[NISession / UWB]
-    PB[MultipeerConnectivity]
-  end
-  PA <-->|"encrypted wire protocol"| PB
-  MA --> PA
-  MB --> PB
-  RA <-.->|"distance"| RB
-  PA --> MATCH["PairingMatcher<br/>(coordinator, pure)"]
-  MATCH --> INT["InterestMatcher<br/>grounded overlap"]
-  INT --> API["bump-api (Node)<br/>/v1/transcribe · /v1/profile/* · /v1/talking-points"]
-  API --> XAI["xAI Grok"]
-  INT -.->|"server unreachable"| LOCAL["on-phone suggestions<br/>(labelled)"]
+    A["introduce yourself"] --> B["approve your profile"]
+    B --> C["discover someone nearby"]
+    C --> D["detect + verify the bump"]
+    D --> E["both people confirm"]
+    E --> F["exchange approved profiles"]
+    F --> G["find grounded overlap"]
+    G --> H["start talking"]
 ```
 
-1. **Motion only says *that* you were tapped.** `SpikeGate` is a pure threshold / rearm / cooldown state machine over CoreMotion; it never knows who tapped.
-2. **The coordinator decides *who*.** One phone pairs bumps by its own arrival times. UWB distance, when available, is much stronger evidence about which peer, but it is evidence, not a requirement.
-3. **Ambiguity is rejected, not guessed.** When several people bump at the same instant, that genuinely cannot identify partners, so BUMP refuses and offers a manual pick that is recorded honestly as a manual pick.
-4. **Overlap is grounded.** `InterestMatcher` only reports an interest both cards support, with the evidence attached. Talking points are candidates backed by both cards before any model sees them.
-5. **The server is one client of that, not the source of truth.** `ConversationService` tries Grok via `bump-api`, then Apple's Foundation Models, then a deterministic local drafter, and labels which one it used.
+### 1. Turn an introduction into a profile
 
-The `XAI_API_KEY` never ships in the app. It lives in server-side environment
-variables in [`backend/`](backend/README.md), which does the speech-to-text and
-the Grok structured outputs on the app's behalf.
+Say or type a short introduction. With cloud processing enabled, Bump can use xAI to transcribe it and turn your own words into structured profile facts.
 
-### Silence and honesty are the defaults
+Nothing is silently added to your identity. You can edit, remove, or add interests before approving the card that represents you.
 
-The app says so plainly rather than inventing something when:
+### 2. Discover people without oversharing
 
-- no overlap survives grounding against both cards;
-- no partner has been confirmed by name;
-- several bumps land at the same instant and pairing is ambiguous;
-- UWB is unavailable on the device;
-- the server is unreachable or a permission was declined;
-- on-device AI is unavailable and the deterministic drafter runs instead;
-- either person did not allow their data to reach the server.
+Nearby discovery uses **MultipeerConnectivity** to find other participating devices.
 
-The backend returns `502` rather than fallback content when nothing it received
-survives grounding checks. The app's own fallbacks are always **marked** as
-fallbacks, and which path produced a result is always **visible** in the UI.
+Discovery does not mean profile sharing. StreetPass can reveal at most one mutual-interest teaser, while the full approved profiles stay private until both people intentionally complete a bump and confirm each other.
+
+### 3. Figure out who actually bumped whom
+
+This is the interesting physical problem.
+
+**Core Motion tells us that a bump happened. Nearby Interaction helps tell us who it happened with.**
+
+Bump detects the gesture from device acceleration, then combines timing with recent peer-specific UWB distance when the hardware supports it. A coordinator correlates the signals over a short window.
+
+If multiple pairings are too ambiguous to distinguish reliably, **Bump rejects the match instead of guessing**.
+
+Even a successful pairing is only a proposal. Both people must confirm each other before their approved profile data is exchanged.
+
+### 4. Find overlap without inventing it
+
+Once both people confirm, their approved profiles are exchanged directly between the phones.
+
+Bump first computes grounded connections between them: shared interests, related experiences, complementary interests, or a goal that naturally connects with something the other person knows.
+
+**The match comes first. AI only helps phrase it.**
+
+When both people opt into cloud processing, Grok can turn those grounded facts into natural conversation starters. Otherwise, Bump can fall back to on-device or deterministic suggestions.
+
+The result is deliberately simple: **a few real reasons these two people might have something to talk about.**
 
 ## Tech stack
 
