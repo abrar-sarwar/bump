@@ -65,9 +65,10 @@ constraints, not options to revisit during implementation:
 ## Non-goals (explicit)
 
 - No backend endpoints, server-side encounter tracking, or remote matching.
-- No persistent StreetPass encounter history (nothing survives a leave of
-  the foreground/session state — it should reset naturally, same as the
-  rest of the app's in-memory bump state).
+- No persistent StreetPass encounter history (nothing is written to disk;
+  everything lives in memory for the session and resets naturally on peer
+  disconnect or process termination, same as the rest of the app's in-memory
+  bump state).
 - No new entitlements, no `UIBackgroundModes`.
 - No Bluetooth-only presence fallback for the locked-phone case (deferred).
 - No changes to `PeerTransport`, `RangingService`, `BumpEngine`'s room and
@@ -161,8 +162,11 @@ above):
   `[String: StreetPassEncounterGate]` keyed by peer id.
 - `@Published private(set) var pendingEncounter: StreetPassEncounter?`
 - Starts only when the user's profile is complete **and** the app is
-  active; stops/clears on backgrounding — mirrors
-  `BumpEngine.handleScenePhase`'s existing foreground-only policy.
+  active; pauses ranging when the app leaves `.active` while keeping the
+  transport connection and each peer's gate (cooldown/latch) state alive —
+  mirrors `BumpEngine.handleScenePhase`'s existing foreground-only policy
+  (see **Backgrounding** below). That state resets only on a real peer
+  disconnect or process termination.
 - On a gate's `.qualified` verdict: computes
   `InterestMatcher.overlap(mine: [Interest], theirs: [Interest], limit: 1)`
   and sets `pendingEncounter`.

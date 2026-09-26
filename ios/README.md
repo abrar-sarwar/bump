@@ -303,8 +303,11 @@ bump pipeline described above.
 - **Locked-phone detection is out of scope for this iteration.** Real UWB
   peer-to-peer ranging cannot run while the app is backgrounded on stock iOS
   — there is no background API for phone-to-phone `NISession` ranging.
-  StreetPass is entirely foreground-only; nothing is persisted, and all
-  state clears when the app leaves the foreground.
+  StreetPass is entirely foreground-only: ranging pauses as soon as the app
+  leaves `.active`. Nothing is ever persisted to disk — the transport
+  connection and each peer's encounter-gate (cooldown/latch) state live in
+  memory and survive a transient interruption, and only reset for real when a
+  peer disconnects or the process is suspended/terminated.
 
 ```bash
 xcrun simctl launch <sim-id> com.jaredberesford.uwbbumptest -BumpDemo streetpass

@@ -14,7 +14,7 @@
 
 - iOS 17.0 deployment target (already the project setting — do not change it).
 - No backend endpoints, server-side encounter tracking, or remote matching.
-- No persisted StreetPass encounter history — everything is in-memory and clears on backgrounding/disconnect.
+- No persisted StreetPass encounter history — everything is in-memory. Ranging pauses when the app leaves the foreground; the transport connection and each peer's encounter-gate state are kept and only reset on peer disconnect or process termination.
 - No new entitlements, no `UIBackgroundModes` — StreetPass is foreground-only for this iteration (locked-phone detection is explicitly deferred).
 - Never reveal more than one mutual interest, and never invent one when there are none.
 - Never send a full profile before both people explicitly bump (StreetPass's own ambient payload is smaller than `SharedProfile`: no bio, no experiences/goals, no evidence text).
@@ -1053,7 +1053,7 @@ git commit -m "Add StreetPassRanging (independent NISession-per-peer lifecycle)"
 **Interfaces:**
 - Produces (added to the existing `StreetPassNotifier` enum): `static func requestAuthorizationIfNeeded()`, `static func notify(_ encounter: StreetPassEncounter)` — consumed by `StreetPassEngine` (Task 8).
 
-No stale-payload tap handling is implemented here: this architecture is fully stateless (Task 8's `stop()` clears all StreetPass state on backgrounding), so there is nothing meaningful to reconstruct from a notification's `userInfo` on tap — the OS already brings the app to the foreground on tap with no extra code, and if the peer is still physically nearby, a fresh discovery/ranging cycle naturally re-qualifies and shows the sheet again. Building a `UNUserNotificationCenterDelegate` here would be speculative code for a deep link the chosen architecture doesn't need.
+No stale-payload tap handling is implemented here: nothing StreetPass holds is ever persisted (Task 8 keeps all of it in memory for the session only), so there is nothing meaningful to reconstruct from a notification's `userInfo` on tap — the OS already brings the app to the foreground on tap with no extra code, and if the peer is still physically nearby, a fresh discovery/ranging cycle naturally re-qualifies and shows the sheet again. Building a `UNUserNotificationCenterDelegate` here would be speculative code for a deep link the chosen architecture doesn't need.
 
 - [ ] **Step 1: Add the live wrapper**
 
@@ -1138,9 +1138,13 @@ import SwiftUI
 /// discovery -> UWB ranging -> per-peer encounter gate -> mutual-interest
 /// teaser -> in-app sheet, or (only if backgrounded at that instant) a local
 /// notification. Every real decision lives in StreetPassEncounterGate and
-/// InterestMatcher; this class only wires them together. Foreground-only —
-/// stops and clears all state the moment the app leaves .active, mirroring
-/// BumpEngine's own scene-phase policy. Nothing here is persisted.
+/// InterestMatcher; this class only wires them together. Foreground-only:
+/// ranging pauses the moment the app leaves .active, mirroring what
+/// BumpEngine.handleScenePhase actually does, while the transport connection
+/// and each peer's encounter-gate (cooldown/latch) state are preserved — they
+/// only truly reset on a real peer disconnect or process termination, so a
+/// transient interruption can't double-trigger a peer already in range.
+/// Nothing here is persisted.
 @MainActor
 final class StreetPassEngine: ObservableObject {
 
@@ -1549,8 +1553,11 @@ bump pipeline described above.
 - **Locked-phone detection is out of scope for this iteration.** Real UWB
   peer-to-peer ranging cannot run while the app is backgrounded on stock iOS
   — there is no background API for phone-to-phone `NISession` ranging.
-  StreetPass is entirely foreground-only; nothing is persisted, and all
-  state clears when the app leaves the foreground.
+  StreetPass is entirely foreground-only: ranging pauses as soon as the app
+  leaves `.active`. Nothing is ever persisted to disk — the transport
+  connection and each peer's encounter-gate (cooldown/latch) state live in
+  memory and survive a transient interruption, and only reset for real when a
+  peer disconnects or the process is suspended/terminated.
 
 ```bash
 xcrun simctl launch <sim-id> com.jaredberesford.uwbbumptest -BumpDemo streetpass
