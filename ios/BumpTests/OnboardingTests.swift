@@ -3,7 +3,7 @@ import XCTest
 
 // Everything in this file is MOCKED: no network, no xAI, no microphone.
 // `StubCloud` stands in for the BUMP server. Live-API checks live in
-// `bump-api/scripts/smoke.js` and are run by hand with a real key.
+// `backend/scripts/smoke.js` and are run by hand with a real key.
 
 // MARK: - Stubs
 

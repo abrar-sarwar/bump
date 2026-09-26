@@ -1,4 +1,11 @@
-# bump-api
+# backend (`bump-api`)
+
+**Optional.** The core bump-to-connection journey in `../ios` works entirely
+between nearby phones, with no account and no network. This service only adds
+opt-in cloud features (voice transcription, Grok profile drafting, Grok talking
+points); if it's down or not configured, the app falls back on the phone and
+says so. Keep it that way: nothing here should become required.
+
 
 A tiny, zero-dependency Node.js (>= 20) service that sits between the BUMP iOS
 app and xAI Grok. The app never sees an xAI key. It does four things:
@@ -17,7 +24,7 @@ Anything that fails is dropped. If nothing usable is left, the server returns
 ## Run it
 
 ```sh
-cd bump-api
+cd backend
 cp .env.example .env      # then put your real key in .env (never commit it; .env is git-ignored)
 npm start                 # listens on 0.0.0.0:8787 so a phone on the same Wi-Fi can reach it
 curl http://localhost:8787/healthz

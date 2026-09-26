@@ -1,6 +1,6 @@
 import Foundation
 
-/// The app's only cloud dependency: our own small backend (`bump-api/`), which
+/// The app's only cloud dependency: our own small backend (`backend/`), which
 /// in turn talks to xAI. The app never holds an xAI key.
 ///
 /// Every call is bounded (timeouts, input limits) and every response is
@@ -20,7 +20,7 @@ struct BumpAPIClient: Sendable {
         return URLSession(configuration: config)
     }()
 
-    // MARK: Limits (mirrors bump-api/CONTRACT.md)
+    // MARK: Limits (mirrors backend/CONTRACT.md)
 
     enum Limit {
         static let transcript = 2000

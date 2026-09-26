@@ -215,8 +215,9 @@ Next smallest experiment:
 
 # PART B — Original hardware spikes
 
-Preserved from the feasibility experiments in `bump-web/` and the earlier
-`uwb-ios` spike.
+Preserved from the original feasibility experiments. The code for both has since
+been removed from the tree — the web spike lives in git history at commit
+`278d2e0`, and the UWB spike was refactored into the app in `ios/`.
 
 ## B0. Experiment results — BLANK TEMPLATE
 

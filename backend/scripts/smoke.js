@@ -66,7 +66,7 @@ console.log(`[LIVE] bump-api smoke test against ${BASE} (real xAI calls)`);
 const health = await step('GET /healthz', async () => {
   const h = await call('GET', '/healthz');
   expect(h.ok === true, 'ok should be true');
-  expect(h.grokConfigured === true, 'grokConfigured is false — set XAI_API_KEY in bump-api/.env and restart');
+  expect(h.grokConfigured === true, 'grokConfigured is false — set XAI_API_KEY in backend/.env and restart');
   return h;
 });
 
