@@ -77,8 +77,11 @@ final class StreetPassPeerProfileTests: XCTestCase {
 
 final class StreetPassWireTests: XCTestCase {
     func testRoundTrip() throws {
+        guard let jazzInterest = InterestCatalog.byID["jazz"] else {
+            return XCTFail("jazz interest not found in catalog")
+        }
         let profile = StreetPassPeerProfile(id: "p#1", displayName: "Sam",
-                                            interests: [InterestCatalog.byID["jazz"]!])
+                                            interests: [jazzInterest])
         let data = try StreetPassWire.encode(.hello(profile: profile))
         let envelope = try StreetPassWire.decode(data)
         guard case .hello(let decoded) = envelope.body else { return XCTFail("wrong body") }
@@ -103,5 +106,33 @@ final class StreetPassWireTests: XCTestCase {
 
     func testMalformedJSONDoesNotCrash() {
         XCTAssertThrowsError(try StreetPassWire.decode(Data([0x7B, 0x00, 0xFF])))
+    }
+
+    func testBadVersionIsRejected() {
+        // Manually construct an envelope with a different version
+        var envelope = StreetPassWire.Envelope(body: .discoveryToken(Data()))
+        envelope.v = 999
+        let data = try! JSONEncoder().encode(envelope)
+        XCTAssertThrowsError(try StreetPassWire.decode(data)) { error in
+            XCTAssertEqual(error as? StreetPassWire.WireError, .badVersion(999))
+        }
+    }
+
+    func testInterestCapIsEnforcedWhenDecodingFromJSON() throws {
+        // Create JSON with a profile that has 7 interests, simulating a peer sending uncapped data
+        // This uses the actual Interest structure as encoded
+        let json = """
+        {"id":"p#1","displayName":"Sam","avatarThumbnail":null,"interests":[{"id":"i1","label":"I1","parent":null,"specificity":1,"custom":false},{"id":"i2","label":"I2","parent":null,"specificity":1,"custom":false},{"id":"i3","label":"I3","parent":null,"specificity":1,"custom":false},{"id":"i4","label":"I4","parent":null,"specificity":1,"custom":false},{"id":"i5","label":"I5","parent":null,"specificity":1,"custom":false},{"id":"i6","label":"I6","parent":null,"specificity":1,"custom":false},{"id":"i7","label":"I7","parent":null,"specificity":1,"custom":false}]}
+        """.data(using: .utf8)!
+
+        // Decode the profile from JSON that has 7 interests
+        let decodedProfile = try JSONDecoder().decode(StreetPassPeerProfile.self, from: json)
+
+        // The critical assertion: even though the JSON had 7 interests,
+        // the decoded profile must have exactly 5 due to the cap.
+        // This test will FAIL until we implement custom init(from:) that applies the cap during decoding.
+        XCTAssertEqual(decodedProfile.interests.count, 5,
+                       "Interest cap must be enforced during JSON decoding, not just in memberwise init")
+        XCTAssertEqual(decodedProfile.interests.map(\.id), ["i1", "i2", "i3", "i4", "i5"])
     }
 }

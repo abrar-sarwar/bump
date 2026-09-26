@@ -22,4 +22,16 @@ struct StreetPassPeerProfile: Codable, Equatable, Sendable {
         self.avatarThumbnail = avatarThumbnail
         self.interests = Array(interests.prefix(Self.maxInterests))
     }
+
+    /// Custom Decodable to enforce interest cap during JSON decoding.
+    /// Without this, the synthesized Decodable would ignore the cap and decode
+    /// any number of interests from the wire protocol.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        displayName = try c.decode(String.self, forKey: .displayName)
+        avatarThumbnail = try c.decodeIfPresent(Data.self, forKey: .avatarThumbnail)
+        let decodedInterests = try c.decode([Interest].self, forKey: .interests)
+        interests = Array(decodedInterests.prefix(Self.maxInterests))
+    }
 }
