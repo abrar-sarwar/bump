@@ -19,13 +19,13 @@ struct ProfileEditor: View {
 
                 if isOnboarding {
                     Wordmark()
-                    SectionHeading(
+                    PageTitle(
                         title: "Tell people who you are",
                         subtitle: "Two minutes now, better conversations later."
                     )
                 }
 
-                HStack(alignment: .top, spacing: Space.m) {
+                HStack(alignment: .center, spacing: Space.m) {
                     PhotoPickerAvatar(photo: $profile.photo, name: profile.displayName, size: 64)
                     BumpField(label: "Display name", placeholder: "What should people call you?",
                               text: $profile.displayName)
@@ -34,7 +34,7 @@ struct ProfileEditor: View {
                 BumpField(label: "Short bio (optional)", placeholder: "One line about you",
                           axis: .vertical, text: $profile.bio)
 
-                VStack(alignment: .leading, spacing: Space.s) {
+                VStack(alignment: .leading, spacing: Space.sm) {
                     SectionHeading(
                         title: "What are you into?",
                         subtitle: "Start with a topic, then pick anything more specific. “Cold brew” starts a better conversation than “Coffee”."
@@ -43,23 +43,24 @@ struct ProfileEditor: View {
                     TopicBrowser(isSelected: { selectedIDs.contains($0.id) }, toggle: toggle)
                 }
 
-                VStack(alignment: .leading, spacing: Space.s) {
+                HStack(alignment: .center, spacing: Space.s) {
                     BumpField(label: "Something else?", placeholder: "Add your own", text: $customEntry)
                         .focused($customFocused)
                         .onSubmit(addCustom)
-                    Button("Add interest", action: addCustom)
-                        .buttonStyle(.bumpSecondary)
+                    Button { addCustom() } label: { Image(systemName: "plus") }
+                        .buttonStyle(.bumpIcon(BumpColor.onPrimary, filled: true))
+                        .background(Circle().fill(BumpColor.primary))
                         .disabled(customEntry.trimmed().isEmpty)
+                        .opacity(customEntry.trimmed().isEmpty ? 0.4 : 1)
+                        .accessibilityLabel("Add interest")
                 }
 
                 if !profile.interests.isEmpty {
                     VStack(alignment: .leading, spacing: Space.s) {
-                        Text("Your interests (\(profile.interests.count))")
-                            .font(BumpFont.caption)
-                            .foregroundStyle(BumpColor.secondaryText)
+                        Eyebrow(text: "Your interests (\(profile.interests.count))")
                         FlowLayout {
                             ForEach(profile.interests) { interest in
-                                InterestChip(title: "\(interest.label)  ✕", selected: true) {
+                                InterestChip(title: interest.label, selected: true, trailingIcon: "xmark") {
                                     profile.interests.removeAll { $0.id == interest.id }
                                 }
                                 .accessibilityLabel("Remove \(interest.label)")
@@ -68,52 +69,67 @@ struct ProfileEditor: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: Space.s) {
+                VStack(alignment: .leading, spacing: Space.sm) {
                     SectionHeading(title: "Experiences & goals",
                                    subtitle: "Shared with confirmed partners, like your interests.")
-                    ForEach(profile.details) { fact in
-                        HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(fact.text).font(BumpFont.body).foregroundStyle(BumpColor.navy)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Text(fact.kind == .goal ? "Goal" : "Experience")
-                                    .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
+                    if !profile.details.isEmpty {
+                        ListGroup {
+                            ForEach(profile.details) { fact in
+                                HStack(alignment: .center, spacing: Space.m) {
+                                    Image(systemName: fact.kind == .goal ? "flag.fill" : "star.fill")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundStyle(BumpColor.tertiary)
+                                        .frame(width: 40, height: 40)
+                                        .background(Circle().fill(BumpColor.tertiaryContainer))
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(fact.text).font(BumpFont.bodyLarge).foregroundStyle(BumpColor.onSurface)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                        Text(fact.kind == .goal ? "Goal" : "Experience")
+                                            .font(BumpFont.bodySmall).foregroundStyle(BumpColor.onSurfaceVariant)
+                                    }
+                                    Spacer()
+                                    Button {
+                                        profile.details.removeAll { $0.id == fact.id }
+                                    } label: {
+                                        Image(systemName: "xmark")
+                                    }
+                                    .buttonStyle(.bumpIcon)
+                                    .accessibilityLabel("Remove \(fact.text)")
+                                }
+                                .padding(.horizontal, Space.m)
+                                .padding(.vertical, Space.s)
                             }
-                            Spacer()
-                            Button {
-                                profile.details.removeAll { $0.id == fact.id }
-                            } label: {
-                                Image(systemName: "xmark.circle.fill").foregroundStyle(BumpColor.secondaryText)
-                            }
-                            .accessibilityLabel("Remove \(fact.text)")
                         }
                     }
-                    Picker("Kind", selection: $detailKind) {
-                        Text("Experience").tag(ProfileFact.Kind.experience)
-                        Text("Goal").tag(ProfileFact.Kind.goal)
+                    BumpSegmented(selection: $detailKind,
+                                  options: [(.experience, "Experience"), (.goal, "Goal")])
+                    HStack(alignment: .center, spacing: Space.s) {
+                        BumpField(label: "Add one", placeholder: detailKind == .goal ? "e.g. Find a climbing partner" : "e.g. Built a weather station",
+                                  text: $detailEntry)
+                            .onSubmit(addDetail)
+                        Button { addDetail() } label: { Image(systemName: "plus") }
+                            .buttonStyle(.bumpIcon(BumpColor.onPrimary, filled: true))
+                            .background(Circle().fill(BumpColor.primary))
+                            .disabled(detailEntry.trimmed().isEmpty)
+                            .opacity(detailEntry.trimmed().isEmpty ? 0.4 : 1)
+                            .accessibilityLabel("Add")
                     }
-                    .pickerStyle(.segmented)
-                    BumpField(label: "Add one", placeholder: detailKind == .goal ? "e.g. Find a climbing partner" : "e.g. Built a weather station",
-                              text: $detailEntry)
-                        .onSubmit(addDetail)
-                    Button("Add", action: addDetail)
-                        .buttonStyle(.bumpSecondary)
-                        .disabled(detailEntry.trimmed().isEmpty)
                 }
 
-                Button(isOnboarding ? "Start bumping" : "Save", action: onDone)
+                Button(isOnboarding ? "Start meeting people" : "Save", action: onDone)
                     .buttonStyle(.bumpPrimary)
                     .disabled(!profile.isComplete)
 
                 if !profile.isComplete {
                     Text("Add a name and at least one interest, experience or goal to continue.")
-                        .font(BumpFont.caption)
-                        .foregroundStyle(BumpColor.secondaryText)
+                        .font(BumpFont.bodySmall)
+                        .foregroundStyle(BumpColor.onSurfaceVariant)
                 }
             }
         }
         .navigationTitle(isOnboarding ? "" : "Edit profile")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(BumpColor.surface, for: .navigationBar)
     }
 
     private func toggle(_ interest: Interest) {

@@ -18,7 +18,7 @@ struct BumpTutorial: View {
 
     private let pages: [Page] = [
         Page(title: "Find someone to meet",
-             body: "You both open BUMP and tap Start bumping. No codes, no accounts. BUMP finds the phones around you.",
+             body: "You both open BUMP. No codes, no accounts, nothing to press. BUMP starts looking for the phones around you.",
              art: .open),
         Page(title: "Tap your phones together",
              body: "A gentle tap, back to back. That's how BUMP knows who you just met, and nobody else.",
@@ -33,13 +33,13 @@ struct BumpTutorial: View {
 
     var body: some View {
         ZStack {
-            BumpColor.background.ignoresSafeArea()
+            BumpColor.surface.ignoresSafeArea()
             VStack(spacing: 0) {
                 HStack {
+                    Wordmark()
                     Spacer()
                     Button("Skip", action: onDone)
-                        .font(BumpFont.bodyEmphasis)
-                        .foregroundStyle(BumpColor.secondaryText)
+                        .buttonStyle(.bumpText(BumpColor.onSurfaceVariant))
                         .opacity(page == pages.count - 1 ? 0 : 1)
                 }
                 .padding(.horizontal, Space.gutter)
@@ -49,17 +49,22 @@ struct BumpTutorial: View {
                     ForEach(Array(pages.enumerated()), id: \.offset) { index, item in
                         VStack(spacing: Space.l) {
                             Spacer(minLength: Space.m)
-                            art(item.art, active: page == index)
-                                .frame(height: 220)
+                            ZStack {
+                                RoundedRectangle(cornerRadius: Radius.extraLargeIncreased, style: .continuous)
+                                    .fill(BumpColor.surfaceContainer)
+                                art(item.art, active: page == index)
+                            }
+                            .frame(height: 260)
+                            .padding(.horizontal, Space.gutter)
                             VStack(spacing: Space.s) {
                                 Text(item.title)
-                                    .font(BumpFont.screenTitle)
-                                    .foregroundStyle(BumpColor.navy)
+                                    .font(BumpFont.headlineLarge)
+                                    .foregroundStyle(BumpColor.onSurface)
                                     .multilineTextAlignment(.center)
                                     .fixedSize(horizontal: false, vertical: true)
                                 Text(item.body)
-                                    .font(BumpFont.body)
-                                    .foregroundStyle(BumpColor.secondaryText)
+                                    .font(BumpFont.bodyLarge)
+                                    .foregroundStyle(BumpColor.onSurfaceVariant)
                                     .multilineTextAlignment(.center)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
@@ -77,7 +82,7 @@ struct BumpTutorial: View {
 
                 Button(page == pages.count - 1 ? "Let's bump" : "Next") {
                     if page == pages.count - 1 { onDone() }
-                    else { withAnimation(.easeInOut(duration: 0.25)) { page += 1 } }
+                    else { withAnimation(reduceMotion ? nil : Motion.spatial) { page += 1 } }
                 }
                 .buttonStyle(.bumpPrimary)
                 .padding(.horizontal, Space.gutter)
@@ -104,7 +109,7 @@ struct BumpTutorial: View {
                 ConfirmBadge(tint: BumpColor.illustrationWarm)
             }
         case .share:
-            VStack(spacing: Space.s) {
+            VStack(spacing: Space.sm) {
                 HStack(spacing: -12) {
                     Avatar(name: "You", size: 64)
                     Avatar(name: "Them", size: 64, tint: BumpColor.illustrationWarm)

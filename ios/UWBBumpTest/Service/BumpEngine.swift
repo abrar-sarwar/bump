@@ -67,9 +67,16 @@ final class BumpEngine: ObservableObject {
         }
     }
 
-    @Published private(set) var phase: Phase = .notReady
+    @Published private(set) var phase: Phase = .notReady {
+        didSet { if phase != oldValue { syncPresentation() } }
+    }
     @Published private(set) var room: RoomState = .none
-    @Published private(set) var members: [Wire.Member] = []
+    @Published private(set) var members: [Wire.Member] = [] {
+        didSet {
+            if members.count != oldValue.count { syncPresentation() }
+            recordStreetpasses()
+        }
+    }
     @Published private(set) var capacityNote: String?
     @Published private(set) var log: [LogLine] = []
 
@@ -81,6 +88,8 @@ final class BumpEngine: ObservableObject {
 
     // MARK: Collaborators
 
+    /// Owns the Live Activity for the whole session, not for a screen.
+    let liveActivity = LiveActivityController()
     let motion = MotionDetector()
     let ranging = RangingService()
     let transport = PeerTransport()
@@ -92,6 +101,9 @@ final class BumpEngine: ObservableObject {
     private var proposals: [String: LiveProposal] = [:]
     private var membersByID: [String: Wire.Member] = [:]
     private var aiCapable: Set<String> = []
+    /// Transient peer ids already written to the streetpass log this session, so
+    /// one roster rebroadcast doesn't log the same person again.
+    private var streetpassLogged: Set<String> = []
 
     private struct LiveProposal {
         let id: String
@@ -124,6 +136,18 @@ final class BumpEngine: ObservableObject {
     @Published private(set) var grokReady = false
     private var healthTask: Task<Void, Never>?
     private var localSequence = 0
+    /// True while the app is not on screen. Detection changes shape here: there
+    /// is no accelerometer, so proximity is the only evidence available.
+    @Published private(set) var isBackgrounded = false
+    /// One approach gate per peer, so a measurement can only ever fire for the
+    /// peer it belongs to.
+    private var proximityGates: [String: ProximityGate] = [:]
+    /// Checkpoint A evidence: how many real ranging callbacks arrived while the
+    /// app was NOT on screen, and when the last one landed. A frozen distance or
+    /// a persistent Live Activity proves nothing; these do.
+    @Published private(set) var backgroundRangingCallbacks = 0
+    @Published private(set) var lastBackgroundRangingAt: Date?
+    @Published private(set) var lastBackgroundedAt: Date?
     private var phaseDeadline: Timer?
 
     /// Seconds a proposal may sit unconfirmed before it is closed.
@@ -137,6 +161,10 @@ final class BumpEngine: ObservableObject {
         self.store = store
         wireUp()
         applySettings()
+        // A returning user has a profile already, so begin discovery now rather
+        // than when some view appears. This is what makes the Local Network
+        // prompt show up at launch.
+        if store.profile.isComplete { autoStart() }
     }
 
     // MARK: Wiring
@@ -153,6 +181,42 @@ final class BumpEngine: ObservableObject {
         transport.$connected
             .sink { [weak self] peers in self?.rosterChanged(peers) }
             .store(in: &cancellables)
+
+        // Start discovery as soon as the profile is usable, rather than waiting
+        // for the Bump tab to render. That tab is behind onboarding and the
+        // tutorial cover, so waiting for it delayed the Local Network prompt
+        // until minutes into the session, sometimes until the moment someone
+        // actually tried to bump. @Published replays the current value, so a
+        // returning user starts at launch and a new one starts the instant
+        // onboarding completes.
+        store.$profile
+            .map(\.isComplete)
+            .removeDuplicates()
+            .dropFirst()        // the launch case is handled synchronously below
+            .sink { [weak self] complete in
+                guard complete else { return }
+                // @Published emits in willSet, so at this instant store.profile
+                // is still the OLD value. autoStart reads it through
+                // setupBlocker, so we let the assignment land first. One runloop
+                // later is imperceptible and only affects the moment someone
+                // finishes onboarding.
+                Task { @MainActor [weak self] in self?.autoStart() }
+            }
+            .store(in: &cancellables)
+
+        liveActivity.onLog = { [weak self] line in self?.note(line) }
+        // A crash or force quit can leave an activity behind. Adopt or clear it
+        // before we start anything new, so there is only ever one.
+        liveActivity.reconcileOnLaunch()
+
+        // Confirm / Not them / Stop arrive here from the Dynamic Island. They
+        // run in this process, so they act on the same authoritative state as
+        // the in-app buttons.
+        BumpIntentBridge.shared.handler = { [weak self] action in
+            // The bridge is nonisolated, so hop explicitly and capture the
+            // engine inside the hop rather than across it.
+            await MainActor.run { [weak self] in self?.handleIntent(action) }
+        }
 
         transport.$discoveredRooms
             .sink { [weak self] rooms in self?.resolveDuplicateNearbyHost(rooms) }
@@ -222,6 +286,99 @@ final class BumpEngine: ObservableObject {
         joinNearbyOrHost()
     }
 
+    // MARK: Automatic readiness
+
+    /// True only while the user has explicitly paused. Nothing else sets this,
+    /// so backgrounding or a finished match can never leave BUMP silently off.
+    @Published private(set) var isPaused = false {
+        didSet { if isPaused != oldValue { syncPresentation() } }
+    }
+
+    /// What the Bump tab should show while waiting. Derived from the real state
+    /// of the services rather than stored, so the label can never claim the app
+    /// is ready when it isn't.
+    enum AutoStatus: Equatable {
+        case gettingReady
+        case listening
+        case paused
+        /// A specific step the person has to complete, phrased for them.
+        case blocked(String)
+    }
+
+    var autoStatus: AutoStatus {
+        if isPaused { return .paused }
+        if let blocker = setupBlocker { return .blocked(blocker) }
+        if case .unavailable(let why) = phase { return .blocked(why) }
+        if case .ready = phase { return .listening }
+        return .gettingReady
+    }
+
+    /// A step that genuinely prevents a session from existing at all.
+    ///
+    /// Deliberately short. A missing accelerometer is NOT in here: discovery,
+    /// the peer session and manual selection all still work without it, so
+    /// blocking startup over it would strand the person with nothing. That case
+    /// surfaces through `phase == .unavailable` once the session is up, which
+    /// still reads as `.blocked` to the UI but leaves the room running.
+    var setupBlocker: String? {
+        if !store.profile.isComplete {
+            return "Finish your profile first so the person you meet knows who you are."
+        }
+        // Only a genuine discovery failure blocks. `transport.lastError` must
+        // NOT be used here: it is also set by routine recoverable things like a
+        // send to a peer that just dropped, and a single one of those would
+        // otherwise strand the app with no session and no Live Activity.
+        if let why = transport.discoveryUnavailable { return why }
+        return nil
+    }
+
+    /// Begin waiting for a bump. Idempotent: safe to call on every appearance of
+    /// the Bump tab and on every return to the foreground, because it never
+    /// opens a second session or stacks a second set of listeners.
+    func autoStart() {
+        guard !isPaused, setupBlocker == nil else { return }
+        // Already in a room: the session stands, just make sure sensing is live.
+        if room != .none { ensureSensing(); return }
+        // A start is already in flight (joining, or waiting to decide the host).
+        guard !nearbyMode else { return }
+        note("starting automatically")
+        startNearby()
+    }
+
+    /// Bring motion sensing back without touching the peer session. Only acts
+    /// from a resting phase, so it can never interrupt a live proposal, an
+    /// in-flight bump or the reveal.
+    private func ensureSensing() {
+        guard !isPaused, room != .none else { return }
+        guard case .notReady = phase else { return }
+        setReady(true)
+    }
+
+    /// The small secondary control. Pausing keeps the peer session open and only
+    /// stops detection, so resuming is instant and needs no reconnect.
+    func pause() {
+        guard !isPaused else { return }
+        isPaused = true
+        nearbyTimer?.invalidate(); nearbyTimer = nil
+        motion.stop()
+        if case .ready = phase { phase = .notReady }
+        note("paused by the user")
+    }
+
+    func resume() {
+        guard isPaused else { return }
+        isPaused = false
+        note("resumed by the user")
+        autoStart()
+    }
+
+    /// Leave a named event room and fall back to waiting for whoever is nearby.
+    func leaveEvent() {
+        leaveRoom()
+        nearbyMode = false
+        autoStart()
+    }
+
     /// Stop bumping and leave the nearby room.
     func stopNearby() {
         nearbyMode = false
@@ -270,6 +427,7 @@ final class BumpEngine: ObservableObject {
         ranging.stopAll()
         matcher.reset()
         proposals.removeAll(); membersByID.removeAll(); aiCapable.removeAll()
+        streetpassLogged.removeAll()
         cancelGeneration()
         myProposal = nil; partnerProfile = nil
         room = .none
@@ -317,8 +475,15 @@ final class BumpEngine: ObservableObject {
     }
 
     private func handleMeasurement(_ peerID: String, _ distance: Double) {
-        // Report proximity as evidence to the coordinator. This is evidence about
-        // WHICH peer, not a trigger on its own — except in uwbOnly mode.
+        let age = ranging.measurements[peerID]?.age ?? 0
+        if isBackgrounded {
+            backgroundRangingCallbacks += 1
+            lastBackgroundRangingAt = Date()
+        }
+
+        // Always report close readings as evidence about WHICH peer. On its own
+        // this is not a trigger in the normal foreground flow, where a
+        // deliberate motion spike is the gesture.
         if distance <= store.settings.uwbProximity {
             if isCoordinator {
                 matcher.record(.init(observer: transport.myID, peer: peerID,
@@ -326,9 +491,29 @@ final class BumpEngine: ObservableObject {
             } else {
                 transport.send(.proximity(peer: peerID, distance: distance), to: coordinatorIDs())
             }
-            if store.settings.detectionMode == .uwbOnly, case .ready = phase {
-                emitBump(magnitude: 0)
-            }
+        }
+
+        // Proximity may become the trigger in two cases:
+        //   - the tester picked UWB-only mode, or
+        //   - we are backgrounded, where Core Motion delivers nothing at all.
+        // Both are proximity detection, not proof of physical impact.
+        let proximityIsTheTrigger = store.settings.detectionMode == .uwbOnly
+            || (isBackgrounded && liveActivity.isRunning)
+        guard proximityIsTheTrigger, case .ready = phase else { return }
+
+        var gate = proximityGates[peerID] ?? ProximityGate(
+            threshold: store.settings.uwbProximity,
+            freshness: store.settings.uwbFreshness
+        )
+        gate.threshold = store.settings.uwbProximity
+        gate.freshness = store.settings.uwbFreshness
+        let verdict = gate.feed(distance: distance, age: age, now: monotonic())
+        proximityGates[peerID] = gate
+
+        if case .bump(let d) = verdict {
+            note(String(format: "proximity trigger at %.2f m with %@ (%@)",
+                        d, name(peerID), isBackgrounded ? "backgrounded" : "UWB-only mode"))
+            emitBump(magnitude: 0)
         }
     }
 
@@ -782,7 +967,23 @@ final class BumpEngine: ObservableObject {
     }
 
     private func peerLeft(_ peer: String) {
-        ranging.endSession(for: peer)
+        proximityGates[peer] = nil
+        // A Multipeer drop is NOT proof that ranging has failed. Multipeer is a
+        // foreground-only transport, so it disconnects the instant the app is
+        // backgrounded, while a UWB session is allowed to keep running with an
+        // active Live Activity. Tearing the NISession down here killed ranging
+        // about a second after backgrounding, every time.
+        //
+        // Only end ranging when the session is genuinely finished: the app is in
+        // the foreground (so the drop means something), or there is no live
+        // session to keep it alive for. NISession's own delegate still reports
+        // peerEnded and invalidation, which is what actually decides this.
+        let sessionStillLive = liveActivity.isRunning && !liveActivity.hasExpired
+        if !isBackgrounded || !sessionStillLive {
+            ranging.endSession(for: peer)
+        } else {
+            note("transport dropped \(name(peer)) while backgrounded, keeping the UWB session")
+        }
         if isCoordinator {
             matcher.remove(participant: peer)
             membersByID[peer] = nil
@@ -792,6 +993,13 @@ final class BumpEngine: ObservableObject {
             }
             broadcastRoster()
         } else if members.isEmpty || transport.connected.isEmpty {
+            // Backgrounded, losing the coordinator is expected: Multipeer always
+            // drops. Retrying would spin against a transport iOS has stopped, so
+            // hold the session and let the foreground handler rebuild it.
+            if isBackgrounded && liveActivity.isRunning && !liveActivity.hasExpired {
+                note("coordinator dropped while backgrounded, waiting rather than retrying")
+                return
+            }
             // We lost the coordinator. Pause matching and offer a clear way back;
             // no host migration, by design.
             if let code = room.code {
@@ -853,19 +1061,154 @@ final class BumpEngine: ObservableObject {
         membersByID[id]?.displayName ?? transport.displayName(of: id)
     }
 
+    // MARK: Live Activity
+
+    /// Stable for the life of a session, so an intent fired from the Dynamic
+    /// Island can be checked against the session it was rendered for.
+    private(set) var sessionID = UUID().uuidString
+
+    /// Actions from the Live Activity. Every one is validated against current
+    /// state: a stale session, an expired proposal or one already consumed is
+    /// refused rather than acted on.
+    func handleIntent(_ action: BumpIntentAction) {
+        switch action {
+        case .confirm(let session, let proposal):
+            guard session == sessionID else { return note("ignored confirm from an old session") }
+            guard let mine = myProposal, mine.id == proposal else {
+                return note("ignored confirm for a proposal that is no longer current")
+            }
+            confirmCurrent()
+        case .reject(let session, let proposal):
+            guard session == sessionID, let mine = myProposal, mine.id == proposal else {
+                return note("ignored reject for a proposal that is no longer current")
+            }
+            declineCurrent()
+        case .stop(let session):
+            guard session == sessionID else { return }
+            note("stopped from the Live Activity")
+            endSession()
+        }
+    }
+
+    /// Begin the session activity once there is a real session to describe.
+    private func startLiveActivityIfNeeded() {
+        guard !liveActivity.isRunning, room != .none else { return }
+        liveActivity.start(sessionID: sessionID, initial: .preparing)
+        refreshLiveActivity()
+    }
+
+    /// End the session entirely: no room, no sensing, no activity.
+    func endSession() {
+        var final = BumpActivityAttributes.ContentState.preparing()
+        final.state = .ended
+        liveActivity.end(final: final)
+        isPaused = true
+        leaveRoom()
+    }
+
+    /// Map the engine's state onto what a person reads in the Dynamic Island.
+    /// Derived every time rather than stored, so the two cannot drift.
+    private var activityContent: BumpActivityAttributes.ContentState {
+        var c = BumpActivityAttributes.ContentState.preparing()
+        c.nearbyCount = members.count
+
+        switch phase {
+        case .confirming(let proposal):
+            c.state = .candidate
+            c.peerName = proposal.partner.displayName
+            c.proposalID = proposal.id
+            c.proposalExpiresAt = Date().addingTimeInterval(Self.confirmationTimeout)
+            return c
+        case .waitingForPartner, .exchanging:
+            c.state = .awaitingPeer
+            c.peerName = myProposal?.partner.displayName
+            return c
+        case .connected(let result):
+            c.state = .connected
+            c.peerName = result.partner.displayName
+            c.connectionID = store.connections.first?.id.uuidString
+            return c
+        default:
+            break
+        }
+
+        switch autoStatus {
+        case .paused:
+            c.state = .paused
+        case .blocked(let why):
+            c.state = .unavailable
+            c.unavailableReason = why
+        case .gettingReady:
+            c.state = room == .none ? .preparing : .discovering
+        case .listening:
+            c.state = members.isEmpty ? .discovering : .ready
+        }
+        return c
+    }
+
+    /// Push the current state. Cheap: the controller drops updates that would
+    /// not change anything on screen.
+    func refreshLiveActivity() {
+        guard liveActivity.isRunning else { return }
+        if liveActivity.hasExpired {
+            note("session deadline reached")
+            endSession()
+            return
+        }
+        let content = activityContent
+        // Only a new decision deserves to interrupt whatever the person is doing.
+        let alert = content.state == .candidate && liveActivity.lastPushedState != .candidate
+        liveActivity.update(content, alert: alert)
+    }
+
     // MARK: Lifecycle
 
     func handleScenePhase(_ scenePhase: ScenePhase) {
         switch scenePhase {
         case .active:
+            isBackgrounded = false
+            proximityGates.removeAll()
+            // Coming back may mean they just fixed a permission, so always give
+            // discovery another chance rather than staying blocked forever.
+            transport.clearDiscoveryBlock()
             ranging.resumeAll()
             if room != .none { refreshCloudStatus() }
+            // Validate the deadline here rather than trusting an in-memory
+            // timer to have fired while the process was suspended.
+            if liveActivity.isRunning && liveActivity.hasExpired {
+                note("session expired while backgrounded")
+                endSession()
+                return
+            }
+            // Pick straight back up. No Start action, no reconnect prompt.
+            autoStart()
+            syncPresentation()
         case .background, .inactive:
-            // Foreground-only experiment: stop sensing, clear stale values.
+            // Core Motion gets no background execution, so the accelerometer
+            // stops either way. A bump that was mid-flight drops back to
+            // resting, and returning to the app starts listening again on its
+            // own.
             motion.stop()
-            ranging.pauseAll()
-            if case .ready = phase { phase = .notReady }
-            if case .checking = phase { phase = .needsRetry("BUMP paused when you left the app. Tap ready and try again.") }
+
+            isBackgrounded = true
+            lastBackgroundedAt = Date()
+            backgroundRangingCallbacks = 0      // count this backgrounding only
+            if liveActivity.isRunning && !liveActivity.hasExpired {
+                // A valid session with a Live Activity keeps ranging. Documented
+                // from iOS 18.4 with the nearby-interaction background mode.
+                // NOTE: documented platform support, not observed on hardware here.
+                //
+                // Stay in `.ready`: ranging continues, so proximity can still
+                // trigger. Dropping to `.notReady` here would silently make the
+                // whole background path impossible.
+                note("backgrounded with a live session, keeping UWB ranging")
+                proximityGates.removeAll()   // require a fresh approach
+            } else {
+                ranging.pauseAll()
+                if case .ready = phase { phase = .notReady }
+            }
+            if case .checking = phase { phase = .notReady }
+            refreshLiveActivity()
         @unknown default: break
         }
     }
@@ -882,7 +1225,9 @@ final class BumpEngine: ObservableObject {
         cancelGeneration()
         myProposal = nil; partnerProfile = nil
         phase = .notReady
-        setReady(true)
+        // Goes through autoStart so a finished match also re-establishes the
+        // room if it was lost while the reveal was open.
+        autoStart()
     }
 
     func saveCurrentConnection() {
@@ -904,6 +1249,25 @@ final class BumpEngine: ObservableObject {
         phaseDeadline = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { _ in
             Task { @MainActor in action() }
         }
+    }
+
+    /// Logs each newly-appeared nearby phone as a streetpass. Every appearance
+    /// counts, bump or no bump; `Store` collapses repeats of the same person.
+    private func recordStreetpasses() {
+        #if DEBUG
+        guard DemoMode.active == nil else { return }
+        #endif
+        for member in members where !streetpassLogged.contains(member.id) {
+            streetpassLogged.insert(member.id)
+            store.recordStreetpass(name: member.displayName,
+                                   roomName: room.code ?? Self.nearbyRoom)
+        }
+    }
+
+    /// Called after any state change that a person could see.
+    private func syncPresentation() {
+        startLiveActivityIfNeeded()
+        refreshLiveActivity()
     }
 
     func note(_ text: String) {

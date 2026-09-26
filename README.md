@@ -1,77 +1,174 @@
-# BUMP
+<div align="center">
+
+<img src="web/src/assets/wordmark.png" alt="BUMP logo" width="280" />
 
 **Meet someone. Find your overlap.**
 
-Two people tap phones, confirm each other, and get the specific things they
-actually have in common, plus a few grounded talking points to start on.
+Two people tap their phones together, confirm each other, and get the specific things they actually have in common, plus a few grounded talking points to open with. No account, no feed, no API key on the phone.
 
-```
-bump/
-├── web/        # React marketing site (Vite + GSAP scroll sequence)
-├── ios/        # SwiftUI app: onboarding, motion, UWB, pairing, talking points
-├── backend/    # The BUMP server between the app and xAI (bump-api)
-└── README.md
-```
+![platform iOS 17+](https://img.shields.io/badge/iOS-17%2B-ff9500?logo=apple&logoColor=white)
+![Swift + SwiftUI](https://img.shields.io/badge/Swift-SwiftUI-ff9500?logo=swift&logoColor=white)
+![backend Node 20+](https://img.shields.io/badge/backend-Node%2020%2B-ff9500?logo=nodedotjs&logoColor=white)
+![web React + Vite](https://img.shields.io/badge/web-React%20%2B%20Vite-ff9500?logo=vite&logoColor=white)
+<!-- TODO: add a license badge once LICENSE exists -->
 
-| | What it is | Status |
+[Problem](#the-problem) · [What it does](#what-it-does) · [Demo](#demo) ·
+[How it works](#how-it-works) · [Tech stack](#tech-stack) · [Roadmap](#roadmap) ·
+[Team](#team--acknowledgments)
+
+</div>
+
+---
+
+## The problem
+
+**Proximity does not guarantee connection.** One in six people worldwide
+experiences loneliness ([WHO Commission on Social Connection,
+2025](https://www.who.int/publications/i/item/9789240110403)). Being around
+people (a lecture hall, a conference floor, a neighbourhood event) is not the
+same as feeling connected to them. **The first hello is where it stalls.** We
+systematically underestimate how much other people want to talk to us. [Epley &
+Schroeder (2014)](https://doi.org/10.1037/a0037323) assigned train and bus
+commuters either to talk to a stranger or to keep to themselves; the ones told to
+talk reported a *more* positive commute. [Sandstrom & Boothby
+(2021)](https://doi.org/10.1080/15298868.2020.1816568) found the same pattern
+across seven studies: conversations generally went better than people expected.
+
+That gives BUMP a specific place to be useful: the uncertainty right before the
+first hello. And the _why_ matters as much as the when: "we both like music" is
+not a conversation, "you build modular synths too?" is. [Alves
+(2018)](https://doi.org/10.1177/0146167218766861) found people rated potential
+partners more positively when they shared a *rare* interest rather than a common
+one. So BUMP ranks for distinctiveness and attaches the evidence from both cards,
+rather than reporting the largest number of matches it can find. Every study here
+motivates the design and none of them tested BUMP; that ranking is a hypothesis,
+not a validated result.
+
+## What it does
+
+> **Current scope:** iOS only, two-or-more phones in the same room, plus a small
+> server for the voice intro and Grok talking points. No Android build and no web
+> app; the site in [`web/`](web/README.md) is marketing only. See the [roadmap](#roadmap).
+
+**The iOS app**
+
+- Onboards you by **voice**: speak an intro (≤ 45 s, or type it), answer up to three follow-ups, approve an editable card.
+- **Start bumping** puts you in an automatic nearby room. No event code, no host, no setup.
+- Tap the two phones together once; both sides **confirm the partner by name** before anything is exchanged.
+- Shows up to three **shared interests with evidence** from both cards, plus one opener, and saves the connection locally.
+- Degrades cleanly: no UWB, no on-device AI, or no server all still produce a usable bump, and the app says which path it took.
+
+**What stays on the phones**
+
+- Bumping, partner matching and the profile exchange happen **directly between the phones in the room**.
+- The profile exchange is partner-only and encrypted, and each person chooses whether their data reaches the server at all.
+- Talking points go to the server only when **both** people allowed it; otherwise they are drafted on-phone and labelled as such.
+
+Every fact the server returns must quote the person's own words; anything that fails that check is dropped rather than smoothed over.
+
+## Demo
+
+<!-- TODO: add a demo GIF or screenshots of onboarding, the bump, and the overlap screen -->
+<!-- TODO: add the demo video link once recorded -->
+
+| Marketing site | Demo video | Screenshots |
 |---|---|---|
-| [**`ios/`**](ios/README.md) | The product. Swift + SwiftUI, Core Motion, Nearby Interaction, MultipeerConnectivity, voice-intro onboarding, Grok talking points with Apple Intelligence and deterministic fallbacks. | Builds clean, 100 unit tests (96 pass, 4 server contract tests skipped), UI inspected in the Simulator and on one iPhone. **Unproven on two physical phones.** |
-| [`web/`](web/README.md) | The marketing site. React + TypeScript + Vite, with one scroll-driven opening sequence built on GSAP/ScrollTrigger. | Built. Verified across both breakpoints, reduced motion, resize and fast scroll. |
-| [`backend/`](backend/README.md) | The BUMP server (`bump-api`), a Node service between the app and xAI: speech-to-text and Grok structured outputs. Holds the `XAI_API_KEY`. | 42 mocked tests pass; live smoke test against xAI passed. |
-| [`RESULTS.md`](RESULTS.md) | Blank results templates for the MVP and the original spikes. | To fill in on test day. |
+| _Not deployed yet_ | _To record_ | _To capture_ |
 
-BUMP runs with a server. The backend powers the spoken intro, Grok-drafted
-profiles and Grok talking points, and it holds the xAI key so the app never
-does. There's still no account. Bumping, matching and the profile exchange
-happen directly between the phones in the room, and each person chooses
-whether their data goes to the server. If the server can't be reached, the app
-falls back to on-phone suggestions and says so, so an event doesn't stop.
+## How it works
 
-## Quick start
-
-```bash
-open ios/UWBBumpTest.xcodeproj      # then follow ios/README.md
-
-# The BUMP server (voice + Grok)
-cd backend && cp .env.example .env  # put your XAI_API_KEY in .env
-npm start                           # http://0.0.0.0:8787
-
-# The marketing site
-cd web && npm install && npm run dev  # http://localhost:5173
+```mermaid
+flowchart LR
+  subgraph PhoneA["iPhone A"]
+    MA[CoreMotion → SpikeGate]
+    RA[NISession / UWB]
+    PA[MultipeerConnectivity]
+  end
+  subgraph PhoneB["iPhone B"]
+    MB[CoreMotion → SpikeGate]
+    RB[NISession / UWB]
+    PB[MultipeerConnectivity]
+  end
+  PA <-->|"encrypted wire protocol"| PB
+  MA --> PA
+  MB --> PB
+  RA <-.->|"distance"| RB
+  PA --> MATCH["PairingMatcher<br/>(coordinator, pure)"]
+  MATCH --> INT["InterestMatcher<br/>grounded overlap"]
+  INT --> API["bump-api (Node)<br/>/v1/transcribe · /v1/profile/* · /v1/talking-points"]
+  API --> XAI["xAI Grok"]
+  INT -.->|"server unreachable"| LOCAL["on-phone suggestions<br/>(labelled)"]
 ```
 
-Prerequisites: a Mac with **Xcode 26+** and **two iPhones**. Deployment target is
-iOS 17; UWB and on-device AI are both optional and degrade cleanly. The Simulator
-cannot validate UWB or motion.
+1. **Motion only says *that* you were tapped.** `SpikeGate` is a pure threshold / rearm / cooldown state machine over CoreMotion; it never knows who tapped.
+2. **The coordinator decides *who*.** One phone pairs bumps by its own arrival times. UWB distance, when available, is much stronger evidence about which peer, but it is evidence, not a requirement.
+3. **Ambiguity is rejected, not guessed.** When several people bump at the same instant, that genuinely cannot identify partners, so BUMP refuses and offers a manual pick that is recorded honestly as a manual pick.
+4. **Overlap is grounded.** `InterestMatcher` only reports an interest both cards support, with the evidence attached. Talking points are candidates backed by both cards before any model sees them.
+5. **The server is one client of that, not the source of truth.** `ConversationService` tries Grok via `bump-api`, then Apple's Foundation Models, then a deterministic local drafter, and labels which one it used.
 
-## The shortest two-phone test
+The `XAI_API_KEY` never ships in the app. It lives in server-side environment
+variables in [`backend/`](backend/README.md), which does the speech-to-text and
+the Grok structured outputs on the app's behalf.
 
-1. Build and run on both phones (`ios/README.md` has the signing steps).
-2. Onboard on both (speak or type an intro, approve your card). **Give them at least one interest in common.**
-3. Both: Bump tab → **Start bumping**. The phones find each other automatically
-   (one quietly becomes the coordinator); no event code needed.
-4. When "1 person nearby" shows, tap the phones together once.
-5. Both: **Confirm & share interests**.
-6. Shared interests + talking points appear on both → **Save connection**.
+### Silence and honesty are the defaults
 
-For a big event, **Have an event code?** on the Bump tab still gives named
-rooms (8 phones each).
+The app says so plainly rather than inventing something when:
 
-Instrumentation lives in **You ▸ Testing tools** (live acceleration, live UWB
-distance, pairing sliders, event log, diagnostics export), deliberately kept out
-of the normal flow.
+- no overlap survives grounding against both cards;
+- no partner has been confirmed by name;
+- several bumps land at the same instant and pairing is ambiguous;
+- UWB is unavailable on the device;
+- the server is unreachable or a permission was declined;
+- on-device AI is unavailable and the deterministic drafter runs instead;
+- either person did not allow their data to reach the server.
 
-## What we know and don't know
+The backend returns `502` rather than fallback content when nothing it received
+survives grounding checks. The app's own fallbacks are always **marked** as
+fallbacks, and which path produced a result is always **visible** in the UI.
 
-Motion tells a phone *that* it was tapped, not *who* tapped it. The coordinator
-pairs bumps by its own arrival times, and when several people bump at the same
-instant that genuinely cannot identify partners — so BUMP **rejects** rather than
-guesses, and offers a manual pick that is recorded honestly as a manual pick. UWB
-distance is much stronger evidence about *which* peer, when it's available.
+## Tech stack
 
-How well that holds up in a crowded room has not been measured yet. The number
-that decides it is the **rejection rate**, reported separately from accuracy in
-`RESULTS.md` — rejecting everything would otherwise look perfect.
+| Area | What's used |
+|---|---|
+| iOS app | Swift + SwiftUI, deployment target iOS 17, Xcode 26+ |
+| Sensing | CoreMotion (tap detection), Nearby Interaction / `NISession` (UWB distance) |
+| Transport | MultipeerConnectivity, encrypted, behind a swappable `PeerTransport` |
+| Wire format | Versioned, bounded, idempotent messages (`WireProtocol`) |
+| On-device AI | Apple Foundation Models, optional, with a deterministic local drafter behind it |
+| Design | `Theme.swift` colour roles / shape / type / motion + `Components.swift` |
+| Backend | Zero-dependency Node.js ≥ 20, plain `node:http`, contract in [`backend/CONTRACT.md`](backend/CONTRACT.md) |
+| Models | xAI Grok (`grok-4.3`) for drafting and talking points, `grok-voice-transcribe-2.0` for speech |
+| Marketing site | React 19 + TypeScript 5.9 + Vite 7, one scrubbed GSAP/ScrollTrigger sequence |
+| Testing | XCTest (100 unit tests), `node --test` (42 mocked), live smoke script, Playwright for the site |
 
-An earlier Node + Socket.io browser experiment was removed from the tree; it is
-still in git history at commit `278d2e0`.
+## Roadmap
+
+Everything here is future work; none of it is in the current build.
+
+- [ ] **A real two-phone session**, measured, with [`RESULTS.md`](RESULTS.md) filled in.
+      Pairing in a crowded room has not been measured yet; the number that decides
+      it is the rejection rate, reported separately from accuracy so that
+      rejecting everything cannot score as perfect.
+- [ ] **Crowded-room testing**: many simultaneous bumps, rejection rate under load.
+- [ ] **Android**, or the honest conclusion that the UWB path can't cross platforms.
+- [ ] **Connection follow-up**: an export or share of a saved connection.
+- [ ] **Event mode polish**: larger rooms than the current 8 phones per event code.
+
+## Team & acknowledgments
+
+Built on Apple's Nearby Interaction and MultipeerConnectivity frameworks and the
+xAI Grok API. The design is informed by the WHO Commission on Social Connection
+(2025), [Epley & Schroeder (2014)](https://doi.org/10.1037/a0037323),
+[Sandstrom & Boothby (2021)](https://doi.org/10.1080/15298868.2020.1816568),
+[Sandstrom & Dunn (2014)](https://doi.org/10.1177/0146167214529799),
+[Alves (2018)](https://doi.org/10.1177/0146167218766861) and
+[Vélez et al. (2019)](https://doi.org/10.1016/j.cognition.2019.06.006), none of
+whom studied BUMP. An earlier Node + Socket.io browser experiment was removed
+from the tree; it is still in git history at commit `278d2e0` if the matching
+algorithm or the browser `devicemotion` work is ever needed again.
+
+## License
+
+<!-- TODO: no LICENSE file exists; choose one and add the badge above -->
+
+_No license file yet._

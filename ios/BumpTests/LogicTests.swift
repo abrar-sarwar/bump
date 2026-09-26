@@ -457,3 +457,65 @@ final class StoreTests: XCTestCase {
         XCTAssertNotEqual(manual.pairingEvidence, .motionAndUWB)
     }
 }
+
+// MARK: - Streetpass log
+
+@MainActor
+final class StreetpassStoreTests: XCTestCase {
+
+    func testNewestFirst() {
+        let store = Store(inMemory: true)
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        store.recordStreetpass(name: "Ada", roomName: "nearby", at: t0)
+        store.recordStreetpass(name: "Grace", roomName: "nearby", at: t0 + 3_600)
+        XCTAssertEqual(store.streetpasses.map(\.peerName), ["Grace", "Ada"])
+    }
+
+    func testRepeatInsideTheWindowIsTheSameEncounter() {
+        let store = Store(inMemory: true)
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        store.recordStreetpass(name: "Ada", roomName: "nearby", at: t0)
+        // A Multipeer reconnect a minute later is not a second encounter.
+        store.recordStreetpass(name: "Ada", roomName: "nearby", at: t0 + 60)
+        XCTAssertEqual(store.streetpasses.count, 1)
+    }
+
+    func testRepeatOutsideTheWindowIsANewEncounter() {
+        let store = Store(inMemory: true)
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        store.recordStreetpass(name: "Ada", roomName: "nearby", at: t0)
+        store.recordStreetpass(name: "Ada", roomName: "nearby",
+                               at: t0 + Store.streetpassDedupeWindow + 1)
+        XCTAssertEqual(store.streetpasses.count, 2)
+    }
+
+    func testBlankNameIsIgnored() {
+        let store = Store(inMemory: true)
+        store.recordStreetpass(name: "   ", roomName: "nearby")
+        XCTAssertTrue(store.streetpasses.isEmpty)
+    }
+
+    func testTheLogIsCapped() {
+        let store = Store(inMemory: true)
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        for i in 0..<(Store.streetpassLimit + 25) {
+            store.recordStreetpass(name: "Person \(i)", roomName: "nearby",
+                                   at: t0 + Double(i))
+        }
+        XCTAssertEqual(store.streetpasses.count, Store.streetpassLimit)
+        // The oldest rows are the ones dropped.
+        XCTAssertEqual(store.streetpasses.first?.peerName,
+                       "Person \(Store.streetpassLimit + 24)")
+    }
+
+    func testClearingRemovesOnlyPassersBy() {
+        let store = Store(inMemory: true)
+        store.save(SavedConnection(partnerName: "Ada", partnerBio: "", metOn: Date(), roomName: "r",
+                                   insight: ConnectionInsight(highlights: [], opener: "?", openerSource: .fallbackTemplate),
+                                   pairingEvidence: .motionOnly))
+        store.recordStreetpass(name: "Grace", roomName: "nearby")
+        store.clearStreetpasses()
+        XCTAssertTrue(store.streetpasses.isEmpty)
+        XCTAssertEqual(store.connections.count, 1)
+    }
+}

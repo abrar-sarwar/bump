@@ -7,8 +7,12 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var stage: Stage
+    @State private var tab: BumpTabBar.Tab = .bump
     /// DEBUG demo only: a pre-seeded onboarding model with sample data.
     @State private var demoOnboarding: OnboardingModel?
+    /// Height of the StreetPass pass card's single detent. @ScaledMetric so the
+    /// card grows with Dynamic Type instead of clipping its buttons.
+    @ScaledMetric(relativeTo: .body) private var passCardHeight: CGFloat = 380
 
     enum Stage { case welcome, onboarding, main }
 
@@ -54,15 +58,19 @@ struct RootView: View {
                 .transition(.opacity)
 
             case .main:
-                TabView {
-                    BumpScreen(engine: engine, store: store)
-                        .tabItem { Label("Bump", systemImage: "hand.tap.fill") }
-                    ConnectionsScreen(store: store)
-                        .tabItem { Label("Connections", systemImage: "person.2.fill") }
-                    YouScreen(store: store, engine: engine)
-                        .tabItem { Label("You", systemImage: "person.crop.circle") }
+                // All three destinations stay alive (like a TabView) so their
+                // navigation state survives switching; the M3 navigation bar
+                // below swaps which one is visible with a fade-through.
+                ZStack {
+                    tabContent(.bump) { BumpScreen(engine: engine, store: store) }
+                    tabContent(.connections) { ConnectionsScreen(store: store) }
+                    tabContent(.you) { YouScreen(store: store, engine: engine) }
                 }
-                .tint(BumpColor.action)
+                .safeAreaInset(edge: .bottom, spacing: 0) { BumpTabBar(selection: $tab) }
+                .tint(BumpColor.primary)
+                // The pass card: a short, bottom-anchored card in the spirit of
+                // the system "AirPods nearby" card, not a full page. A single
+                // fixed detent keeps it compact; it scales with Dynamic Type.
                 .sheet(item: streetPassSheetBinding) { encounter in
                     StreetPassSheet(
                         encounter: encounter,
@@ -72,6 +80,10 @@ struct RootView: View {
                         },
                         onNotNow: { streetPassEngine.dismissPendingEncounter() }
                     )
+                    .presentationDetents([.height(passCardHeight)])
+                    .presentationCornerRadius(Radius.extraLargeIncreased)
+                    .presentationBackground(BumpColor.surfaceContainerLowest)
+                    .presentationDragIndicator(.visible)
                 }
             }
         }
@@ -89,6 +101,17 @@ struct RootView: View {
             stage = .welcome
         }
         .preferredColorScheme(.light)   // the brand is a warm light palette
+    }
+
+    @ViewBuilder
+    private func tabContent<V: View>(_ which: BumpTabBar.Tab, @ViewBuilder _ view: () -> V) -> some View {
+        let shown = tab == which
+        view()
+            .opacity(shown ? 1 : 0)
+            .scaleEffect(shown ? 1 : 0.985)
+            .allowsHitTesting(shown)
+            .accessibilityHidden(!shown)
+            .animation(Motion.effects, value: tab)
     }
 
     /// DEBUG-only seeding so every screen can be inspected in the Simulator.
@@ -131,9 +154,11 @@ struct RootView: View {
             streetPassEngine.demoSet(.init(id: "demo#0002", displayName: "Priya (demo)",
                                            avatarThumbnail: nil,
                                            mutualInterestStatement: "You're both into photography."))
-        case .connections, .you, .tools, .home, .tutorial:
+        case .connections, .you, .tools, .home, .tutorial, .notifications:
             store.profile = PreviewFixtures.profile
-            if demo == .connections { PreviewFixtures.seed(store) }
+            if demo == .connections { PreviewFixtures.seed(store); tab = .connections }
+            if demo == .notifications { PreviewFixtures.seed(store); tab = .bump }
+            if demo == .you || demo == .tools { tab = .you }
             stage = .main
         }
         #endif

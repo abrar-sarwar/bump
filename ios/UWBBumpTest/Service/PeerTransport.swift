@@ -32,7 +32,14 @@ final class PeerTransport: NSObject, ObservableObject {
     @Published private(set) var connected: [Wire.Member] = []
     @Published private(set) var discoveredRooms: [String: Wire.Member] = [:]   // roomCode -> host
     @Published private(set) var isActive = false
+    /// Diagnostics only. Set by anything that went wrong, including routine
+    /// recoverable things like a send to a peer that just dropped. Never treat
+    /// this as a reason to stop the app.
     @Published private(set) var lastError: String?
+    /// Set ONLY when discovery itself could not start, which in practice means
+    /// Local Network access is off. Cleared as soon as discovery works, so a
+    /// transient failure cannot strand the app forever.
+    @Published private(set) var discoveryUnavailable: String?
 
     /// Delivered on the main actor. `from` is the peer's transient id.
     var onMessage: ((_ from: String, _ envelope: Wire.Envelope) -> Void)?
@@ -87,7 +94,18 @@ final class PeerTransport: NSObject, ObservableObject {
         browser = brw
 
         isActive = true
+        // A fresh start clears both: whatever failed last time is not a fact
+        // about this attempt.
+        discoveryUnavailable = nil
+        lastError = nil
         log("transport up as \(role.rawValue) in room \"\(self.roomCode)\" (\(myPeerID.displayName))")
+    }
+
+    /// Give discovery a clean slate, for example after the person has been to
+    /// Settings. Without this, a blocked session could never retry: only a
+    /// successful start clears the flag, and a blocked engine never starts.
+    func clearDiscoveryBlock() {
+        discoveryUnavailable = nil
     }
 
     func stop() {
@@ -207,6 +225,7 @@ extension PeerTransport: MCNearbyServiceBrowserDelegate {
         Task { @MainActor in
             self.peersByID[peerID.displayName] = peerID
             self.names[peerID.displayName] = name
+            self.discoveryUnavailable = nil     // we can clearly see peers
 
             if peerRole == Role.coordinator.rawValue {
                 self.discoveredRooms[room] = Wire.Member(id: peerID.displayName, displayName: name)
@@ -238,6 +257,7 @@ extension PeerTransport: MCNearbyServiceBrowserDelegate {
 
     nonisolated func browser(_ browser: MCNearbyServiceBrowser, didNotStartBrowsingForPeers error: Error) {
         Task { @MainActor in
+            self.discoveryUnavailable = "BUMP needs Local Network access to see the phones around you. Turn it on in Settings, then come back."
             self.lastError = "Can't look for nearby phones. Local Network access is usually the reason."
             self.log("browse failed: \(error.localizedDescription)")
         }
@@ -272,6 +292,7 @@ extension PeerTransport: MCNearbyServiceAdvertiserDelegate {
 
     nonisolated func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {
         Task { @MainActor in
+            self.discoveryUnavailable = "BUMP needs Local Network access for other phones to see you. Turn it on in Settings, then come back."
             self.lastError = "Can't make this phone visible. Local Network access is usually the reason."
             self.log("advertise failed: \(error.localizedDescription)")
         }
