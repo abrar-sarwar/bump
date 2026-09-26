@@ -1,31 +1,178 @@
-/* BUMP design tokens. Sampled from the brand artwork, not guessed:
-   ivory #FEF9F0 and wordmark blue #7DA9F3 come straight out of the source PNGs. */
-:root {
-  --ivory: #fff9f0;
-  --ivory-deep: #f7efe2;
-  --blue: #73a9f5;          /* brand blue: the wordmark, large shapes */
-  --blue-ink: #2f6fd0;      /* AA-contrast blue for buttons + links on ivory */
-  --navy: #183555;          /* primary text */
-  --navy-soft: #5a7290;     /* secondary text, ~4.9:1 on ivory */
-  --hairline: #e6ddcd;
-  --white: #ffffff;
-  --orange: #f0955a;        /* from the phone photograph only, never UI chrome */
+/* ===========================================================================
+   BUMP design tokens: Material Design 3
 
+   The design language is MD3. Colour roles are GENERATED, not picked: the
+   whole scheme is derived from one seed colour by Google's own
+   @material/material-color-utilities (HCT colour space, tonal palettes).
+
+       seed  #73a9f5   the BUMP brand blue, sampled from the wordmark artwork
+       HCT   hue 259.4 · chroma 48.2 · tone 68.5
+
+   The brand blue lands almost exactly on MD3 primary tone 70 (#77adf9), which
+   is why the seed needed no adjustment.
+
+   NEUTRALS ARE MD3'S, NOT THE BRAND'S. The earlier palette used a warm ivory
+   (#fff9f0) sampled from the artwork. MD3 derives neutrals from the seed hue,
+   giving a cool near-white instead. That is a deliberate decision: see
+   .agents/50-decisions.md. Do not reintroduce ivory piecemeal.
+
+   To regenerate after changing the seed, see scripts/gen-md3-tokens.mjs.
+   Hand-editing a colour role below puts it out of sync with the algorithm.
+   =========================================================================== */
+
+:root {
+  /* --- MD3 colour roles, light scheme ------------------------------------
+     29 roles straight out of the generator. Every --md-sys-color-x has a
+     matching --md-sys-color-on-x guaranteed to meet contrast against it. */
+
+  --md-sys-color-primary: #1e5fa6;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #d4e3ff;
+  --md-sys-color-on-primary-container: #001c3a;
+
+  --md-sys-color-secondary: #555f71;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #d8e3f8;
+  --md-sys-color-on-secondary-container: #111c2b;
+
+  --md-sys-color-tertiary: #6e5676;
+  --md-sys-color-on-tertiary: #ffffff;
+  --md-sys-color-tertiary-container: #f7d8ff;
+  --md-sys-color-on-tertiary-container: #271430;
+
+  --md-sys-color-error: #ba1a1a;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #ffdad6;
+  --md-sys-color-on-error-container: #410002;
+
+  --md-sys-color-background: #fdfcff;
+  --md-sys-color-on-background: #1a1c1e;
+  --md-sys-color-surface: #fdfcff;
+  --md-sys-color-on-surface: #1a1c1e;
+  --md-sys-color-surface-variant: #e0e2ec;
+  --md-sys-color-on-surface-variant: #43474e;
+
+  --md-sys-color-outline: #74777f;
+  --md-sys-color-outline-variant: #c3c6cf;
+
+  --md-sys-color-shadow: #000000;
+  --md-sys-color-scrim: #000000;
+  --md-sys-color-inverse-surface: #2f3033;
+  --md-sys-color-inverse-on-surface: #f1f0f4;
+  --md-sys-color-inverse-primary: #a6c8ff;
+
+  /* Surface container ladder (MD3 2023). Tones off the same neutral palette.
+     This is how MD3 separates stacked surfaces: by tone, not by shadow. */
+  --md-sys-color-surface-dim: #dad9dd;              /* N-87 */
+  --md-sys-color-surface-bright: #fdfcff;           /* N-99 */
+  --md-sys-color-surface-container-lowest: #ffffff; /* N-100 */
+  --md-sys-color-surface-container-low: #f4f3f7;    /* N-96 */
+  --md-sys-color-surface-container: #eeedf1;        /* N-94 */
+  --md-sys-color-surface-container-high: #e9e8eb;   /* N-92 */
+  --md-sys-color-surface-container-highest: #e3e2e6;/* N-90 */
+
+  /* --- Brand reference ----------------------------------------------------
+     Not part of the MD3 scheme and deliberately outside it. These sample the
+     photographs so tints can be keyed to the artwork. NEVER use them as UI
+     chrome: no buttons, no links, no text. */
+  --brand-seed: #73a9f5;
+  --brand-phone-blue: #73a9f5;
+  --brand-phone-orange: #f0955a;
+
+  /* --- MD3 typescale ------------------------------------------------------
+     MD3 role names, fluid values. The spec fixes display-large at 57px, which
+     is an app-UI size; a marketing hero legitimately runs larger, so these
+     clamp() upward while keeping the spec's proportions and roles. */
+  --md-sys-typescale-display-large-size: clamp(3.25rem, 1.5rem + 7.5vw, 8rem);
+  --md-sys-typescale-display-medium-size: clamp(2.5rem, 1.6rem + 4vw, 5rem);
+  --md-sys-typescale-display-small-size: clamp(1.75rem, 1.4rem + 1.6vw, 2.75rem);
+  --md-sys-typescale-headline-large-size: clamp(1.75rem, 1.4rem + 1.6vw, 2.75rem);
+  --md-sys-typescale-headline-medium-size: clamp(1.5rem, 1.2rem + 1.2vw, 2.25rem);
+  --md-sys-typescale-headline-small-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.6rem);
+  --md-sys-typescale-title-large-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.6rem);
+  --md-sys-typescale-title-medium-size: 1rem;
+  --md-sys-typescale-title-small-size: 0.875rem;
+  --md-sys-typescale-body-large-size: clamp(1rem, 0.96rem + 0.2vw, 1.125rem);
+  --md-sys-typescale-body-medium-size: 0.9rem;
+  --md-sys-typescale-body-small-size: 0.8rem;
+  --md-sys-typescale-label-large-size: 0.875rem;
+  --md-sys-typescale-label-medium-size: 0.78rem;
+  --md-sys-typescale-label-small-size: 0.6875rem;
+
+  --md-sys-typescale-display-weight: 800;
+  --md-sys-typescale-headline-weight: 800;
+  --md-sys-typescale-title-weight: 700;
+  --md-sys-typescale-body-weight: 400;
+  --md-sys-typescale-label-weight: 600;
+
+  --md-sys-typescale-display-tracking: -0.025em;
+  --md-sys-typescale-headline-tracking: -0.02em;
+  --md-sys-typescale-label-tracking: 0.1px;
+
+  --md-sys-typescale-display-line-height: 1.02;
+  --md-sys-typescale-headline-line-height: 1.1;
+  --md-sys-typescale-body-line-height: 1.55;
+
+  /* Archivo stands in for the brand face Horizon, which is not licensed here.
+     Variable weight 400..900 and width 75..125. */
+  --md-ref-typeface-brand: 'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --md-ref-typeface-plain: var(--md-ref-typeface-brand);
+
+  /* --- MD3 shape scale ---------------------------------------------------- */
+  --md-sys-shape-corner-none: 0;
+  --md-sys-shape-corner-extra-small: 4px;
+  --md-sys-shape-corner-small: 8px;
+  --md-sys-shape-corner-medium: 12px;
+  --md-sys-shape-corner-large: 16px;
+  --md-sys-shape-corner-extra-large: 28px;
+  --md-sys-shape-corner-full: 9999px;
+
+  /* --- MD3 elevation ------------------------------------------------------
+     Prefer the surface container ladder above for separating surfaces. Reach
+     for a shadow only when something genuinely floats. */
+  --md-sys-elevation-level0: none;
+  --md-sys-elevation-level1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+  --md-sys-elevation-level2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px 2px rgba(0, 0, 0, 0.15);
+  --md-sys-elevation-level3: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 8px 3px rgba(0, 0, 0, 0.15);
+  --md-sys-elevation-level4: 0 2px 3px rgba(0, 0, 0, 0.3), 0 6px 10px 4px rgba(0, 0, 0, 0.15);
+  --md-sys-elevation-level5: 0 4px 4px rgba(0, 0, 0, 0.3), 0 8px 12px 6px rgba(0, 0, 0, 0.15);
+
+  /* --- MD3 state layers ---------------------------------------------------
+     An interactive surface gets a translucent layer of its OWN content colour
+     on top, at these opacities. That is how MD3 does hover and press. */
+  --md-sys-state-hover-state-layer-opacity: 0.08;
+  --md-sys-state-focus-state-layer-opacity: 0.12;
+  --md-sys-state-pressed-state-layer-opacity: 0.12;
+  --md-sys-state-dragged-state-layer-opacity: 0.16;
+  --md-sys-state-disabled-content-opacity: 0.38;
+  --md-sys-state-disabled-container-opacity: 0.12;
+
+  /* --- MD3 motion ---------------------------------------------------------
+     These govern component state transitions. They do NOT govern the hero
+     scroll sequence, which is scrubbed to scroll position and must stay
+     linear. See .agents/10-web.md. */
+  --md-sys-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-easing-standard-decelerate: cubic-bezier(0, 0, 0, 1);
+  --md-sys-motion-easing-standard-accelerate: cubic-bezier(0.3, 0, 1, 1);
+  --md-sys-motion-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --md-sys-motion-easing-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+
+  --md-sys-motion-duration-short2: 100ms;
+  --md-sys-motion-duration-short4: 200ms;
+  --md-sys-motion-duration-medium2: 300ms;
+  --md-sys-motion-duration-medium4: 400ms;
+  --md-sys-motion-duration-long2: 500ms;
+
+  /* --- Layout -------------------------------------------------------------
+     Not an MD3 concept. MD3's window size classes are for app layout; this is
+     a marketing page, so it keeps a centred shell. */
   --shell: min(1280px, 100% - 2 * var(--gutter));
   --gutter: clamp(20px, 5vw, 64px);
-
-  --step-0: clamp(1rem, 0.96rem + 0.2vw, 1.125rem);
-  --step-1: clamp(1.25rem, 1.1rem + 0.7vw, 1.6rem);
-  --step-2: clamp(1.75rem, 1.4rem + 1.6vw, 2.75rem);
-  --step-3: clamp(2.5rem, 1.6rem + 4vw, 5rem);
-  --step-4: clamp(3.25rem, 1.5rem + 7.5vw, 8rem);
 
   --space-s: 8px;
   --space-m: 16px;
   --space-l: 32px;
   --space-xl: clamp(56px, 9vw, 120px);
   --space-section: clamp(96px, 14vw, 200px);
-
-  --radius: 14px;
-  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 }

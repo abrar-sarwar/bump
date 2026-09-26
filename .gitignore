@@ -13,3 +13,6 @@ xcuserdata/
 *.hmap
 *.ipa
 *.dSYM.zip
+
+# Local AI agent context, shared between tools on this machine. Never committed.
+.agents/

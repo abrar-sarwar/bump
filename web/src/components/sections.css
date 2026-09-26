@@ -5,7 +5,7 @@
 
 /* ---------------------------------------------------------------- intro */
 .section--intro {
-  border-top: 1px solid var(--hairline);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .intro__grid {
@@ -22,7 +22,7 @@
 
 .intro__statement {
   grid-area: statement;
-  font-size: var(--step-3);
+  font-size: var(--md-sys-typescale-display-medium-size);
   font-weight: 800;
   font-stretch: 105%;
   text-wrap: balance;
@@ -32,16 +32,16 @@
   grid-area: body;
   display: grid;
   gap: var(--space-m);
-  font-size: var(--step-1);
-  color: var(--navy-soft);
+  font-size: var(--md-sys-typescale-headline-small-size);
+  color: var(--md-sys-color-on-surface-variant);
   line-height: 1.45;
   padding-bottom: 0.4em;
 }
 
 .intro__aside {
-  font-size: var(--step-0);
-  color: var(--navy);
-  border-left: 2px solid var(--blue);
+  font-size: var(--md-sys-typescale-body-large-size);
+  color: var(--md-sys-color-on-surface);
+  border-left: 2px solid var(--md-sys-color-primary);
   padding-left: var(--space-m);
 }
 
@@ -54,10 +54,10 @@
 }
 
 /* ---------------------------------------------------------------- steps */
-.section--steps { background: var(--ivory-deep); }
+.section--steps { background: var(--md-sys-color-surface-container-low); }
 
 .steps__heading {
-  font-size: var(--step-3);
+  font-size: var(--md-sys-typescale-display-medium-size);
   margin-top: var(--space-m);
   margin-bottom: var(--space-xl);
   text-wrap: balance;
@@ -67,7 +67,7 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--hairline);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .step {
@@ -75,7 +75,7 @@
   grid-template-columns: clamp(80px, 12vw, 170px) minmax(0, 1fr);
   gap: clamp(16px, 4vw, 56px);
   padding-block: clamp(28px, 4.5vw, 56px);
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
   align-items: start;
 }
 
@@ -83,7 +83,7 @@
   font-size: clamp(2rem, 5vw, 3.6rem);
   font-weight: 800;
   font-stretch: 112%;
-  color: var(--blue);
+  color: var(--md-sys-color-primary);
   line-height: 0.85;
   letter-spacing: -0.03em;
 }
@@ -95,19 +95,19 @@
 }
 
 .step__title {
-  font-size: var(--step-2);
+  font-size: var(--md-sys-typescale-display-small-size);
   font-weight: 800;
 }
 
 .step__body {
-  font-size: var(--step-1);
-  color: var(--navy);
+  font-size: var(--md-sys-typescale-headline-small-size);
+  color: var(--md-sys-color-on-surface);
   line-height: 1.45;
 }
 
 .step__note {
   font-size: 0.92rem;
-  color: var(--navy-soft);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 @media (max-width: 560px) {
@@ -116,7 +116,7 @@
 
 /* -------------------------------------------------------------- overlap */
 .overlap__heading {
-  font-size: var(--step-3);
+  font-size: var(--md-sys-typescale-display-medium-size);
   margin-top: var(--space-m);
   margin-bottom: var(--space-xl);
   text-wrap: balance;
@@ -135,8 +135,8 @@
 }
 
 .person {
-  background: var(--white);
-  border-radius: 20px;
+  background: var(--md-sys-color-surface-container-lowest);
+  border-radius: var(--md-sys-shape-corner-extra-large);
   padding: clamp(18px, 2.4vw, 26px);
   display: grid;
   grid-template-columns: auto 1fr;
@@ -155,10 +155,10 @@
   place-items: center;
   font-weight: 800;
   font-size: 1.2rem;
-  color: var(--navy);
+  color: var(--md-sys-color-on-surface);
 }
-.person__avatar--blue { background: rgba(115, 169, 245, 0.28); }
-.person__avatar--orange { background: rgba(240, 149, 90, 0.28); }
+.person__avatar--blue { background: var(--md-sys-color-primary-container); }
+.person__avatar--orange { background: color-mix(in srgb, var(--brand-phone-orange) 28%, transparent); }
 
 .person__name { grid-area: name; font-size: 1.05rem; font-weight: 700; align-self: end; }
 
@@ -176,21 +176,21 @@
 .chip {
   font-size: 0.8rem;
   padding: 5px 11px;
-  border-radius: 999px;
-  background: #eef2f7;
-  color: var(--navy-soft);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .chip--shared {
-  background: var(--blue-ink);
-  color: var(--white);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
   font-weight: 600;
 }
 
 .overlap__result { display: grid; gap: var(--space-m); }
 
 .overlap__shared {
-  font-size: var(--step-2);
+  font-size: var(--md-sys-typescale-display-small-size);
   font-weight: 800;
   line-height: 1.1;
   text-wrap: balance;
@@ -198,17 +198,17 @@
 
 .overlap__opener {
   margin: 0;
-  font-size: var(--step-1);
+  font-size: var(--md-sys-typescale-headline-small-size);
   font-weight: 500;
   line-height: 1.35;
-  color: var(--navy);
-  border-left: 3px solid var(--blue);
+  color: var(--md-sys-color-on-surface);
+  border-left: 3px solid var(--md-sys-color-primary);
   padding: 4px 0 4px var(--space-m);
 }
 
 .overlap__evidence {
   font-size: 0.9rem;
-  color: var(--navy-soft);
+  color: var(--md-sys-color-on-surface-variant);
   max-width: 54ch;
 }
 
@@ -224,7 +224,7 @@
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--navy-soft);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .overlap__dots { display: flex; gap: 8px; }
@@ -234,11 +234,11 @@
   height: 30px;
   padding: 0;
   border-radius: 50%;
-  border: 1px solid var(--hairline);
-  background: var(--white);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-lowest);
   cursor: pointer;
   position: relative;
-  transition: background-color 0.18s var(--ease), border-color 0.18s var(--ease);
+  transition: background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard), border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
 .dot::after {
   content: '';
@@ -247,15 +247,15 @@
   translate: -50% -50%;
   width: 8px; height: 8px;
   border-radius: 50%;
-  background: var(--navy-soft);
+  background: var(--md-sys-color-on-surface-variant);
 }
-.dot--on { border-color: var(--blue-ink); background: var(--blue-ink); }
-.dot--on::after { background: var(--white); }
+.dot--on { border-color: var(--md-sys-color-primary); background: var(--md-sys-color-primary); }
+.dot--on::after { background: var(--md-sys-color-surface-container-lowest); }
 
 .overlap__disclaimer {
   margin-top: var(--space-xl);
   font-size: 0.85rem;
-  color: var(--navy-soft);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 @media (max-width: 860px) {
@@ -264,8 +264,8 @@
 
 /* ------------------------------------------------------------------ cta */
 .section--cta {
-  background: var(--blue);
-  color: var(--white);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
   text-align: center;
 }
 
@@ -276,8 +276,8 @@
 }
 
 .cta__heading {
-  font-size: var(--step-3);
-  color: var(--white);
+  font-size: var(--md-sys-typescale-display-medium-size);
+  color: var(--md-sys-color-on-primary);
   text-wrap: balance;
 }
 
@@ -290,8 +290,8 @@
 
 .cta__line {
   max-width: 46ch;
-  font-size: var(--step-1);
-  color: rgba(255, 255, 255, 0.92);
+  font-size: var(--md-sys-typescale-headline-small-size);
+  color: color-mix(in srgb, var(--md-sys-color-on-primary) 92%, transparent);
   line-height: 1.4;
   text-wrap: balance;
 }
@@ -305,17 +305,17 @@
 
 .cta__ghost {
   background: transparent;
-  color: var(--white);
-  border-color: rgba(255, 255, 255, 0.6);
+  color: var(--md-sys-color-on-primary);
+  border-color: color-mix(in srgb, var(--md-sys-color-on-primary) 60%, transparent);
 }
-.cta__ghost:hover { background: rgba(255, 255, 255, 0.14); }
+.cta__ghost:hover { background: color-mix(in srgb, var(--md-sys-color-on-primary) 14%, transparent); }
 
-.section--cta :focus-visible { outline-color: var(--white); }
+.section--cta :focus-visible { outline-color: var(--md-sys-color-on-primary); }
 
 /* --------------------------------------------------------------- footer */
 .footer {
   padding-block: clamp(28px, 4vw, 48px);
-  border-top: 1px solid var(--hairline);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .footer__inner {
@@ -326,7 +326,7 @@
   justify-content: space-between;
 }
 
-.footer__note { font-size: 0.9rem; color: var(--navy-soft); }
+.footer__note { font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); }
 
 .footer__links {
   display: flex;

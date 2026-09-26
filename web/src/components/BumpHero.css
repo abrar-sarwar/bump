@@ -1,6 +1,6 @@
 .hero {
   position: relative;
-  background: var(--ivory);
+  background: var(--md-sys-color-surface);
 }
 
 .hero__stage {
@@ -68,7 +68,7 @@
   translate: -50% -50%;
   margin-top: 1vh;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(115, 169, 245, 0.42) 0%, rgba(115, 169, 245, 0) 68%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--md-sys-color-primary) 34%, transparent) 0%, transparent 68%);
   z-index: 3;
   pointer-events: none;
   opacity: 0;
@@ -85,18 +85,18 @@
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  font-size: 0.78rem;
+  font-size: var(--md-sys-typescale-label-medium-size);
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--navy-soft);
+  color: var(--md-sys-color-on-surface-variant);
   white-space: nowrap;
 }
 
 .hero__cue-line {
   width: 1px;
   height: clamp(28px, 5vh, 46px);
-  background: linear-gradient(to bottom, transparent, var(--navy-soft));
+  background: linear-gradient(to bottom, transparent, var(--md-sys-color-outline));
 }
 
 /* --- the reveal copy --------------------------------------------------- */
@@ -117,9 +117,9 @@
 }
 
 .hero__tagline {
-  font-size: var(--step-1);
+  font-size: var(--md-sys-typescale-headline-small-size);
   font-weight: 500;
-  color: var(--navy);
+  color: var(--md-sys-color-on-surface);
   text-wrap: balance;
 }
 
