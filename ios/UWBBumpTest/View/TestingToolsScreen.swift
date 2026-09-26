@@ -87,6 +87,25 @@ struct TestingToolsScreen: View {
                 slider("Buffer before committing", value: $store.settings.pairingBuffer,
                        range: 0.05...0.8, step: 0.05, unit: "s")
 
+                // MARK: Background evidence
+                SectionHeading(title: "Background ranging",
+                               subtitle: "Checkpoint A. Did real UWB callbacks arrive while BUMP was off screen? A Live Activity sitting there proves nothing on its own.")
+                Card {
+                    VStack(alignment: .leading, spacing: Space.s) {
+                        metric("Last backgrounded",
+                               engine.lastBackgroundedAt.map { $0.formatted(date: .omitted, time: .standard) } ?? "not yet")
+                        metric("Callbacks while off screen", "\(engine.backgroundRangingCallbacks)")
+                        metric("Last one at",
+                               engine.lastBackgroundRangingAt.map { $0.formatted(date: .omitted, time: .standard) } ?? "none")
+                        Text(engine.backgroundRangingCallbacks > 0
+                             ? "UWB kept ranging while backgrounded on this hardware."
+                             : "No ranging callbacks yet while backgrounded. Background the app with a peer connected, wait, then come back and read this.")
+                            .font(BumpFont.caption)
+                            .foregroundStyle(engine.backgroundRangingCallbacks > 0 ? BumpColor.positive : BumpColor.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
                 // MARK: Live Activity
                 SectionHeading(title: "Live Activity",
                                subtitle: "Dynamic Island session. Interface state only. It never influences matching.")

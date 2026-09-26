@@ -136,6 +136,12 @@ final class BumpEngine: ObservableObject {
     /// One approach gate per peer, so a measurement can only ever fire for the
     /// peer it belongs to.
     private var proximityGates: [String: ProximityGate] = [:]
+    /// Checkpoint A evidence: how many real ranging callbacks arrived while the
+    /// app was NOT on screen, and when the last one landed. A frozen distance or
+    /// a persistent Live Activity proves nothing; these do.
+    @Published private(set) var backgroundRangingCallbacks = 0
+    @Published private(set) var lastBackgroundRangingAt: Date?
+    @Published private(set) var lastBackgroundedAt: Date?
     private var phaseDeadline: Timer?
 
     /// Seconds a proposal may sit unconfirmed before it is closed.
@@ -463,6 +469,10 @@ final class BumpEngine: ObservableObject {
 
     private func handleMeasurement(_ peerID: String, _ distance: Double) {
         let age = ranging.measurements[peerID]?.age ?? 0
+        if isBackgrounded {
+            backgroundRangingCallbacks += 1
+            lastBackgroundRangingAt = Date()
+        }
 
         // Always report close readings as evidence about WHICH peer. On its own
         // this is not a trigger in the normal foreground flow, where a
@@ -951,7 +961,22 @@ final class BumpEngine: ObservableObject {
 
     private func peerLeft(_ peer: String) {
         proximityGates[peer] = nil
-        ranging.endSession(for: peer)
+        // A Multipeer drop is NOT proof that ranging has failed. Multipeer is a
+        // foreground-only transport, so it disconnects the instant the app is
+        // backgrounded, while a UWB session is allowed to keep running with an
+        // active Live Activity. Tearing the NISession down here killed ranging
+        // about a second after backgrounding, every time.
+        //
+        // Only end ranging when the session is genuinely finished: the app is in
+        // the foreground (so the drop means something), or there is no live
+        // session to keep it alive for. NISession's own delegate still reports
+        // peerEnded and invalidation, which is what actually decides this.
+        let sessionStillLive = liveActivity.isRunning && !liveActivity.hasExpired
+        if !isBackgrounded || !sessionStillLive {
+            ranging.endSession(for: peer)
+        } else {
+            note("transport dropped \(name(peer)) while backgrounded, keeping the UWB session")
+        }
         if isCoordinator {
             matcher.remove(participant: peer)
             membersByID[peer] = nil
@@ -961,6 +986,13 @@ final class BumpEngine: ObservableObject {
             }
             broadcastRoster()
         } else if members.isEmpty || transport.connected.isEmpty {
+            // Backgrounded, losing the coordinator is expected: Multipeer always
+            // drops. Retrying would spin against a transport iOS has stopped, so
+            // hold the session and let the foreground handler rebuild it.
+            if isBackgrounded && liveActivity.isRunning && !liveActivity.hasExpired {
+                note("coordinator dropped while backgrounded, waiting rather than retrying")
+                return
+            }
             // We lost the coordinator. Pause matching and offer a clear way back;
             // no host migration, by design.
             if let code = room.code {
@@ -1152,6 +1184,8 @@ final class BumpEngine: ObservableObject {
             motion.stop()
 
             isBackgrounded = true
+            lastBackgroundedAt = Date()
+            backgroundRangingCallbacks = 0      // count this backgrounding only
             if liveActivity.isRunning && !liveActivity.hasExpired {
                 // A valid session with a Live Activity keeps ranging. Documented
                 // from iOS 18.4 with the nearby-interaction background mode.
