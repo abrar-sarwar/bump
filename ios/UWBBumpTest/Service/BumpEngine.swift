@@ -222,6 +222,95 @@ final class BumpEngine: ObservableObject {
         joinNearbyOrHost()
     }
 
+    // MARK: Automatic readiness
+
+    /// True only while the user has explicitly paused. Nothing else sets this,
+    /// so backgrounding or a finished match can never leave BUMP silently off.
+    @Published private(set) var isPaused = false
+
+    /// What the Bump tab should show while waiting. Derived from the real state
+    /// of the services rather than stored, so the label can never claim the app
+    /// is ready when it isn't.
+    enum AutoStatus: Equatable {
+        case gettingReady
+        case listening
+        case paused
+        /// A specific step the person has to complete, phrased for them.
+        case blocked(String)
+    }
+
+    var autoStatus: AutoStatus {
+        if isPaused { return .paused }
+        if let blocker = setupBlocker { return .blocked(blocker) }
+        if case .unavailable(let why) = phase { return .blocked(why) }
+        if case .ready = phase { return .listening }
+        return .gettingReady
+    }
+
+    /// A step that genuinely prevents a session from existing at all.
+    ///
+    /// Deliberately short. A missing accelerometer is NOT in here: discovery,
+    /// the peer session and manual selection all still work without it, so
+    /// blocking startup over it would strand the person with nothing. That case
+    /// surfaces through `phase == .unavailable` once the session is up, which
+    /// still reads as `.blocked` to the UI but leaves the room running.
+    var setupBlocker: String? {
+        if !store.profile.isComplete {
+            return "Finish your profile first so the person you meet knows who you are."
+        }
+        if transport.lastError != nil {
+            return "BUMP needs Local Network access to see the phones around you. Turn it on in Settings, then come back."
+        }
+        return nil
+    }
+
+    /// Begin waiting for a bump. Idempotent: safe to call on every appearance of
+    /// the Bump tab and on every return to the foreground, because it never
+    /// opens a second session or stacks a second set of listeners.
+    func autoStart() {
+        guard !isPaused, setupBlocker == nil else { return }
+        // Already in a room: the session stands, just make sure sensing is live.
+        if room != .none { ensureSensing(); return }
+        // A start is already in flight (joining, or waiting to decide the host).
+        guard !nearbyMode else { return }
+        note("starting automatically")
+        startNearby()
+    }
+
+    /// Bring motion sensing back without touching the peer session. Only acts
+    /// from a resting phase, so it can never interrupt a live proposal, an
+    /// in-flight bump or the reveal.
+    private func ensureSensing() {
+        guard !isPaused, room != .none else { return }
+        guard case .notReady = phase else { return }
+        setReady(true)
+    }
+
+    /// The small secondary control. Pausing keeps the peer session open and only
+    /// stops detection, so resuming is instant and needs no reconnect.
+    func pause() {
+        guard !isPaused else { return }
+        isPaused = true
+        nearbyTimer?.invalidate(); nearbyTimer = nil
+        motion.stop()
+        if case .ready = phase { phase = .notReady }
+        note("paused by the user")
+    }
+
+    func resume() {
+        guard isPaused else { return }
+        isPaused = false
+        note("resumed by the user")
+        autoStart()
+    }
+
+    /// Leave a named event room and fall back to waiting for whoever is nearby.
+    func leaveEvent() {
+        leaveRoom()
+        nearbyMode = false
+        autoStart()
+    }
+
     /// Stop bumping and leave the nearby room.
     func stopNearby() {
         nearbyMode = false
@@ -860,12 +949,16 @@ final class BumpEngine: ObservableObject {
         case .active:
             ranging.resumeAll()
             if room != .none { refreshCloudStatus() }
+            // Pick straight back up. No Start action, no reconnect prompt.
+            autoStart()
         case .background, .inactive:
-            // Foreground-only experiment: stop sensing, clear stale values.
+            // Foreground only: stop sensing and clear stale values. A bump that
+            // was mid-flight is simply dropped back to resting, so returning to
+            // the app starts listening again on its own.
             motion.stop()
             ranging.pauseAll()
             if case .ready = phase { phase = .notReady }
-            if case .checking = phase { phase = .needsRetry("BUMP paused when you left the app. Tap ready and try again.") }
+            if case .checking = phase { phase = .notReady }
         @unknown default: break
         }
     }
@@ -882,7 +975,9 @@ final class BumpEngine: ObservableObject {
         cancelGeneration()
         myProposal = nil; partnerProfile = nil
         phase = .notReady
-        setReady(true)
+        // Goes through autoStart so a finished match also re-establishes the
+        // room if it was lost while the reveal was open.
+        autoStart()
     }
 
     func saveCurrentConnection() {

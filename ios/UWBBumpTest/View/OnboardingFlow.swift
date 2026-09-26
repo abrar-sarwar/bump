@@ -512,7 +512,7 @@ private struct CardStep: View {
         }
         .safeAreaInset(edge: .bottom) {
             BottomBar {
-                Button("Start bumping", action: onFinished)
+                Button("Start meeting people", action: onFinished)
                     .buttonStyle(.bumpPrimary)
                     .disabled(!model.canFinish)
                 if !model.canFinish {

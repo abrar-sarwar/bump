@@ -737,3 +737,116 @@ final class ProfileCompatibilityTests: XCTestCase {
         XCTAssertEqual(Wire.version, 2)
     }
 }
+
+// MARK: - Automatic readiness
+
+/// BUMP begins waiting for a bump on its own. These cover the parts that do not
+/// need radios: that starting is idempotent, that pause is the only thing which
+/// can silence it, and that the status label never claims to be ready early.
+@MainActor
+final class AutoStartTests: XCTestCase {
+
+    private func engine(profileComplete: Bool = true) -> (BumpEngine, Store) {
+        let store = Store(inMemory: true)
+        if profileComplete {
+            store.profile = Profile(displayName: "Ada", bio: "",
+                                    interests: [InterestCatalog.byID["chess"]!])
+        }
+        return (BumpEngine(store: store), store)
+    }
+
+    func testStatusIsGettingReadyBeforeAnythingIsRunning() {
+        let (e, _) = engine()
+        XCTAssertEqual(e.autoStatus, .gettingReady)
+        XCTAssertFalse(e.isPaused)
+    }
+
+    /// The Simulator has no accelerometer. That must not stop a session from
+    /// forming: discovery and manual selection still work without motion.
+    func testAMissingAccelerometerDoesNotBlockStartup() {
+        let (e, _) = engine()
+        XCTAssertNil(e.setupBlocker, "motion availability is not a startup blocker")
+        e.autoStart()
+        XCTAssertTrue(e.nearbyMode, "the session must still come up")
+    }
+
+    func testAnIncompleteProfileBlocksWithASpecificStep() {
+        let (e, _) = engine(profileComplete: false)
+        guard case .blocked(let step) = e.autoStatus else { return XCTFail("expected blocked") }
+        XCTAssertTrue(step.lowercased().contains("profile"), "the step must name what to do: \(step)")
+        // Blocked means we do not start, so nothing is half-initialised.
+        e.autoStart()
+        XCTAssertEqual(e.room, .none)
+        XCTAssertFalse(e.nearbyMode)
+    }
+
+    func testBlockedClearsByItselfOnceSetupIsDone() {
+        let (e, store) = engine(profileComplete: false)
+        XCTAssertNotNil(e.setupBlocker)
+        store.profile = Profile(displayName: "Ada", bio: "",
+                                interests: [InterestCatalog.byID["chess"]!])
+        XCTAssertNil(e.setupBlocker, "finishing the step must unblock without another action")
+    }
+
+    func testAutoStartIsIdempotentAcrossRepeatedAppearances() {
+        let (e, _) = engine()
+        e.autoStart()
+        XCTAssertTrue(e.nearbyMode, "the first call begins waiting")
+        let roomAfterFirst = e.room
+        // Tab switches, foreground returns and re-renders all land here.
+        for _ in 0..<5 { e.autoStart() }
+        XCTAssertTrue(e.nearbyMode)
+        XCTAssertEqual(e.room, roomAfterFirst, "repeated calls must not open a second session")
+    }
+
+    func testPauseStopsListeningAndKeepsTheSession() {
+        let (e, _) = engine()
+        e.autoStart()
+        let room = e.room
+        e.pause()
+        XCTAssertTrue(e.isPaused)
+        XCTAssertEqual(e.autoStatus, .paused)
+        XCTAssertEqual(e.room, room, "pausing must not tear down the peer session")
+        // While paused, nothing restarts it behind the user's back.
+        e.autoStart()
+        XCTAssertTrue(e.isPaused)
+        XCTAssertEqual(e.autoStatus, .paused)
+    }
+
+    func testResumeReturnsToWaiting() {
+        let (e, _) = engine()
+        e.autoStart(); e.pause()
+        e.resume()
+        XCTAssertFalse(e.isPaused)
+        XCTAssertNotEqual(e.autoStatus, .paused)
+    }
+
+    func testPauseAndResumeAreEachIdempotent() {
+        let (e, _) = engine()
+        e.autoStart()
+        e.pause(); e.pause()
+        XCTAssertTrue(e.isPaused)
+        e.resume(); e.resume()
+        XCTAssertFalse(e.isPaused)
+    }
+
+    func testReturningToForegroundDoesNotNeedAStartAction() {
+        let (e, _) = engine()
+        e.autoStart()
+        e.handleScenePhase(.background)
+        XCTAssertFalse(e.isPaused, "backgrounding is not pausing")
+        e.handleScenePhase(.active)
+        // Whatever the radios do, the app must not be sitting in a state that
+        // waits for the user to press something.
+        XCTAssertNotEqual(e.autoStatus, .paused)
+        XCTAssertNil(e.setupBlocker)
+    }
+
+    func testAPausedAppStaysPausedAcrossBackgrounding() {
+        let (e, _) = engine()
+        e.autoStart(); e.pause()
+        e.handleScenePhase(.background)
+        e.handleScenePhase(.active)
+        XCTAssertTrue(e.isPaused, "the foreground handler must not override an explicit pause")
+    }
+}

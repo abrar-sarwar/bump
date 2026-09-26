@@ -101,7 +101,7 @@ struct ProfileEditor: View {
                         .disabled(detailEntry.trimmed().isEmpty)
                 }
 
-                Button(isOnboarding ? "Start bumping" : "Save", action: onDone)
+                Button(isOnboarding ? "Start meeting people" : "Save", action: onDone)
                     .buttonStyle(.bumpPrimary)
                     .disabled(!profile.isComplete)
 
