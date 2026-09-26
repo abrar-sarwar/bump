@@ -100,6 +100,10 @@ struct BumpActivityAttributes: ActivityAttributes {
         static func preparing() -> ContentState {
             ContentState(state: .preparing, nearbyCount: 0)
         }
+
+        /// True when this person has a decision waiting. Mirrors the enum so the
+        /// widget can ask the content directly.
+        var needsDecision: Bool { state.needsDecision && proposalID != nil }
     }
 }
 

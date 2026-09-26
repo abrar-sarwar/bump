@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXContainerItemProxy section */
+		CAFE00000000000000000052 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CAFE00000000000000000009 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CAFE00000000000000000040;
+			remoteInfo = BumpWidgets;
+		};
 		CAFE00000000000000000030 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = CAFE00000000000000000009 /* Project object */;
@@ -19,9 +26,17 @@
 /* Begin PBXFileReference section */
 		CAFE00000000000000000001 /* UWBBumpTest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = UWBBumpTest.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CAFE00000000000000000021 /* BumpTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BumpTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CAFE00000000000000000041 /* BumpWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BumpWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		CAFE00000000000000000057 /* Exceptions for "BumpWidgets" folder in "BumpWidgets" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = CAFE00000000000000000040 /* BumpWidgets */;
+		};
 		CAFE00000000000000000010 /* Exceptions for "UWBBumpTest" folder in "UWBBumpTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -45,6 +60,19 @@
 			path = BumpTests;
 			sourceTree = "<group>";
 		};
+		CAFE00000000000000000042 /* BumpWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CAFE00000000000000000057 /* Exceptions for "BumpWidgets" folder in "BumpWidgets" target */,
+			);
+			path = BumpWidgets;
+			sourceTree = "<group>";
+		};
+		CAFE00000000000000000056 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +90,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CAFE00000000000000000044 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -69,6 +104,8 @@
 			isa = PBXGroup;
 			children = (
 				CAFE00000000000000000003 /* UWBBumpTest */,
+				CAFE00000000000000000056 /* Shared */,
+				CAFE00000000000000000042 /* BumpWidgets */,
 				CAFE00000000000000000022 /* BumpTests */,
 				CAFE00000000000000000006 /* Products */,
 			);
@@ -79,6 +116,7 @@
 			children = (
 				CAFE00000000000000000001 /* UWBBumpTest.app */,
 				CAFE00000000000000000021 /* BumpTests.xctest */,
+				CAFE00000000000000000041 /* BumpWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -93,13 +131,16 @@
 				CAFE00000000000000000007 /* Sources */,
 				CAFE00000000000000000004 /* Frameworks */,
 				CAFE00000000000000000008 /* Resources */,
+				CAFE00000000000000000049 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				CAFE00000000000000000051 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				CAFE00000000000000000003 /* UWBBumpTest */,
+				CAFE00000000000000000056 /* Shared */,
 			);
 			name = UWBBumpTest;
 			packageProductDependencies = (
@@ -130,6 +171,29 @@
 			productName = BumpTests;
 			productReference = CAFE00000000000000000021 /* BumpTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		CAFE00000000000000000040 /* BumpWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CAFE00000000000000000046 /* Build configuration list for PBXNativeTarget "BumpWidgets" */;
+			buildPhases = (
+				CAFE00000000000000000043 /* Sources */,
+				CAFE00000000000000000044 /* Frameworks */,
+				CAFE00000000000000000045 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CAFE00000000000000000042 /* BumpWidgets */,
+				CAFE00000000000000000056 /* Shared */,
+			);
+			name = BumpWidgets;
+			packageProductDependencies = (
+			);
+			productName = BumpWidgets;
+			productReference = CAFE00000000000000000041 /* BumpWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -165,6 +229,7 @@
 			projectRoot = "";
 			targets = (
 				CAFE00000000000000000002 /* UWBBumpTest */,
+				CAFE00000000000000000040 /* BumpWidgets */,
 				CAFE00000000000000000020 /* BumpTests */,
 			);
 		};
@@ -179,6 +244,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		CAFE00000000000000000025 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CAFE00000000000000000045 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -202,9 +274,39 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CAFE00000000000000000043 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		CAFE00000000000000000049 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				CAFE00000000000000000050 /* BumpWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXBuildFile section */
+		CAFE00000000000000000050 /* BumpWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CAFE00000000000000000041 /* BumpWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXTargetDependency section */
+		CAFE00000000000000000051 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CAFE00000000000000000040 /* BumpWidgets */;
+			targetProxy = CAFE00000000000000000052 /* PBXContainerItemProxy */;
+		};
 		CAFE00000000000000000029 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = CAFE00000000000000000002 /* UWBBumpTest */;
@@ -381,6 +483,56 @@
 			};
 			name = Release;
 		};
+		CAFE00000000000000000047 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 56KWU9QP85;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BumpWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jaredberesford.uwbbumptest.BumpWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		CAFE00000000000000000048 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 56KWU9QP85;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BumpWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jaredberesford.uwbbumptest.BumpWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -407,6 +559,15 @@
 			buildConfigurations = (
 				CAFE00000000000000000027 /* Debug */,
 				CAFE00000000000000000028 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CAFE00000000000000000046 /* Build configuration list for PBXNativeTarget "BumpWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CAFE00000000000000000047 /* Debug */,
+				CAFE00000000000000000048 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
