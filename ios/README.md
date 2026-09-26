@@ -187,8 +187,10 @@ Failures: denied mic → typing; no key / offline / timeout → "Try again" or
 history); extraction fails → the on-phone drafter fills the card and you edit
 it; a spoken correction that returns after you've edited the card by hand is
 ignored. Leaving the screen or backgrounding the app stops the mic, playback
-and socket. No audio is ever written to disk, and the transcript is dropped
-once the card is saved.
+and socket. No audio is ever written to disk. When the card is saved (and cloud
+processing is allowed), the transcript and follow-up answers are sent to
+`POST /v1/onboarding/transcript` and stored in Supabase; the phone then drops
+its copy.
 
 The typed path (intro text → up to three follow-ups → card) is unchanged.
 

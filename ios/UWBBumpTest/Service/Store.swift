@@ -1,7 +1,8 @@
 import Foundation
 
 /// Local persistence: profile + saved connections as JSON in Application
-/// Support. Nothing here is synced to a server; there is no database.
+/// Support. None of this is synced; the only thing stored server-side is the
+/// onboarding transcript (see `OnboardingModel.finish()`).
 @MainActor
 final class Store: ObservableObject {
 
@@ -67,6 +68,16 @@ final class Store: ObservableObject {
         connections = Self.load([SavedConnection].self, from: Self.connectionsURL) ?? []
         settings = Self.load(Settings.self, from: Self.settingsURL) ?? Settings()
         privacy = Self.load(PrivacyPreferences.self, from: Self.privacyURL) ?? PrivacyPreferences()
+    }
+
+    /// Random id for this install, sent with a saved onboarding transcript so
+    /// rows from one phone can be grouped. Not tied to any account.
+    static var installID: UUID {
+        let key = "bump.installID"
+        if let raw = UserDefaults.standard.string(forKey: key), let id = UUID(uuidString: raw) { return id }
+        let id = UUID()
+        UserDefaults.standard.set(id.uuidString, forKey: key)
+        return id
     }
 
     /// Whether the bump tutorial has been shown (a UI convenience, kept in

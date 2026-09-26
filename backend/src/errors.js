@@ -23,3 +23,7 @@ export const upstreamTimeout = () =>
   new ApiError(504, 'upstream_timeout', 'The AI service did not answer in time.');
 export const notConfigured = () =>
   new ApiError(503, 'not_configured', 'The AI service is not configured on this server.');
+export const storageNotConfigured = () =>
+  new ApiError(503, 'storage_not_configured', 'Saving is not configured on this server.');
+export const storageError = () =>
+  new ApiError(502, 'storage_error', 'The transcript could not be saved.');

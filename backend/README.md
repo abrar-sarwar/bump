@@ -46,6 +46,8 @@ exists, and it never overrides variables already set in the environment.
 | `XAI_STT_MODEL` | `grok-voice-transcribe-2.0` | speech-to-text model |
 | `XAI_VOICE_MODEL` | `grok-voice-latest` | realtime voice model for spoken onboarding |
 | `XAI_VOICE` | `eve` | Grok's speaking voice (any voice from xAI's voice list) |
+| `SUPABASE_URL` | none | Supabase project URL, for saving onboarding transcripts |
+| `SUPABASE_SECRET_KEY` | none | `sb_secret_...`, server only. Without URL + key, `/v1/onboarding/transcript` returns `503 storage_not_configured` |
 | `PORT` / `HOST` | `8787` / `0.0.0.0` | |
 
 ### Picking a model
@@ -79,6 +81,11 @@ npm run smoke -- --audio /tmp/intro.m4a
 - Audio is held in memory only. bump-api never writes it to disk or logs it.
   The server logs one line per request (method, path, status, duration) and
   never logs bodies, transcripts, answers, labels, headers or the key.
+- Onboarding transcripts (text the person said or typed, plus their follow-up
+  answers) are saved to Supabase table `onboarding_transcripts` when the app
+  finishes onboarding with cloud processing allowed. The table has RLS on and
+  no grants to `anon`/`authenticated`; only this server's secret key can write
+  or read it. Schema: `supabase/migrations/`.
 - Grok requests are sent with `store: false`.
 - xAI's docs say API requests and responses are retained for up to 30 days by
   default for auditing (https://docs.x.ai/developers/faq/security). We have

@@ -169,6 +169,32 @@ export function parseReviseRequest(body) {
   return { items, utterance };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const TRANSCRIPT_SOURCES = ['voice', 'typed'];
+
+export function parseTranscriptRequest(body) {
+  requireObject(body);
+  if (typeof body.installId !== 'string' || !UUID_RE.test(body.installId)) {
+    throw badRequest('"installId" must be a UUID.');
+  }
+  if (!TRANSCRIPT_SOURCES.includes(body.source)) {
+    throw badRequest(`"source" must be one of ${TRANSCRIPT_SOURCES.join(', ')}.`);
+  }
+  const transcript = stringField(body.transcript, 'transcript', { min: 1, max: LIMITS.transcript });
+  if (!transcript.trim()) throw badRequest('"transcript" must not be blank.');
+  const answers = arrayField(body.answers ?? [], 'answers', LIMITS.asked).map((a, i) => {
+    if (a === null || typeof a !== 'object' || Array.isArray(a)) {
+      throw badRequest(`"answers[${i}]" must be an object.`);
+    }
+    const question = stringField(a.question, `answers[${i}].question`, { min: 1, max: LIMITS.askedQuestion });
+    const answer = a.answer === null || a.answer === undefined
+      ? null
+      : stringField(a.answer, `answers[${i}].answer`, { max: LIMITS.answer });
+    return { question, answer };
+  });
+  return { installId: body.installId.toLowerCase(), source: body.source, transcript: transcript.trim(), answers };
+}
+
 export function parseTalkingPointsRequest(body) {
   requireObject(body);
   const candidates = arrayField(body.candidates, 'candidates', LIMITS.candidates).map((c, i) => {

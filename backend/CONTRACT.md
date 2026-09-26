@@ -26,13 +26,15 @@ Every non-2xx response has this shape:
 | 429 | `rate_limited` | per-client limit hit (`Retry-After` header set) |
 | 502 | `upstream_invalid` | xAI answered but the output failed validation |
 | 502 | `upstream_error` | xAI returned a non-2xx |
+| 502 | `storage_error` | Supabase did not store the transcript |
 | 503 | `not_configured` | `XAI_API_KEY` is not set |
+| 503 | `storage_not_configured` | `SUPABASE_URL` / `SUPABASE_SECRET_KEY` not set |
 | 504 | `upstream_timeout` | xAI did not answer within the server timeout |
 
 ## `GET /healthz`
 
 ```json
-{ "ok": true, "grokConfigured": true, "model": "grok-4.3", "sttModel": "grok-voice-transcribe-2.0" }
+{ "ok": true, "grokConfigured": true, "storageConfigured": true, "model": "grok-4.3", "sttModel": "grok-voice-transcribe-2.0" }
 ```
 
 Never includes the key or any part of it.
@@ -164,6 +166,22 @@ Response:
 ```
 
 A `correct` with nothing usable after validation is returned as `unclear`.
+
+## `POST /v1/onboarding/transcript`
+
+Saves what the person said during onboarding. The app calls it once, when the
+card is saved, and only with cloud processing allowed. Text only; audio is never
+stored. Stored in Supabase (`onboarding_transcripts`) with the server's secret
+key. Max body 16 KB.
+
+```json
+{ "installId": "uuid, random per install",
+  "source": "voice" | "typed",
+  "transcript": "string, 1..2000 chars",
+  "answers": [ { "question": "string 1..300", "answer": "string ≤ 500" | null } ] }  // ≤ 3, optional
+```
+
+Response: `{ "saved": true }`
 
 ## Server-side validation (all endpoints)
 

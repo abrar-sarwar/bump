@@ -6,6 +6,8 @@ import SwiftUI
 protocol OnboardingCloud: Sendable {
     func draft(transcript: String) async throws -> BumpAPIClient.Draft
     func followup(known: [(kind: ProfileFact.Kind, label: String)], asked: [String], answer: String) async throws -> BumpAPIClient.Followup
+    func saveOnboardingTranscript(installID: UUID, source: String, transcript: String,
+                                  answers: [(question: String, answer: String?)]) async throws
 }
 
 extension BumpAPIClient: OnboardingCloud {}
@@ -63,7 +65,8 @@ final class OnboardingModel: ObservableObject {
     struct Answered: Equatable, Identifiable {
         var id: String { question.text }
         let question: Question
-        /// nil when skipped. Private: never saved or shared.
+        /// nil when skipped. Never shared; saved to the BUMP server with the
+        /// transcript only when cloud processing is allowed.
         let answer: String?
     }
 
@@ -533,15 +536,30 @@ final class OnboardingModel: ObservableObject {
     }
 
     /// Save the approved card. Returns false (and saves nothing) if incomplete.
+    /// With cloud processing allowed, the transcript and answers are also sent
+    /// to the BUMP server to be stored (best effort: a failure is not shown).
     @discardableResult
     func finish() -> Bool {
         let profile = buildProfile()
         guard profile.isComplete else { return false }
         tearDown()
         store.profile = profile
+        saveTranscript()
         transcript = ""
         answered = []
         return true
+    }
+
+    private func saveTranscript() {
+        let text = transcript.trimmed()
+        guard cloudAllowed, !text.isEmpty, let client = cloudProvider() else { return }
+        let source = typing ? "typed" : "voice"
+        let answers = answered.map { (question: $0.question.text, answer: $0.answer) }
+        let installID = Store.installID
+        Task {
+            try? await client.saveOnboardingTranscript(installID: installID, source: source,
+                                                       transcript: text, answers: answers)
+        }
     }
 
     #if DEBUG

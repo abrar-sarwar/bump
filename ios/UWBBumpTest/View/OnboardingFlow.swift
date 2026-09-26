@@ -265,7 +265,7 @@ private struct CloudConsentCard: View {
                 Label("Before anything leaves your phone", systemImage: "lock.shield")
                     .font(BumpFont.bodyEmphasis)
                     .foregroundStyle(BumpColor.navy)
-                Text("To transcribe your intro and suggest a card, BUMP sends your recording, anything you type here, and your answers to the BUMP server, which passes them to xAI's Grok.")
+                Text("To transcribe your intro and suggest a card, BUMP sends your recording, anything you type here, and your answers to the BUMP server, which passes them to xAI's Grok. The BUMP server saves the text of your intro and answers (never the audio).")
                     .font(BumpFont.caption).foregroundStyle(BumpColor.navy)
                     .fixedSize(horizontal: false, vertical: true)
                 Text("The BUMP server doesn't store your audio or text. xAI's documentation says API requests are kept for up to 30 days for auditing. Later, if you and the person you bump both allow it, your shared interests are sent the same way to write talking points.")
@@ -455,7 +455,7 @@ struct BumpCardEditor: View {
                     section(kind)
                 }
 
-                Text("Only your name, photo, bio and the checked items are shared, and only with someone you've both confirmed after a bump. Your voice, transcript and answers are never saved or shared.")
+                Text("Only your name, photo, bio and the checked items are shared, and only with someone you've both confirmed after a bump. Your voice is never saved\(model.cloudAllowed ? ". What you said and typed is saved on the BUMP server, never shared." : ", and your transcript and answers stay on this phone.")")
                     .font(BumpFont.caption)
                     .foregroundStyle(BumpColor.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)

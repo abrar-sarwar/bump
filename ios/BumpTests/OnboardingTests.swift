@@ -40,6 +40,14 @@ final class StubCloud: OnboardingCloud, ConversationService.CloudPhraser, @unche
         return try followupResult.get()
     }
 
+    private(set) var savedTranscripts: [(source: String, transcript: String, answers: [(question: String, answer: String?)])] = []
+
+    func saveOnboardingTranscript(installID: UUID, source: String, transcript: String,
+                                  answers: [(question: String, answer: String?)]) async throws {
+        calls.append("saveTranscript")
+        savedTranscripts.append((source, transcript, answers))
+    }
+
     func talkingPoints(_ candidates: [BumpAPIClient.Candidate], timeout: TimeInterval) async throws -> BumpAPIClient.TalkingPoints {
         calls.append("talkingPoints")
         try await wait()
@@ -413,6 +421,41 @@ final class OnboardingModelTests: XCTestCase {
         XCTAssertEqual(store.profile.interests.map(\.id), ["custom:jazz piano", "climbing"])
         XCTAssertEqual(store.profile.goals.map(\.text), ["Meet people building hardware"])
         XCTAssertEqual(store.profile.interestEvidence["custom:jazz piano"], "I play jazz piano")
+    }
+
+    func testFinishSavesTranscriptAndAnswersWhenCloudAllowed() async {
+        let stub = StubCloud()
+        stub.draftResult = .success(goodDraft())
+        stub.followupResult = .success(.init(facts: [], question: nil, generator: StubCloud.grok))
+        let (m, _) = model(stub: stub)
+        m.typing = true
+        m.transcript = intro
+        m.draftProfile()
+        await waitUntilIdle(m)
+        m.answer = "Mostly at Stone Gardens"
+        m.submitAnswer()
+        await waitUntilIdle(m)
+        let question = m.answered.first?.question.text
+        XCTAssertTrue(m.finish())
+        for _ in 0..<50 where stub.savedTranscripts.isEmpty { await Task.yield() }
+
+        XCTAssertEqual(stub.savedTranscripts.count, 1)
+        XCTAssertEqual(stub.savedTranscripts.first?.source, "typed")
+        XCTAssertEqual(stub.savedTranscripts.first?.transcript, intro)
+        XCTAssertEqual(stub.savedTranscripts.first?.answers.first?.question, question)
+        XCTAssertEqual(stub.savedTranscripts.first?.answers.first?.answer, "Mostly at Stone Gardens")
+    }
+
+    func testFinishDoesNotSaveTranscriptWhenLocalOnly() async {
+        let stub = StubCloud()
+        let (m, _) = model(cloud: .localOnly, stub: stub)
+        m.transcript = intro
+        m.draftProfile()
+        await waitUntilIdle(m)
+        if !m.canFinish { m.toggleCatalog(InterestCatalog.byID["chess"]!) }
+        XCTAssertTrue(m.finish())
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertFalse(stub.calls.contains("saveTranscript"))
     }
 
     func testSkippingFreeTextStillWorks() async {

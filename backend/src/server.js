@@ -9,9 +9,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { ApiError, badRequest, notConfigured, tooLarge } from './errors.js';
+import { ApiError, badRequest, notConfigured, storageNotConfigured, tooLarge } from './errors.js';
 import { createRateLimiter } from './ratelimit.js';
 import { DRAFT, FOLLOWUP, REVISE, TALKING_POINTS } from './prompts.js';
+import { insertTranscript } from './supabase.js';
 import { createVoiceSecret, generateJson, transcribe } from './xai.js';
 import {
   LIMITS,
@@ -23,6 +24,7 @@ import {
   parseReviseRequest,
   parseFollowupRequest,
   parseTalkingPointsRequest,
+  parseTranscriptRequest,
 } from './validate.js';
 
 // Body size limits per endpoint (bytes).
@@ -33,6 +35,7 @@ const BODY_LIMITS = {
   talkingPoints: 8 * 1024,
   revise: 16 * 1024,
   voiceSession: 1024,
+  onboardingTranscript: 16 * 1024,
 };
 
 export const DEFAULTS = {
@@ -52,6 +55,10 @@ export const DEFAULTS = {
   voice: 'eve',
   voiceTokenSeconds: 300,
   voiceRateLimitPerMinute: 6,
+  // Onboarding transcripts are saved to Supabase (secret key, server only).
+  supabaseUrl: null,
+  supabaseSecretKey: null,
+  storageTimeoutMs: 8_000,
   rateLimitPerMinute: 30,
   transcribeRateLimitPerMinute: 6,
   log: (line) => console.log(line),
@@ -100,6 +107,8 @@ export function configFromEnv(env = process.env) {
     baseUrl: env.XAI_BASE_URL?.trim() || DEFAULTS.baseUrl,
     port: Number.isInteger(port) ? port : DEFAULTS.port,
     host: env.HOST?.trim() || DEFAULTS.host,
+    supabaseUrl: env.SUPABASE_URL?.trim() || null,
+    supabaseSecretKey: env.SUPABASE_SECRET_KEY?.trim() || null,
   };
 }
 
@@ -191,6 +200,7 @@ export function createServer(options = {}) {
     return {
       ok: true,
       grokConfigured: Boolean(config.apiKey),
+      storageConfigured: Boolean(config.supabaseUrl && config.supabaseSecretKey),
       model: config.model,
       sttModel: config.sttModel,
       voiceModel: config.voiceModel,
@@ -288,6 +298,18 @@ export function createServer(options = {}) {
     return { ...checkTalkingPointsOutput(data, input), generator: generator(model) };
   }
 
+  /**
+   * Save what the person said during onboarding. The app calls this once, when
+   * they finish, and only if they allowed cloud processing. Text only: audio is
+   * never stored.
+   */
+  async function onboardingTranscriptRoute(req) {
+    if (!config.supabaseUrl || !config.supabaseSecretKey) throw storageNotConfigured();
+    const input = parseTranscriptRequest(await readJson(req, BODY_LIMITS.onboardingTranscript));
+    await insertTranscript(config, input);
+    return { saved: true };
+  }
+
   const routes = {
     '/healthz': { GET: healthz },
     '/v1/transcribe': { POST: transcribeRoute },
@@ -296,6 +318,7 @@ export function createServer(options = {}) {
     '/v1/talking-points': { POST: talkingPointsRoute },
     '/v1/voice/session': { POST: voiceSessionRoute },
     '/v1/profile/revise': { POST: reviseRoute },
+    '/v1/onboarding/transcript': { POST: onboardingTranscriptRoute },
   };
 
   // --- Request pipeline ---------------------------------------------------
@@ -394,6 +417,7 @@ if (isMain) {
   const { host, model, sttModel, apiKey } = server.config;
   const { port } = server.address();
   console.log(`bump-api listening on http://${host}:${port}`);
+  console.log(`storageConfigured=${Boolean(server.config.supabaseUrl && server.config.supabaseSecretKey)}`);
   console.log(`model=${model} reasoningEffort=${server.config.reasoningEffort || '(model default)'} sttModel=${sttModel} grokConfigured=${Boolean(apiKey)}`);
   if (!apiKey) console.log('XAI_API_KEY is not set: Grok endpoints will answer 503 not_configured.');
 

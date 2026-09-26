@@ -142,6 +142,28 @@ struct BumpAPIClient: Sendable {
         return try await send(request)
     }
 
+    struct Saved: Decodable, Sendable { let saved: Bool }
+
+    /// Store what the person said during onboarding (text only, never audio).
+    /// Called once, on finish, and only when they allowed cloud processing.
+    func saveOnboardingTranscript(installID: UUID, source: String, transcript: String,
+                                  answers: [(question: String, answer: String?)]) async throws {
+        var request = URLRequest(url: baseURL.appendingPathComponent("v1/onboarding/transcript"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 12
+        let body: [String: Any] = [
+            "installId": installID.uuidString.lowercased(),
+            "source": source,
+            "transcript": transcript.trimmed().clipped(Limit.transcript),
+            "answers": answers.prefix(3).map { a -> [String: Any] in
+                ["question": a.question.clipped(300), "answer": a.answer.map { $0.clipped(Limit.answer) } ?? NSNull()]
+            },
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let _: Saved = try await send(request)
+    }
+
     func health() async throws -> Health {
         var request = URLRequest(url: baseURL.appendingPathComponent("healthz"))
         request.timeoutInterval = 3
