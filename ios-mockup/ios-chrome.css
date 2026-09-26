@@ -1,0 +1,190 @@
+/*
+ * ios-chrome.css: the parts iOS draws for you. Status bar, navigation bar,
+ * tab bar, sheets, switches, lists. Nothing here gets ported: SwiftUI
+ * provides it. It exists so screens are judged in context, not floating.
+ *
+ * Device: iPhone 16 / 15 (393 x 852 pt). Top safe area 59, bottom 34.
+ * Two chrome styles: iOS 26 (Liquid Glass, what Xcode 26 builds show on an
+ * iOS 26 phone) and iOS 18 (flat bars, what an iOS 17/18 phone shows).
+ */
+
+.device {
+  --safe-top: 59px;
+  --safe-bottom: 34px;
+  --label: #000;
+  --tab-inactive: #1c1c1e;
+  position: relative;
+  width: 393px; height: 852px;
+  border-radius: 55px;
+  overflow: hidden;
+  background: var(--BumpColor-background);
+  color: var(--BumpColor-navy);
+  font-family: var(--font-system);
+  -webkit-font-smoothing: antialiased;
+  box-shadow:
+    0 0 0 11px #1b1b1d,
+    0 0 0 12.5px #3a3a3e,
+    0 30px 60px -10px rgba(0, 0, 0, .35);
+  flex: none;
+  isolation: isolate;
+}
+.device *, .device *::before, .device *::after { box-sizing: border-box; }
+.device[data-chrome="ios18"] { --tab-inactive: #999; }
+
+/* MARK: Status bar + Dynamic Island */
+.statusbar {
+  position: absolute; inset: 0 0 auto 0; height: 54px; z-index: 50;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 34px 0 50px; pointer-events: none;
+  color: var(--label); font-weight: 600; font-size: 17px; letter-spacing: -0.4px;
+}
+.statusbar.on-dark { color: #fff; }
+.statusbar__icons { display: flex; gap: 6px; align-items: center; }
+.island {
+  position: absolute; top: 11px; left: 50%; transform: translateX(-50%);
+  width: 126px; height: 37px; border-radius: 20px; background: #000; z-index: 60;
+}
+.home-indicator {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  width: 139px; height: 5px; border-radius: 3px; background: #000; z-index: 60; pointer-events: none;
+}
+
+/* MARK: App body */
+.app {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  padding-top: var(--safe-top);
+  background: var(--BumpColor-background);
+}
+.scroll {
+  flex: 1 1 auto; overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: none;
+}
+.scroll::-webkit-scrollbar { display: none; }
+/* Screen { }: gutters 20, vertical padding 24 */
+.screen-pad { padding: var(--Space-l) var(--Space-gutter); }
+/* room for the floating iOS 26 tab bar / flat iOS 18 one */
+.has-tabs .scroll { padding-bottom: 96px; }
+.device[data-chrome="ios18"] .has-tabs .scroll { padding-bottom: 0; }
+.safe-bottom { padding-bottom: var(--safe-bottom); }
+
+/* MARK: Navigation bar (inline) */
+.nav {
+  height: 44px; flex: none; display: grid; grid-template-columns: 1fr auto 1fr;
+  align-items: center; padding: 0 16px; position: relative; z-index: 5;
+}
+.nav__title { font-size: 17px; line-height: 22px; font-weight: 600; letter-spacing: -0.43px; color: var(--label); text-align: center; }
+.nav__lead { justify-self: start; }
+.nav__trail { justify-self: end; }
+.navbtn {
+  appearance: none; border: 0; background: none; font: inherit; cursor: pointer;
+  color: var(--BumpColor-action); font-size: 17px; letter-spacing: -0.43px;
+  display: inline-flex; align-items: center; gap: 4px; padding: 0;
+}
+.device[data-chrome="ios26"] .navbtn {
+  height: 44px; min-width: 44px; padding: 0 14px; border-radius: 999px; justify-content: center;
+  color: var(--label);
+  background: rgba(255, 255, 255, .72);
+  box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 4px 14px rgba(0, 0, 0, .08);
+  backdrop-filter: blur(12px);
+  margin-left: -4px;
+}
+.device[data-chrome="ios26"] .navbtn--icon { padding: 0; width: 44px; }
+.device[data-chrome="ios26"] .navbtn .navbtn__backlabel { display: none; }
+.device[data-chrome="ios18"] .navbtn { margin-left: -8px; }
+.nav-large {
+  padding: 3px 16px 8px; font-size: 34px; line-height: 41px; font-weight: 700;
+  letter-spacing: 0.37px; color: var(--label); flex: none;
+}
+
+/* MARK: Tab bar */
+.tabbar { position: absolute; z-index: 20; display: flex; }
+.tab {
+  appearance: none; border: 0; background: none; font: inherit; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  color: var(--tab-inactive);
+}
+.tab.on { color: var(--BumpColor-action); }
+.tab svg { width: 26px; height: 26px; }
+
+.device[data-chrome="ios26"] .tabbar {
+  left: 22px; right: 22px; bottom: 21px; height: 62px; padding: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .6);
+  backdrop-filter: blur(16px) saturate(1.6);
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  box-shadow: 0 0 0 .5px rgba(0, 0, 0, .07), 0 8px 30px rgba(0, 0, 0, .10);
+}
+.device[data-chrome="ios26"] .tab { flex: 1; justify-content: center; border-radius: 999px; font-size: 10px; font-weight: 600; }
+.device[data-chrome="ios26"] .tab.on { background: rgba(0, 0, 0, .06); }
+
+.device[data-chrome="ios18"] .tabbar {
+  left: 0; right: 0; bottom: 0; height: calc(49px + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: rgba(249, 249, 249, .94);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 -0.5px 0 rgba(0, 0, 0, .3);
+}
+.device[data-chrome="ios18"] .has-tabs { padding-bottom: calc(49px + var(--safe-bottom)); }
+.device[data-chrome="ios18"] .tab { flex: 1; justify-content: center; font-size: 10px; font-weight: 500; padding-top: 2px; }
+
+/* MARK: Sheets */
+.sheet-layer { position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column; justify-content: flex-end; }
+.sheet-dim { position: absolute; inset: 0; background: rgba(0, 0, 0, .25); }
+.sheet {
+  position: relative; background: var(--BumpColor-background);
+  border-radius: 38px 38px 0 0; overflow: hidden;
+  display: flex; flex-direction: column;
+  box-shadow: 0 -4px 30px rgba(0, 0, 0, .12);
+}
+.device[data-chrome="ios26"] .sheet--medium { margin: 0 8px 8px; border-radius: 38px; }
+.sheet--medium { height: 52%; }
+.sheet--large { height: calc(100% - var(--safe-top) - 10px); }
+.sheet .nav { margin-top: 8px; }
+.grabber { width: 36px; height: 5px; border-radius: 3px; background: rgba(60, 60, 67, .3); margin: 5px auto 0; flex: none; }
+
+/* MARK: Toggle (system switch) */
+.switch {
+  appearance: none; border: 0; cursor: pointer; flex: none;
+  width: 51px; height: 31px; border-radius: 999px; padding: 2px;
+  background: rgba(120, 120, 128, .16); position: relative; transition: background .2s;
+}
+.switch::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%;
+  background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, .15), 0 3px 1px rgba(0, 0, 0, .06);
+  transition: transform .2s;
+}
+.switch.on { background: var(--BumpColor-action); }
+.switch.on::after { transform: translateX(20px); }
+
+/* MARK: Segmented picker */
+.segmented {
+  display: flex; padding: 2px; border-radius: 9px; background: rgba(118, 118, 128, .12); width: 100%;
+}
+.device[data-chrome="ios26"] .segmented { border-radius: 999px; padding: 3px; }
+.segmented button {
+  flex: 1; appearance: none; border: 0; background: none; font: inherit; cursor: pointer;
+  font-size: 13px; line-height: 18px; font-weight: 500; color: var(--label);
+  padding: 6px 0; border-radius: 7px;
+}
+.device[data-chrome="ios26"] .segmented button { border-radius: 999px; }
+.segmented button.on { background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, .12), 0 3px 1px rgba(0, 0, 0, .04); font-weight: 600; }
+
+/* MARK: List (inset grouped) */
+.list { margin: 8px 16px; background: var(--BumpColor-surface); border-radius: 10px; overflow: hidden; }
+.device[data-chrome="ios26"] .list { border-radius: 26px; }
+.list-row {
+  display: flex; align-items: center; gap: 12px; padding: 11px 16px; min-height: 44px; cursor: pointer;
+  position: relative;
+}
+.list-row + .list-row::before {
+  content: ""; position: absolute; top: 0; right: 0; left: 76px; height: .5px; background: rgba(60, 60, 67, .29);
+}
+.list-row:active { background: #e5e5ea; }
+.chev { color: #c4c4c6; flex: none; margin-left: auto; }
+
+/* MARK: DisclosureGroup */
+:where(.disclosure) { appearance: none; border: 0; background: none; font: inherit; cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: space-between; width: 100%; color: var(--BumpColor-action); }
+.disclosure svg { transition: transform .2s; }
+.disclosure.open svg { transform: rotate(90deg); }

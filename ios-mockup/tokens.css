@@ -1,0 +1,60 @@
+/*
+ * tokens.css: a 1:1 mirror of ios/UWBBumpTest/Design/Theme.swift.
+ *
+ * This is the porting contract. Every variable here has the same name as its
+ * Swift counterpart (BumpColor.navy -> --BumpColor-navy). When a design change
+ * is approved, the edit to this file is the edit to Theme.swift, value for
+ * value. Add a token here only if you will add the same token there.
+ */
+
+:root {
+  /* MARK: Colour (enum BumpColor) */
+  --BumpColor-background: #FFF9F0;       /* warm ivory page background */
+  --BumpColor-brand: #73A9F5;            /* wordmark blue, decorative only */
+  --BumpColor-action: #2F6FD0;           /* filled buttons, ~5:1 with white */
+  --BumpColor-navy: #183555;             /* primary text */
+  --BumpColor-secondaryText: #5A7290;    /* ~4.9:1 on ivory */
+  --BumpColor-surface: #FFFFFF;          /* raised surfaces */
+  --BumpColor-paleBlue: #EAF1FD;         /* chips, wells, inactive */
+  --BumpColor-hairline: #E3DCCF;
+  --BumpColor-positive: #2E7D5B;
+  --BumpColor-warning: #B4761F;
+  --BumpColor-negative: #B03A3A;
+  --BumpColor-illustrationWarm: #F0955A; /* ONLY inside the phones illustration */
+
+  /* MARK: Type (enum BumpFont)
+   * SwiftUI text styles at the default Dynamic Type size ("Large").
+   * size / line height / tracking are Apple's published values for SF Pro. */
+  --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  /* .system(size:, weight: .black).width(.expanded): SF Pro Expanded Black.
+   * Archivo at width 125 / weight 900 is the closest free stand-in. */
+  --font-wordmark: "Archivo", -apple-system, sans-serif;
+
+  /* BumpFont.screenTitle = .largeTitle, bold */
+  --BumpFont-screenTitle-size: 34px;  --BumpFont-screenTitle-line: 41px;
+  --BumpFont-screenTitle-weight: 700; --BumpFont-screenTitle-track: 0.37px;
+  /* BumpFont.sectionTitle = .title3, semibold */
+  --BumpFont-sectionTitle-size: 20px; --BumpFont-sectionTitle-line: 25px;
+  --BumpFont-sectionTitle-weight: 600; --BumpFont-sectionTitle-track: -0.45px;
+  /* BumpFont.body / bodyEmphasis / button = .body */
+  --BumpFont-body-size: 17px;         --BumpFont-body-line: 22px;
+  --BumpFont-body-track: -0.43px;
+  /* BumpFont.caption = .footnote */
+  --BumpFont-caption-size: 13px;      --BumpFont-caption-line: 18px;
+  --BumpFont-caption-track: -0.08px;
+  /* .caption2 (used raw in a few views, and by BumpFont.mono) */
+  --caption2-size: 11px;              --caption2-line: 13px;
+  --caption2-track: 0.06px;
+
+  /* MARK: Spacing (enum Space) */
+  --Space-xs: 4px;
+  --Space-s: 8px;
+  --Space-m: 16px;
+  --Space-l: 24px;
+  --Space-xl: 32px;
+  --Space-xxl: 48px;
+  --Space-gutter: 20px;       /* standard screen gutter */
+  --Space-corner: 16px;
+  --Space-cornerLarge: 24px;
+}

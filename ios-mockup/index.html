@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BUMP iOS Mockup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+  <link rel="stylesheet" href="ios-chrome.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body data-mode="flow">
+  <aside class="side">
+    <div class="side__head">
+      <div class="side__title">BUMP <span>iOS mockup</span></div>
+      <p>HTML stand-in for the SwiftUI app. Design here, approve, then port to Swift. See README.md.</p>
+    </div>
+    <ul class="nav-list"></ul>
+  </aside>
+
+  <main class="main">
+    <header class="bar">
+      <div class="seg" role="group" aria-label="View">
+        <button data-mode="flow" aria-pressed="true">Prototype</button>
+        <button data-mode="grid" aria-pressed="false">All screens</button>
+      </div>
+      <label>Chrome
+        <select id="chrome">
+          <option value="ios26">iOS 26 (Liquid Glass)</option>
+          <option value="ios18">iOS 17/18 (flat)</option>
+        </select>
+      </label>
+      <label class="flow-only">Zoom
+        <select id="zoom">
+          <option value="fit">Fit</option>
+          <option value="1">100%</option>
+          <option value="0.75">75%</option>
+          <option value="0.5">50%</option>
+        </select>
+      </label>
+    </header>
+    <div id="stage" class="stage"></div>
+  </main>
+
+  <script src="ui.js"></script>
+  <script src="screens.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
