@@ -60,7 +60,7 @@ on-device AI needs iOS 26, so **neither the newest iPhone nor the newest OS is
 required**; both degrade cleanly.
 
 ```bash
-open uwb-ios/UWBBumpTest.xcodeproj
+open ios/UWBBumpTest.xcodeproj
 
 # compile check, no signing, no device
 xcodebuild -project UWBBumpTest.xcodeproj -scheme UWBBumpTest \
