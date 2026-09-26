@@ -125,4 +125,12 @@ final class StreetPassEngine: ObservableObject {
                               avatarThumbnail: store.profile.photo,
                               interests: store.profile.interests)
     }
+
+    #if DEBUG
+    /// DEBUG-only: pose a pending encounter for simulator screenshots and
+    /// previews. Never called on a real run; see `DemoMode`.
+    func applyDemo(encounter: StreetPassEncounter) {
+        pendingEncounter = encounter
+    }
+    #endif
 }

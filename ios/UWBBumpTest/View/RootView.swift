@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     @StateObject private var store: Store
     @StateObject private var engine: BumpEngine
+    @StateObject private var streetPassEngine: StreetPassEngine
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var stage: Stage
@@ -15,6 +16,7 @@ struct RootView: View {
         let store = Store()
         _store = StateObject(wrappedValue: store)
         _engine = StateObject(wrappedValue: BumpEngine(store: store))
+        _streetPassEngine = StateObject(wrappedValue: StreetPassEngine(store: store))
         _stage = State(initialValue: store.profile.isComplete ? .main : .welcome)
     }
 
@@ -51,10 +53,26 @@ struct RootView: View {
                         .tabItem { Label("You", systemImage: "person.crop.circle") }
                 }
                 .tint(BumpColor.action)
+                .sheet(item: streetPassSheetBinding) { encounter in
+                    StreetPassSheet(
+                        encounter: encounter,
+                        onBumpThem: {
+                            streetPassEngine.dismissPendingEncounter()
+                            engine.startNearby()
+                        },
+                        onNotNow: { streetPassEngine.dismissPendingEncounter() }
+                    )
+                }
             }
         }
         .animation(.easeInOut(duration: 0.25), value: stage)
-        .onChange(of: scenePhase) { _, phase in engine.handleScenePhase(phase) }
+        .onChange(of: scenePhase) { _, phase in
+            engine.handleScenePhase(phase)
+            streetPassEngine.handleScenePhase(phase)
+        }
+        .onChange(of: stage) { _, newStage in
+            if newStage == .main { streetPassEngine.start() }
+        }
         .onChange(of: store.settings) { _, _ in engine.applySettings() }
         .onChange(of: store.onboardingResets) { _, _ in
             demoOnboarding = nil
@@ -98,11 +116,23 @@ struct RootView: View {
             store.profile = PreviewFixtures.profile; stage = .main
             engine.demoSet(.unavailable("This iPhone isn't reporting motion data, so BUMP can't feel a bump. You can still connect by picking someone from the room."),
                            members: [sample])
+        case .streetpass:
+            store.profile = PreviewFixtures.profile; stage = .main
+            streetPassEngine.demoSet(.init(id: "demo#0002", displayName: "Priya (demo)",
+                                           avatarThumbnail: nil,
+                                           mutualInterestStatement: "You're both into photography."))
         case .connections, .you, .tools, .home, .tutorial:
             store.profile = PreviewFixtures.profile
             if demo == .connections { PreviewFixtures.seed(store) }
             stage = .main
         }
         #endif
+    }
+
+    private var streetPassSheetBinding: Binding<StreetPassEncounter?> {
+        Binding(
+            get: { streetPassEngine.pendingEncounter },
+            set: { if $0 == nil { streetPassEngine.dismissPendingEncounter() } }
+        )
     }
 }
