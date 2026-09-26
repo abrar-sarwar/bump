@@ -5,10 +5,11 @@ Meet someone. Find your overlap.
 Two people tap phones, confirm each other, and get the specific things they
 actually have in common plus grounded talking points. **No account, and no API
 key in the app.** Bumping, matching and the partner-only profile exchange run on
-the phones in the room. The optional voice intro, Grok profile drafting and Grok
-talking points go through our own [`bump-api`](../backend/README.md) server to
-xAI — only after the person allows it, and for talking points only when **both**
-people allowed it.
+the phones in the room. The voice intro, Grok profile drafting and Grok talking
+points go through the BUMP server ([`backend/`](../backend/README.md)) to xAI,
+only after the person allows it, and for talking points only when **both**
+people allowed it. If the server can't be reached, the app falls back to
+on-phone suggestions and labels them.
 
 This evolved from the Nearby Interaction spike that used to live here. The
 working `NISession` / `NINearbyPeerConfiguration` / MultipeerConnectivity code
