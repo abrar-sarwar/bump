@@ -69,6 +69,10 @@ final class Store: ObservableObject {
         privacy = Self.load(PrivacyPreferences.self, from: Self.privacyURL) ?? PrivacyPreferences()
     }
 
+    /// Whether the bump tutorial has been shown (a UI convenience, kept in
+    /// UserDefaults rather than the profile).
+    static let tutorialSeenKey = "bump.tutorialSeen"
+
     /// Bumped by `resetOnboarding()` so the root view can return to Welcome.
     @Published private(set) var onboardingResets = 0
 
@@ -77,6 +81,7 @@ final class Store: ObservableObject {
     func resetOnboarding() {
         profile = Profile()
         privacy = PrivacyPreferences()
+        UserDefaults.standard.removeObject(forKey: Self.tutorialSeenKey)
         onboardingResets += 1
     }
 

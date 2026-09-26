@@ -337,6 +337,14 @@ final class InsightTests: XCTestCase {
         XCTAssertNotEqual(insight.openerSource, .grok)
     }
 
+    func testOnlyOneOfTwoNearbyHostsStepsDown() {
+        // Both hosts evaluate the rule about each other; exactly one yields.
+        XCTAssertTrue(BumpEngine.shouldYield(me: "Sam#B2", otherHost: "Ada#A1"))
+        XCTAssertFalse(BumpEngine.shouldYield(me: "Ada#A1", otherHost: "Sam#B2"))
+        XCTAssertFalse(BumpEngine.shouldYield(me: "Ada#A1", otherHost: "Ada#A1"), "never yield to yourself")
+        XCTAssertFalse(BumpEngine.shouldYield(me: "Ada#A1", otherHost: ""))
+    }
+
     func testGeneratorChoiceNeedsBothConsentsAndIsSymmetric() {
         let yes = Wire.PartnerCaps(cloudConsent: true, grokReady: true)
         let consentNoServer = Wire.PartnerCaps(cloudConsent: true, grokReady: false)
