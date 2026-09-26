@@ -4,7 +4,11 @@
 
 **Meet someone. Find your overlap.**
 
-Two people tap their phones together, confirm each other, and get the specific things they actually have in common, plus a few grounded talking points to open with. No account, no feed, no API key on the phone.
+The hardest part is often not meeting someone. It is knowing what to say first.
+
+Bump helps two nearby people uncover the specific interests, experiences, and goals they already share, so the first conversation does not have to start from nothing.
+
+Tap phones. Find the overlap. Start talking.
 
 ![platform iOS 17+](https://img.shields.io/badge/iOS-17%2B-ff9500?logo=apple&logoColor=white)
 ![Swift + SwiftUI](https://img.shields.io/badge/Swift-SwiftUI-ff9500?logo=swift&logoColor=white)
