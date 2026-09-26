@@ -11,6 +11,7 @@ import SwiftUI
 /// real sensor reading, a real peer connection, or a saved physical-test result.
 enum DemoMode: String {
     case onboarding, ready, confirm, reveal, connections, you, tools, home, tutorial
+    case notifications
     case onboardingIntro = "onboardingintro"
     case onboardingQuestion = "onboardingquestion"
     case onboardingCard = "onboardingcard"
