@@ -149,6 +149,10 @@ final class BumpEngine: ObservableObject {
         self.store = store
         wireUp()
         applySettings()
+        // A returning user has a profile already, so begin discovery now rather
+        // than when some view appears. This is what makes the Local Network
+        // prompt show up at launch.
+        if store.profile.isComplete { autoStart() }
     }
 
     // MARK: Wiring
@@ -164,6 +168,28 @@ final class BumpEngine: ObservableObject {
 
         transport.$connected
             .sink { [weak self] peers in self?.rosterChanged(peers) }
+            .store(in: &cancellables)
+
+        // Start discovery as soon as the profile is usable, rather than waiting
+        // for the Bump tab to render. That tab is behind onboarding and the
+        // tutorial cover, so waiting for it delayed the Local Network prompt
+        // until minutes into the session, sometimes until the moment someone
+        // actually tried to bump. @Published replays the current value, so a
+        // returning user starts at launch and a new one starts the instant
+        // onboarding completes.
+        store.$profile
+            .map(\.isComplete)
+            .removeDuplicates()
+            .dropFirst()        // the launch case is handled synchronously below
+            .sink { [weak self] complete in
+                guard complete else { return }
+                // @Published emits in willSet, so at this instant store.profile
+                // is still the OLD value. autoStart reads it through
+                // setupBlocker, so we let the assignment land first. One runloop
+                // later is imperceptible and only affects the moment someone
+                // finishes onboarding.
+                Task { @MainActor [weak self] in self?.autoStart() }
+            }
             .store(in: &cancellables)
 
         liveActivity.onLog = { [weak self] line in self?.note(line) }

@@ -755,9 +755,11 @@ final class AutoStartTests: XCTestCase {
         return (BumpEngine(store: store), store)
     }
 
-    func testStatusIsGettingReadyBeforeAnythingIsRunning() {
-        let (e, _) = engine()
-        XCTAssertEqual(e.autoStatus, .gettingReady)
+    /// Before there is a profile there is nothing to advertise, so the engine
+    /// sits in getting-ready rather than starting a session.
+    func testStatusIsGettingReadyBeforeThereIsAProfile() {
+        let (e, _) = engine(profileComplete: false)
+        XCTAssertFalse(e.nearbyMode)
         XCTAssertFalse(e.isPaused)
     }
 
@@ -951,5 +953,41 @@ final class StartupResilienceTests: XCTestCase {
         e.handleScenePhase(.active)
         XCTAssertNil(e.setupBlocker)
         XCTAssertNotEqual(e.autoStatus, .paused)
+    }
+}
+
+// MARK: - Discovery starts at launch
+
+@MainActor
+final class EarlyStartTests: XCTestCase {
+
+    /// The Local Network prompt appears when the transport first advertises, so
+    /// discovery has to begin at launch. It used to wait for the Bump tab to
+    /// render, which sits behind onboarding and the tutorial cover, so the
+    /// prompt could arrive minutes late.
+    func testAReturningUserStartsDiscoveryWithoutOpeningTheBumpTab() {
+        let store = Store(inMemory: true)
+        store.profile = Profile(displayName: "Ada", bio: "",
+                                interests: [InterestCatalog.byID["chess"]!])
+        let engine = BumpEngine(store: store)
+        // No view has appeared and autoStart was never called by hand.
+        XCTAssertTrue(engine.nearbyMode,
+                      "discovery must be running as soon as the engine exists")
+    }
+
+    /// A brand new user has no profile yet, so nothing should start until they
+    /// finish onboarding. Then it must start immediately, with no extra tap.
+    func testANewUserStartsTheMomentOnboardingCompletes() async {
+        let store = Store(inMemory: true)
+        let engine = BumpEngine(store: store)
+        XCTAssertFalse(engine.nearbyMode, "nothing to advertise before there is a profile")
+
+        store.profile = Profile(displayName: "Ada", bio: "",
+                                interests: [InterestCatalog.byID["chess"]!])
+        // @Published emits in willSet, so the engine starts one runloop later.
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertTrue(engine.nearbyMode,
+                      "finishing onboarding must start discovery without another action")
     }
 }
