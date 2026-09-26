@@ -61,3 +61,47 @@ final class StreetPassEncounterGateTests: XCTestCase {
                        "a fresh gate for a reconnected peer must not be suppressed by the old cooldown")
     }
 }
+
+// MARK: - Peer profile
+
+final class StreetPassPeerProfileTests: XCTestCase {
+    func testInterestListIsCappedAtFive() {
+        let seven = (1...7).map { Interest(id: "i\($0)", label: "I\($0)") }
+        let profile = StreetPassPeerProfile(id: "p#1", displayName: "Sam", interests: seven)
+        XCTAssertEqual(profile.interests.count, 5)
+        XCTAssertEqual(profile.interests.map(\.id), ["i1", "i2", "i3", "i4", "i5"])
+    }
+}
+
+// MARK: - StreetPass wire protocol
+
+final class StreetPassWireTests: XCTestCase {
+    func testRoundTrip() throws {
+        let profile = StreetPassPeerProfile(id: "p#1", displayName: "Sam",
+                                            interests: [InterestCatalog.byID["jazz"]!])
+        let data = try StreetPassWire.encode(.hello(profile: profile))
+        let envelope = try StreetPassWire.decode(data)
+        guard case .hello(let decoded) = envelope.body else { return XCTFail("wrong body") }
+        XCTAssertEqual(decoded, profile)
+        XCTAssertEqual(envelope.v, StreetPassWire.version)
+    }
+
+    func testDiscoveryTokenRoundTrip() throws {
+        let bytes = Data([0x01, 0x02, 0x03])
+        let data = try StreetPassWire.encode(.discoveryToken(bytes))
+        let envelope = try StreetPassWire.decode(data)
+        guard case .discoveryToken(let decoded) = envelope.body else { return XCTFail("wrong body") }
+        XCTAssertEqual(decoded, bytes)
+    }
+
+    func testOversizeFrameIsRejectedBeforeDecoding() {
+        let junk = Data(repeating: 0x41, count: StreetPassWire.maxFrame + 1)
+        XCTAssertThrowsError(try StreetPassWire.decode(junk)) { error in
+            XCTAssertEqual(error as? StreetPassWire.WireError, .tooLarge(junk.count))
+        }
+    }
+
+    func testMalformedJSONDoesNotCrash() {
+        XCTAssertThrowsError(try StreetPassWire.decode(Data([0x7B, 0x00, 0xFF])))
+    }
+}
