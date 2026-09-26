@@ -711,10 +711,15 @@ struct Screen<Content: View>: View {
             ScrollView {
                 content
                     .padding(.horizontal, Space.gutter)
-                    .padding(.vertical, Space.l)
+                    .padding(.top, Space.l)
+                    // The tab bar floats over the content, so long screens need
+                    // room to scroll clear of it. Without this the last section
+                    // of a screen like Testing tools can never be reached.
+                    .padding(.bottom, Space.l + 96)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollDismissesKeyboard(.interactively)
+            .scrollBounceBehavior(.basedOnSize)
         }
     }
 }
