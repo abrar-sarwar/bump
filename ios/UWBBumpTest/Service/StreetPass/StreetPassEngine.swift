@@ -62,7 +62,8 @@ final class StreetPassEngine: ObservableObject {
             if !isActive { start() } else { ranging.resumeAll() }
         case .background, .inactive:
             isAppActive = false
-            stop()
+            guard isActive else { return }
+            ranging.pauseAll()
         @unknown default: break
         }
     }
