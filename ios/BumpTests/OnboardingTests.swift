@@ -850,3 +850,65 @@ final class AutoStartTests: XCTestCase {
         XCTAssertTrue(e.isPaused, "the foreground handler must not override an explicit pause")
     }
 }
+
+// MARK: - Proximity trigger
+
+/// The background path has no accelerometer, so proximity is the only evidence.
+/// These pin down that it cannot fire from a phone sitting still, from a stale
+/// reading, or repeatedly from one approach.
+final class ProximityGateTests: XCTestCase {
+
+    private func gate() -> ProximityGate {
+        ProximityGate(threshold: 0.15, rearm: 0.45, cooldown: 3,
+                      freshness: 1.5, minimumApproach: 0.25)
+    }
+
+    func testAnApproachFromFarAwayFires() {
+        var g = gate()
+        XCTAssertEqual(g.feed(distance: 1.2, age: 0.1, now: 0), .tooFar)
+        XCTAssertEqual(g.feed(distance: 0.6, age: 0.1, now: 1), .tooFar)
+        XCTAssertEqual(g.feed(distance: 0.10, age: 0.1, now: 2), .bump(0.10))
+    }
+
+    func testTwoPhonesRestingCloseNeverFire() {
+        var g = gate()
+        // Never seen far apart, so there was no approach to detect.
+        for t in 0..<10 {
+            XCTAssertNotEqual(g.feed(distance: 0.08, age: 0.1, now: Double(t)), .bump(0.08))
+        }
+    }
+
+    func testOneApproachFiresOnceUntilItSeparatesAgain() {
+        var g = gate()
+        _ = g.feed(distance: 1.0, age: 0.1, now: 0)
+        XCTAssertEqual(g.feed(distance: 0.09, age: 0.1, now: 1), .bump(0.09))
+        // Still close: no second event.
+        XCTAssertEqual(g.feed(distance: 0.08, age: 0.1, now: 1.2), .notRearmed)
+        XCTAssertEqual(g.feed(distance: 0.10, age: 0.1, now: 1.4), .notRearmed)
+    }
+
+    func testCooldownBlocksARapidSecondApproach() {
+        var g = gate()
+        _ = g.feed(distance: 1.0, age: 0.1, now: 0)
+        XCTAssertEqual(g.feed(distance: 0.09, age: 0.1, now: 1), .bump(0.09))
+        _ = g.feed(distance: 1.0, age: 0.1, now: 2)          // separated and rearmed
+        XCTAssertEqual(g.feed(distance: 0.09, age: 0.1, now: 2.5), .suppressedByCooldown)
+        _ = g.feed(distance: 1.0, age: 0.1, now: 5)
+        XCTAssertEqual(g.feed(distance: 0.09, age: 0.1, now: 6), .bump(0.09))
+    }
+
+    func testStaleMeasurementsAreNeverEvidence() {
+        var g = gate()
+        _ = g.feed(distance: 1.0, age: 0.1, now: 0)
+        XCTAssertEqual(g.feed(distance: 0.09, age: 4.0, now: 1), .stale,
+                       "an old reading says nothing about now")
+    }
+
+    func testASlowDriftWithoutARealApproachDoesNotFire() {
+        var g = gate()
+        // Hovers between the threshold and the rearm distance: never far
+        // enough away to count as an approach.
+        _ = g.feed(distance: 0.30, age: 0.1, now: 0)
+        XCTAssertEqual(g.feed(distance: 0.12, age: 0.1, now: 1), .notRearmed)
+    }
+}

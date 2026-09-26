@@ -130,6 +130,12 @@ final class BumpEngine: ObservableObject {
     @Published private(set) var grokReady = false
     private var healthTask: Task<Void, Never>?
     private var localSequence = 0
+    /// True while the app is not on screen. Detection changes shape here: there
+    /// is no accelerometer, so proximity is the only evidence available.
+    @Published private(set) var isBackgrounded = false
+    /// One approach gate per peer, so a measurement can only ever fire for the
+    /// peer it belongs to.
+    private var proximityGates: [String: ProximityGate] = [:]
     private var phaseDeadline: Timer?
 
     /// Seconds a proposal may sit unconfirmed before it is closed.
@@ -428,8 +434,11 @@ final class BumpEngine: ObservableObject {
     }
 
     private func handleMeasurement(_ peerID: String, _ distance: Double) {
-        // Report proximity as evidence to the coordinator. This is evidence about
-        // WHICH peer, not a trigger on its own — except in uwbOnly mode.
+        let age = ranging.measurements[peerID]?.age ?? 0
+
+        // Always report close readings as evidence about WHICH peer. On its own
+        // this is not a trigger in the normal foreground flow, where a
+        // deliberate motion spike is the gesture.
         if distance <= store.settings.uwbProximity {
             if isCoordinator {
                 matcher.record(.init(observer: transport.myID, peer: peerID,
@@ -437,9 +446,29 @@ final class BumpEngine: ObservableObject {
             } else {
                 transport.send(.proximity(peer: peerID, distance: distance), to: coordinatorIDs())
             }
-            if store.settings.detectionMode == .uwbOnly, case .ready = phase {
-                emitBump(magnitude: 0)
-            }
+        }
+
+        // Proximity may become the trigger in two cases:
+        //   - the tester picked UWB-only mode, or
+        //   - we are backgrounded, where Core Motion delivers nothing at all.
+        // Both are proximity detection, not proof of physical impact.
+        let proximityIsTheTrigger = store.settings.detectionMode == .uwbOnly
+            || (isBackgrounded && liveActivity.isRunning)
+        guard proximityIsTheTrigger, case .ready = phase else { return }
+
+        var gate = proximityGates[peerID] ?? ProximityGate(
+            threshold: store.settings.uwbProximity,
+            freshness: store.settings.uwbFreshness
+        )
+        gate.threshold = store.settings.uwbProximity
+        gate.freshness = store.settings.uwbFreshness
+        let verdict = gate.feed(distance: distance, age: age, now: monotonic())
+        proximityGates[peerID] = gate
+
+        if case .bump(let d) = verdict {
+            note(String(format: "proximity trigger at %.2f m with %@ (%@)",
+                        d, name(peerID), isBackgrounded ? "backgrounded" : "UWB-only mode"))
+            emitBump(magnitude: 0)
         }
     }
 
@@ -893,6 +922,7 @@ final class BumpEngine: ObservableObject {
     }
 
     private func peerLeft(_ peer: String) {
+        proximityGates[peer] = nil
         ranging.endSession(for: peer)
         if isCoordinator {
             matcher.remove(participant: peer)
@@ -1069,6 +1099,8 @@ final class BumpEngine: ObservableObject {
     func handleScenePhase(_ scenePhase: ScenePhase) {
         switch scenePhase {
         case .active:
+            isBackgrounded = false
+            proximityGates.removeAll()
             ranging.resumeAll()
             if room != .none { refreshCloudStatus() }
             // Validate the deadline here rather than trusting an in-memory
@@ -1088,16 +1120,21 @@ final class BumpEngine: ObservableObject {
             // own.
             motion.stop()
 
+            isBackgrounded = true
             if liveActivity.isRunning && !liveActivity.hasExpired {
                 // A valid session with a Live Activity keeps ranging. Documented
                 // from iOS 18.4 with the nearby-interaction background mode.
-                // NOTE: this is documented platform support, not something we
-                // have observed on hardware yet.
+                // NOTE: documented platform support, not observed on hardware here.
+                //
+                // Stay in `.ready`: ranging continues, so proximity can still
+                // trigger. Dropping to `.notReady` here would silently make the
+                // whole background path impossible.
                 note("backgrounded with a live session, keeping UWB ranging")
+                proximityGates.removeAll()   // require a fresh approach
             } else {
                 ranging.pauseAll()
+                if case .ready = phase { phase = .notReady }
             }
-            if case .ready = phase { phase = .notReady }
             if case .checking = phase { phase = .notReady }
             refreshLiveActivity()
         @unknown default: break
