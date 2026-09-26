@@ -5,7 +5,7 @@
 **Meet someone. Find your overlap.**
 
 Two people tap their phones together, confirm each other, and get the specific
-things they actually have in common — plus a few grounded talking points to open
+things they actually have in common, plus a few grounded talking points to open
 with. No account, no feed, no API key on the phone.
 
 ![platform iOS 17+](https://img.shields.io/badge/iOS-17%2B-ff9500?logo=apple&logoColor=white)
@@ -24,20 +24,22 @@ with. No account, no feed, no API key on the phone.
 **Proximity does not guarantee connection.** One in six people worldwide
 experiences loneliness ([WHO Commission on Social Connection,
 2025](https://www.who.int/publications/i/item/9789240110403)). Being around
-people — a lecture hall, a conference floor, a neighbourhood event — is not the
+people (a lecture hall, a conference floor, a neighbourhood event) is not the
 same as feeling connected to them.
 
 **The first hello is where it stalls.** We systematically underestimate how much
-other people want to talk to us. Epley & Schroeder (2014) assigned train and bus
+other people want to talk to us. [Epley & Schroeder
+(2014)](https://doi.org/10.1037/a0037323) assigned train and bus
 commuters either to talk to a stranger or to keep to themselves; the ones told to
 talk reported a *more* positive commute, while a separate group had predicted
-solitude would feel better. Sandstrom & Boothby (2021) found the same pattern
+solitude would feel better. [Sandstrom & Boothby
+(2021)](https://doi.org/10.1080/15298868.2020.1816568) found the same pattern
 across seven studies: people worried about being liked, about what to say, and
-about whether the other person would even enjoy it — and their conversations
+about whether the other person would even enjoy it, and their conversations
 generally went better than they expected.
 
 That gives BUMP a specific place to be useful: **the uncertainty right before the
-first hello.** Not matchmaking, not a friendship algorithm — just a reason to
+first hello.** Not matchmaking, not a friendship algorithm, just a reason to
 open your mouth.
 
 > These studies explain mistaken expectations about conversation. They do not
@@ -47,9 +49,11 @@ open your mouth.
 ### Why distinctive overlap, not just any overlap
 
 "We both like music" is not a conversation. "You build modular synths too?" is.
-Alves (2018) found people rated potential partners more positively when they
-shared a *rare* interest rather than a common one — though those were ratings of
-profiles, not real conversations. Vélez et al. (2019) added a useful detail:
+[Alves (2018)](https://doi.org/10.1177/0146167218766861) found people rated
+potential partners more positively when they shared a *rare* interest rather
+than a common one, though those were ratings of
+profiles, not real conversations. [Vélez et al.
+(2019)](https://doi.org/10.1016/j.cognition.2019.06.006) added a useful detail:
 shared *knowledge* mattered more than simply both liking something on first
 exposure, which suggests the interesting part is the experience behind the
 overlap.
@@ -66,7 +70,7 @@ research-inspired product hypothesis, not a validated ranking.
 
 **The iOS app**
 
-- Onboards you by **voice** — speak an intro (≤ 45 s, or type it), answer up to three follow-ups, approve an editable card.
+- Onboards you by **voice**: speak an intro (≤ 45 s, or type it), answer up to three follow-ups, approve an editable card.
 - **Start bumping** puts you in an automatic nearby room. No event code, no host, no setup.
 - Tap the two phones together once; both sides **confirm the partner by name** before anything is exchanged.
 - Shows up to three **shared interests with evidence** from both cards, plus one opener, and saves the connection locally.
@@ -96,7 +100,7 @@ cd web && npm install && npm run dev  # http://localhost:5173
 
 Prerequisites: a Mac with **Xcode 26+**, **two iPhones**, and Node **20+** for the
 server. Deployment target is iOS 17. UWB and Apple Intelligence are both optional.
-The Simulator cannot validate UWB or motion — two physical phones are the only
+The Simulator cannot validate UWB or motion; two physical phones are the only
 real test.
 
 ## The shortest two-phone test
@@ -109,8 +113,8 @@ real test.
 6. Shared interests and talking points appear on both → **Save connection**.
 
 For a large event, **Have an event code?** on the Bump tab still gives named rooms
-(8 phones each). Instrumentation — live acceleration, live UWB distance, pairing
-sliders, event log, diagnostics export — lives in **You ▸ Testing tools**,
+(8 phones each). Instrumentation (live acceleration, live UWB distance, pairing
+sliders, event log, diagnostics export) lives in **You ▸ Testing tools**,
 deliberately out of the normal flow.
 
 ## How it works
@@ -139,10 +143,10 @@ flowchart LR
 ```
 
 1. **Motion only says *that* you were tapped.** `SpikeGate` is a pure threshold / rearm / cooldown state machine over CoreMotion; it never knows who tapped.
-2. **The coordinator decides *who*.** One phone pairs bumps by its own arrival times. UWB distance, when available, is much stronger evidence about which peer — but it is evidence, not a requirement.
+2. **The coordinator decides *who*.** One phone pairs bumps by its own arrival times. UWB distance, when available, is much stronger evidence about which peer, but it is evidence, not a requirement.
 3. **Ambiguity is rejected, not guessed.** When several people bump at the same instant, that genuinely cannot identify partners, so BUMP refuses and offers a manual pick that is recorded honestly as a manual pick.
 4. **Overlap is grounded.** `InterestMatcher` only reports an interest both cards support, with the evidence attached. Talking points are candidates backed by both cards before any model sees them.
-5. **The server is one client of that, not the source of truth.** `ConversationService` tries Grok via `bump-api`, then Apple's Foundation Models, then a deterministic local drafter — and labels which one it used.
+5. **The server is one client of that, not the source of truth.** `ConversationService` tries Grok via `bump-api`, then Apple's Foundation Models, then a deterministic local drafter, and labels which one it used.
 
 ### Silence and honesty are the defaults
 
@@ -179,10 +183,10 @@ own fallbacks are always marked as fallbacks.
 
 How well pairing holds up in a crowded room **has not been measured yet**. The
 number that decides it is the **rejection rate**, reported separately from
-accuracy in [`RESULTS.md`](RESULTS.md) — rejecting everything would otherwise
+accuracy in [`RESULTS.md`](RESULTS.md); rejecting everything would otherwise
 score as perfect.
 
-Also open: whether the research above transfers at all — every study cited in
+Also open: whether the research above transfers at all: every study cited in
 [The problem](#the-problem) motivates the design, and none of them tested BUMP.
 Whether a distinctive shared interest actually makes the first hello easier is
 the hypothesis, still unmeasured.
@@ -193,11 +197,12 @@ grounded overlap reads as insight or as a restatement of what you just typed.
 
 ## Why it matters
 
-Not every conversation has to become a friendship to be worth having. Sandstrom
-& Dunn (2014) found students reported greater happiness and belonging on days
-they interacted with more classmates than usual, and their wider work links
+Not every conversation has to become a friendship to be worth having. [Sandstrom &
+Dunn (2014)](https://doi.org/10.1177/0146167214529799) found students reported
+greater happiness and belonging on days they interacted with more classmates
+than usual, and their wider work links
 weak-tie interaction to well-being. That is an association, not proof that the
-extra conversations caused it — but it is a reason to value the small ones: a
+extra conversations caused it, but it is a reason to value the small ones: a
 chat before class, a familiar face at a community event, a shared interest in an
 unfamiliar room.
 
@@ -208,17 +213,21 @@ AI starts it. People make it matter.
 None of this is in the current build.
 
 - [ ] **A real two-phone session**, measured, with `RESULTS.md` filled in.
-- [ ] **Crowded-room testing** — many simultaneous bumps, rejection rate under load.
+- [ ] **Crowded-room testing**: many simultaneous bumps, rejection rate under load.
 - [ ] **Android**, or the honest conclusion that the UWB path can't cross platforms.
-- [ ] **Connection follow-up** — an export or share of a saved connection.
-- [ ] **Event mode polish** — larger rooms than 8 phones per code.
+- [ ] **Connection follow-up**: an export or share of a saved connection.
+- [ ] **Event mode polish**: larger rooms than 8 phones per code.
 
 ## Acknowledgments
 
 Built on Apple's Nearby Interaction and MultipeerConnectivity frameworks and the
 xAI Grok API. The design is informed by the WHO Commission on Social Connection
-(2025), Epley & Schroeder (2014), Sandstrom & Boothby (2021), Sandstrom & Dunn
-(2014), Alves (2018) and Vélez et al. (2019) — none of whom studied BUMP. An earlier Node + Socket.io browser experiment was removed from the
+(2025), [Epley & Schroeder (2014)](https://doi.org/10.1037/a0037323),
+[Sandstrom & Boothby (2021)](https://doi.org/10.1080/15298868.2020.1816568),
+[Sandstrom & Dunn (2014)](https://doi.org/10.1177/0146167214529799),
+[Alves (2018)](https://doi.org/10.1177/0146167218766861) and
+[Vélez et al. (2019)](https://doi.org/10.1016/j.cognition.2019.06.006), none of
+whom studied BUMP. An earlier Node + Socket.io browser experiment was removed from the
 tree; it is still in git history at commit `278d2e0` if the matching algorithm or
 the browser `devicemotion` work is ever needed again.
 
