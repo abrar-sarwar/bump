@@ -25,7 +25,17 @@ struct RootView: View {
             if DemoMode.active != nil { DemoBadge() }
             content
         }
-        .task { applyDemoIfRequested() }
+        .task {
+            applyDemoIfRequested()
+            // A returning user starts at .main (see init), so .onChange(of:
+            // stage) never fires for them — this is the reliable start path.
+            // start() is idempotent, so overlapping with the stage/scenePhase
+            // paths is harmless. Skipped under a DEBUG demo so fixture screens
+            // never bring up real transport/ranging.
+            if DemoMode.active == nil, stage == .main {
+                streetPassEngine.start()
+            }
+        }
     }
 
     @ViewBuilder

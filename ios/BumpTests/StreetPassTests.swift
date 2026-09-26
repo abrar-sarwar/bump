@@ -118,6 +118,65 @@ final class StreetPassWireTests: XCTestCase {
         }
     }
 
+    /// Frame-size arithmetic, not image validity: a worst-case `.hello` — an
+    /// avatar at the full `ProfilePhoto.thumbnailMaxBytes` budget, a
+    /// maximum-length display name, and five long custom interests — must still
+    /// fit inside `StreetPassWire.maxFrame` once JSON has base64'd the avatar
+    /// (~4/3 expansion) and added the envelope. If it doesn't, `encode` throws
+    /// `.tooLarge`, `StreetPassTransport.send` swallows it, and the peer's
+    /// profile never arrives — which silently kills every encounter with that
+    /// peer, since `handleMeasurement` needs the profile to build an encounter.
+    func testHelloFrameWithAMaxBudgetThumbnailAndFullInterestListFitsTheWireCap() throws {
+        let profile = StreetPassPeerProfile(
+            id: "Maximilian Wordsworth#ABCD",
+            displayName: String(repeating: "W", count: 24),
+            avatarThumbnail: Data(repeating: 0x41, count: ProfilePhoto.thumbnailMaxBytes),
+            interests: worstCaseInterests)
+        XCTAssertEqual(profile.interests.count, StreetPassPeerProfile.maxInterests)
+
+        let data = try StreetPassWire.encode(.hello(profile: profile))
+        XCTAssertLessThanOrEqual(data.count, StreetPassWire.maxFrame,
+                                 "a budgeted avatar must never overflow the StreetPass frame")
+        // Headroom, not just a pass: half the cap still leaves room for longer
+        // custom interest text than this before anything breaks.
+        XCTAssertLessThanOrEqual(data.count, StreetPassWire.maxFrame / 2,
+                                 "the thumbnail budget should leave real headroom under the cap")
+        // And it must survive the round trip, avatar bytes intact.
+        let envelope = try StreetPassWire.decode(data)
+        guard case .hello(let decoded) = envelope.body else { return XCTFail("wrong body") }
+        XCTAssertEqual(decoded.avatarThumbnail?.count, ProfilePhoto.thumbnailMaxBytes)
+    }
+
+    /// The other half of the arithmetic, and the bug this guards against: a
+    /// full-size profile photo (`ProfilePhoto.maxBytes`, sized for the 64 KB
+    /// `Wire` frame) cannot be forwarded into a StreetPass `.hello`. This is
+    /// why `StreetPassEngine.myPeerProfile()` re-encodes a thumbnail instead of
+    /// passing `store.profile.photo` straight through.
+    func testHelloFrameWithAFullSizeProfilePhotoIsRejected() {
+        let profile = StreetPassPeerProfile(
+            id: "p#1",
+            displayName: "Sam",
+            avatarThumbnail: Data(repeating: 0x41, count: ProfilePhoto.maxBytes),
+            interests: worstCaseInterests)
+        XCTAssertThrowsError(try StreetPassWire.encode(.hello(profile: profile))) { error in
+            guard case .tooLarge = (error as? StreetPassWire.WireError) else {
+                return XCTFail("expected .tooLarge, got \(error)")
+            }
+        }
+    }
+
+    /// Five custom interests with realistic, non-trivial labels — the largest
+    /// interest list `StreetPassPeerProfile` will carry.
+    private var worstCaseInterests: [Interest] {
+        ["Competitive duck herding at dawn",
+         "Third-wave single-origin pour-over coffee",
+         "Restoring vintage Italian espresso machines",
+         "Long-exposure astrophotography in the desert",
+         "Late-night improvisational jazz piano"]
+            .map { Interest(id: "custom:\($0.lowercased())", label: $0,
+                            parent: "music", specificity: 2, custom: true) }
+    }
+
     func testInterestCapIsEnforcedWhenDecodingFromJSON() throws {
         // Create JSON with a profile that has 7 interests, simulating a peer sending uncapped data
         // This uses the actual Interest structure as encoded

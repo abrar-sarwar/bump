@@ -10,8 +10,15 @@ struct StreetPassSheet: View {
 
     var body: some View {
         VStack(spacing: Space.l) {
-            Avatar(name: encounter.displayName, size: 96, photo: encounter.avatarThumbnail)
-                .padding(.top, Space.m)
+            VStack(spacing: Space.s) {
+                Avatar(name: encounter.displayName, size: 96, photo: encounter.avatarThumbnail)
+                Text(encounter.displayName)
+                    .font(BumpFont.screenTitle)
+                    .foregroundStyle(BumpColor.navy)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, Space.m)
 
             VStack(spacing: Space.s) {
                 Text("hey, this person just walked by you.")
