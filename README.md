@@ -9,7 +9,7 @@ actually have in common, plus a few grounded talking points to start on.
 bump/
 ├── web/        # React website (not built yet)
 ├── ios/        # SwiftUI app: onboarding, motion, UWB, pairing, talking points
-├── backend/    # Optional API between the app and xAI (bump-api)
+├── backend/    # The BUMP server between the app and xAI (bump-api)
 └── README.md
 ```
 
@@ -17,22 +17,22 @@ bump/
 |---|---|---|
 | [**`ios/`**](ios/README.md) | The product. Swift + SwiftUI, Core Motion, Nearby Interaction, MultipeerConnectivity, voice-intro onboarding, Grok talking points with Apple Intelligence and deterministic fallbacks. | Builds clean, 100 unit tests (96 pass, 4 server contract tests skipped), UI inspected in the Simulator and on one iPhone. **Unproven on two physical phones.** |
 | [`web/`](web/README.md) | The website. | Placeholder. |
-| [`backend/`](backend/README.md) | Optional Node service (`bump-api`) between the app and xAI: speech-to-text and Grok structured outputs. Holds the `XAI_API_KEY`. | 42 mocked tests pass; live smoke test against xAI passed. |
+| [`backend/`](backend/README.md) | The BUMP server (`bump-api`), a Node service between the app and xAI: speech-to-text and Grok structured outputs. Holds the `XAI_API_KEY`. | 42 mocked tests pass; live smoke test against xAI passed. |
 | [`RESULTS.md`](RESULTS.md) | Blank results templates for the MVP and the original spikes. | To fill in on test day. |
 
-The core journey needs **no account, no server and no API keys**: bumping,
-matching and the profile exchange run on the phones in the room. The backend
-only adds opt-in cloud features (a spoken intro, Grok-drafted profiles, Grok
-talking points), each used only with the person's permission, and the app
-falls back on the phone when it's unavailable. Keep it that way: anything under
-`backend/` stays optional.
+BUMP runs with a server. The backend powers the spoken intro, Grok-drafted
+profiles and Grok talking points, and it holds the xAI key so the app never
+does. There's still no account. Bumping, matching and the profile exchange
+happen directly between the phones in the room, and each person chooses
+whether their data goes to the server. If the server can't be reached, the app
+falls back to on-phone suggestions and says so, so an event doesn't stop.
 
 ## Quick start
 
 ```bash
 open ios/UWBBumpTest.xcodeproj      # then follow ios/README.md
 
-# Optional: the Grok backend (the app works without it)
+# The BUMP server (voice + Grok)
 cd backend && cp .env.example .env  # put your XAI_API_KEY in .env
 npm start                           # http://0.0.0.0:8787
 ```

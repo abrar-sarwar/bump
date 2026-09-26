@@ -1,10 +1,10 @@
 # backend (`bump-api`)
 
-**Optional.** The core bump-to-connection journey in `../ios` works entirely
-between nearby phones, with no account and no network. This service only adds
-opt-in cloud features (voice transcription, Grok profile drafting, Grok talking
-points); if it's down or not configured, the app falls back on the phone and
-says so. Keep it that way: nothing here should become required.
+**The BUMP server.** The app in `../ios` uses it for voice transcription, Grok
+profile drafting and Grok talking points, and it's the only place the xAI key
+lives. Run it for any real test or event. Bumping and the profile exchange
+still happen directly between phones, and if this server can't be reached the
+app falls back to on-phone suggestions and says so rather than stopping.
 
 
 A tiny, zero-dependency Node.js (>= 20) service that sits between the BUMP iOS
