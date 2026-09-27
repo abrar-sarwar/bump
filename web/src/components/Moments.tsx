@@ -27,6 +27,9 @@ const SHAPES: ShapeSpec[] = [
   { shape: 'clover', at: { left: '2%', top: '8%' }, size: 110, fill: true, turn: -16, drift: -70 },
 ]
 
+// Flat MD3 shapes for the icon containers, cycled so no two neighbours match.
+const SHAPE_CYCLE = ['cookie', 'clover', 'sunny', 'flower', 'pentagon']
+
 export default function Moments() {
   return (
     <section id="made-for" className="section folk-section moments">
@@ -38,9 +41,9 @@ export default function Moments() {
         </header>
 
         <ul className="moments__grid">
-          {MOMENTS.map((m) => (
+          {MOMENTS.map((m, i) => (
             <li key={m.who} className="folk-chip moment">
-              <span className={`folk-orb folk-orb--sm folk-orb--${m.tone}`} aria-hidden="true">
+              <span className={`folk-orb folk-orb--sm folk-orb--${m.tone} md-shape md-shape--${SHAPE_CYCLE[i % SHAPE_CYCLE.length]}`} aria-hidden="true">
                 <md-icon>{m.icon}</md-icon>
               </span>
               <span className="folk-chip__text">

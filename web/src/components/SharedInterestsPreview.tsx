@@ -21,10 +21,10 @@ type Example = {
 
 const EXAMPLES: Example[] = [
   {
-    a: { name: 'Maya', interests: ['35mm photography', 'Night hiking', 'Ramen'] },
-    b: { name: 'Dev', interests: ['Chess', '35mm photography', 'Baking sourdough'] },
-    shared: '35mm photography',
-    opener: 'What’s on the roll in your camera right now?',
+    a: { name: 'Maya', interests: ['Anime', 'Photography', 'Night hiking'] },
+    b: { name: 'Dev', interests: ['Chess', 'Anime', 'Baking sourdough'] },
+    shared: 'Anime',
+    opener: 'What are you watching this season?',
   },
   {
     a: { name: 'Priya', interests: ['Jazz piano', 'Birding', 'Typography'] },
@@ -34,7 +34,7 @@ const EXAMPLES: Example[] = [
   },
   {
     a: { name: 'Sam', interests: ['Board games', 'Night hiking', 'Collecting vinyl'] },
-    b: { name: 'Rosa', interests: ['Night hiking', '35mm photography', 'Ramen'] },
+    b: { name: 'Rosa', interests: ['Night hiking', 'Astronomy', 'Photography'] },
     shared: 'Night hiking',
     opener: 'Where do you go when you want the trail to yourself?',
   },

@@ -16,6 +16,7 @@ export default function SiteHeader() {
           <ul className="header__nav">
             <li><a href="#the-idea">The idea</a></li>
             <li><a href="#how-it-works">How it works</a></li>
+            <li><a href="#wave">Wave</a></li>
             <li><a href="#the-overlap">The overlap</a></li>
           </ul>
           <a className="header__repo" href={REPO} target="_blank" rel="noreferrer">GitHub</a>

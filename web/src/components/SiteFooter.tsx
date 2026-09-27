@@ -18,6 +18,7 @@ export default function SiteFooter() {
             <ul>
               <li><a href="#the-idea">The idea</a></li>
               <li><a href="#how-it-works">How it works</a></li>
+              <li><a href="#wave">Wave</a></li>
               <li><a href="#the-overlap">The overlap</a></li>
               <li><a href="#whats-inside">What’s inside</a></li>
             </ul>

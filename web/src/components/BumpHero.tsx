@@ -179,20 +179,24 @@ export default function BumpHero() {
         const partFor = STAGE.settled - STAGE.revealIn
         const linear = 'none'
 
-        // Foreground UI fragments: from just after the cue fades, each slides
-        // sideways off its own edge, a small stagger between them. Distances
-        // come from untransformed layout (offsetLeft/Width) so a refresh
-        // mid-scroll measures correctly.
+        // Foreground UI fragments: each slides sideways off its own edge on
+        // its own schedule, so they leave at different moments and different
+        // speeds, but every one is fully off screen BEFORE the phones touch.
+        // [start, end] as fractions of the whole scroll; all ends < contact.
+        const EXITS: [number, number][] = [
+          [0.03, 0.22], [0.10, 0.37], [0.06, 0.30], [0.14, 0.34], [0.02, 0.27], [0.08, 0.36],
+        ]
         q('.hero__float').forEach((el: HTMLElement, i: number) => {
+          const [from, to] = EXITS[i % EXITS.length]
           const out = () => el.dataset.side === 'left'
             ? -(el.offsetLeft + el.offsetWidth * 1.1 + 80)
             : window.innerWidth - el.offsetLeft + 80
           tl.to(el, {
             x: out,
             rotation: `+=${Number(el.dataset.turn) * 3}`,
-            duration: partFor,
+            duration: Math.min(to, STAGE.contact - 0.02) - from,
             ease: linear,
-          }, STAGE.cueOut * 0.5 + i * 0.012)
+          }, from)
         })
 
         // ---- the approach (translate + a little rotation, never a zoom)

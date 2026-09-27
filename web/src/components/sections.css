@@ -19,7 +19,7 @@
 }
 
 /* The hero sits on the MD3 surface; the first folk section eases into grey. */
-#the-idea { background: linear-gradient(var(--md-sys-color-surface), var(--folk-page) 240px); }
+/* No gradient between the hero and the sections: one flat page colour. */
 
 .folk-section h2,
 .folk-section h3 { letter-spacing: -0.02em; font-weight: 600; line-height: 1.1; }
@@ -64,9 +64,18 @@
 }
 .folk-orb--sm { --orb: 40px; }
 .folk-orb--lg { --orb: 76px; }
-.folk-orb--primary { color: var(--md-sys-color-primary); }
-.folk-orb--secondary { color: var(--md-sys-color-secondary); }
-.folk-orb--tertiary { color: var(--md-sys-color-tertiary); }
+.folk-orb--primary { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-primary); }
+.folk-orb--secondary { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-secondary); }
+.folk-orb--tertiary { background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-tertiary); }
+
+/* MD3 expressive shapes: a flat tonal fill masked to a cookie, clover,
+   sunny, flower or soft pentagon (the --md-shape-* masks in tokens.css). */
+.md-shape { border-radius: 0; -webkit-mask: var(--mask) center / contain no-repeat; mask: var(--mask) center / contain no-repeat; }
+.md-shape--cookie { --mask: var(--md-shape-cookie); }
+.md-shape--clover { --mask: var(--md-shape-clover); }
+.md-shape--sunny { --mask: var(--md-shape-sunny); }
+.md-shape--flower { --mask: var(--md-shape-flower); }
+.md-shape--pentagon { --mask: var(--md-shape-pentagon); }
 
 /* Pill row: orb + two lines, "title / with ...". */
 .folk-chip {
@@ -90,7 +99,7 @@
     box-shadow var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard),
     translate var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
 }
-.folk-chip--link:hover { box-shadow: var(--folk-card-shadow-hover); translate: 0 -2px; }
+.folk-chip--link:hover { box-shadow: var(--folk-card-shadow-hover); background: var(--md-sys-color-surface-container-low); }
 
 /* Pill tabs: a grey track, the chosen one a white raised pill. */
 .folk-pills {
@@ -122,7 +131,7 @@
 .folk-pill--on {
   background: #fff;
   color: var(--folk-ink);
-  box-shadow: 0 0 0 0.5px var(--folk-hairline), 0 1px 3px rgba(31, 42, 47, 0.1);
+  box-shadow: inset 0 0 0 1px var(--folk-hairline);
 }
 
 /* Bento: a pastel-washed panel, label top-left, big line bottom-left. */
@@ -135,7 +144,7 @@
   min-height: 260px;
   padding: clamp(22px, 2.6vw, 32px);
   border-radius: var(--folk-radius-bento);
-  box-shadow: 0 0 0 0.5px var(--folk-hairline), 0 10px 30px rgba(31, 42, 47, 0.05);
+  box-shadow: inset 0 0 0 1px var(--folk-hairline);
   overflow: hidden;
 }
 .folk-bento--mint { background: var(--folk-wash-mint); }
@@ -170,12 +179,11 @@
   color: #fff;
   font-weight: 600;
   text-decoration: none;
-  box-shadow: 0 6px 16px rgba(31, 42, 47, 0.22);
   --md-icon-size: 18px;
   transition: translate var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
     box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
 }
-.folk-button:hover { translate: 0 -1px; box-shadow: 0 10px 22px rgba(31, 42, 47, 0.26); }
+.folk-button:hover { background: color-mix(in srgb, var(--folk-ink) 88%, #fff); }
 
 .folk-link { color: var(--folk-ink-soft); font-weight: 600; text-decoration: none; }
 .folk-link:hover { color: var(--folk-ink); }
@@ -222,13 +230,14 @@
   margin: 0 auto;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
-  max-width: 980px;
+  max-width: 1180px;
 }
 .step {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 14px;
   padding: 16px 18px;
 }
@@ -261,6 +270,10 @@
   box-shadow: 0 0 0 4px var(--folk-page);
 }
 
+@media (max-width: 1000px) {
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 640px; }
+  .step:nth-child(2)::after { display: none; }
+}
 @media (max-width: 860px) {
   .steps { grid-template-columns: 1fr; max-width: 420px; gap: 16px; }
   .step:not(:last-child)::after { display: none; }
@@ -283,7 +296,7 @@
 }
 .person__avatar { font-weight: 700; font-size: 1.6rem; }
 .person__avatar--blue { color: var(--md-sys-color-primary); }
-.person__avatar--orange { color: var(--brand-phone-orange); }
+.person__avatar--orange { color: var(--brand-phone-orange); background: color-mix(in srgb, var(--brand-phone-orange) 16%, #fff); }
 .person__content { display: grid; gap: 4px; min-width: 0; }
 .person__name { font-size: 1.25rem; }
 .person__by { font-size: 0.85rem; color: var(--folk-ink-faint); }
@@ -517,87 +530,51 @@
 @media (max-width: 1100px) { .moments__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .moments__grid { grid-template-columns: 1fr; } }
 
-/* -------------------------------------------------------------- walk-by */
-/* The in-the-works feature: one wide bento, copy left, a lock-screen
-   moment right, stacked like folk's chat illustrations. */
-.walkby {
+/* ----------------------------------------------------------------- wave */
+/* Copy left, the app's own Wave notification and card right. Flat. */
+.wave {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   align-items: center;
   gap: clamp(28px, 4vw, 64px);
   min-height: 0;
   padding: clamp(28px, 4vw, 56px);
 }
-.walkby__copy { display: grid; gap: 14px; }
-.walkby__title {
+.wave__copy { display: grid; gap: 16px; }
+.wave__copy .folk-bento__label { font-size: 1.05rem; color: var(--folk-ink); }
+.wave__title {
   font-size: clamp(2rem, 1.3rem + 2.4vw, 3.2rem);
   letter-spacing: -0.03em;
   line-height: 1.02;
 }
-.walkby__body { color: var(--folk-ink-soft); max-width: 46ch; line-height: 1.5; }
-.walkby__status {
-  width: fit-content;
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: var(--folk-track);
-  color: var(--folk-ink-soft);
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-
-.walkby__phone { display: grid; gap: 10px; justify-items: start; max-width: 380px; justify-self: center; width: 100%; }
-.walkby__notice {
+.wave__body { color: var(--folk-ink-soft); max-width: 46ch; line-height: 1.5; }
+.wave__facts {
   display: flex;
-  gap: 12px;
-  width: 100%;
-  padding: 14px 16px;
-  border-radius: 20px;
-  background: color-mix(in srgb, #fff 82%, transparent);
-  backdrop-filter: blur(12px);
-  box-shadow: var(--folk-card-shadow);
-  rotate: -2deg;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
 }
-.walkby__app {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
-  --md-icon-size: 22px;
-}
-.walkby__meta { font-size: 0.78rem; color: var(--folk-ink-faint); }
-.walkby__meta strong { color: var(--folk-ink); font-weight: 600; margin-right: 4px; }
-.walkby__msg { font-size: 0.98rem; font-weight: 600; line-height: 1.3; }
-
-.walkby__teaser,
-.walkby__locked {
+.wave__facts li {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 9px 14px;
+  gap: 6px;
+  padding: 7px 13px 7px 10px;
   border-radius: 999px;
-  font-size: 0.9rem;
-  --md-icon-size: 18px;
-}
-.walkby__teaser {
-  margin-left: 22px;
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--folk-hairline);
+  font-size: 0.88rem;
   font-weight: 600;
-  rotate: 1.5deg;
-}
-.walkby__faint { opacity: 0.75; font-weight: 500; margin-right: 4px; }
-.walkby__locked {
-  margin-left: 6px;
-  background: var(--folk-card-fill);
-  box-shadow: var(--folk-card-shadow);
   color: var(--folk-ink-soft);
-  rotate: -1deg;
+  --md-icon-size: 17px;
 }
+.wave__facts md-icon { color: var(--md-sys-color-tertiary); }
+
+.wave__demo { display: grid; justify-items: center; gap: 14px; }
+.wave__demo .app-notice { rotate: -2deg; }
+.wave__demo .app-wave { rotate: 1.5deg; }
 
 @media (max-width: 860px) {
-  .walkby { grid-template-columns: 1fr; }
+  .wave { grid-template-columns: 1fr; }
 }
