@@ -1717,7 +1717,8 @@ final class BumpEngine: ObservableObject {
                                          metOn: result.metOn,
                                          roomName: result.roomName,
                                          insight: result.insight,
-                                         pairingEvidence: result.evidence)
+                                         pairingEvidence: result.evidence,
+                                         partnerProfile: result.partner)
         store.save(connection)
         Haptics.tap()
         return connection

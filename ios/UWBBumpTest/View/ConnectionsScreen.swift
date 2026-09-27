@@ -226,6 +226,8 @@ struct ConnectionDetail: View {
                     TalkingPointsSection(points: connection.insight.unattachedPoints)
                 }
 
+                fullProfileSection
+
                 VStack(alignment: .leading, spacing: Space.s) {
                     Eyebrow("Something to talk about")
                         .padding(.horizontal, Space.xs)
@@ -275,6 +277,60 @@ struct ConnectionDetail: View {
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    // MARK: The unlocked profile
+
+    /// The partner's interests, experiences and goals — shown only once both
+    /// people said they wanted to connect.
+    ///
+    /// The card arrived at bump time and has been sitting in
+    /// `connection.partnerProfile` ever since; receiving it is not the same as
+    /// being allowed to read all of it. Until then this says what would unlock it
+    /// and NOTHING about what the other person chose: a locked section must read
+    /// identically whether they said no or were never asked.
+    @ViewBuilder
+    private var fullProfileSection: some View {
+        if !store.isMatched(connection.id) {
+            InfoNotice(text: "\(connection.partnerName)\u{2019}s full profile \u{2014} interests, experiences and goals \u{2014} opens up if you both say you want to connect. Your answer stays private either way.",
+                       tone: .neutral)
+        } else if let profile = connection.partnerProfile {
+            VStack(alignment: .leading, spacing: Space.l) {
+                InfoNotice(text: "You both wanted to connect, so here is \(connection.partnerName)\u{2019}s full profile.",
+                           tone: .good)
+                if !profile.interests.isEmpty {
+                    factList(ProfileFact.Kind.interest.title,
+                             profile.interests.map(\.label), icon: "sparkles")
+                }
+                if !profile.experiences.isEmpty {
+                    factList(ProfileFact.Kind.experience.title,
+                             profile.experiences.map(\.text), icon: "clock.arrow.circlepath")
+                }
+                if !profile.goals.isEmpty {
+                    factList(ProfileFact.Kind.goal.title,
+                             profile.goals.map(\.text), icon: "target")
+                }
+            }
+        } else {
+            // Matched, but this bump predates storing the partner's card. Say so
+            // rather than rendering three empty headings.
+            InfoNotice(text: "You both wanted to connect. This bump was saved before BUMP kept full profiles, so there is nothing more to show here \u{2014} a future bump with \(connection.partnerName) will have it.",
+                       tone: .warn)
+        }
+    }
+
+    private func factList(_ title: String, _ lines: [String], icon: String) -> some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Eyebrow(title)
+                .padding(.horizontal, Space.xs)
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                RowPill(block: true) {
+                    IconOrb(systemImage: icon, size: 44)
+                } content: {
+                    RowText.title(line)
+                }
+            }
+        }
     }
 
     private func ratedRecap(_ rating: InteractionRating) -> String {

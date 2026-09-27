@@ -22,6 +22,12 @@ final class Store: ObservableObject {
     @Published private(set) var ratings: [UUID: InteractionRating] {
         didSet { persist(InteractionRating.persistable(ratings), to: Self.ratingsURL) }
     }
+    /// Connections where both people said they'd want to connect again, keyed by
+    /// `SavedConnection.id`. Local only, and never removed once present — see
+    /// `MutualMatch`.
+    @Published private(set) var matches: [UUID: MutualMatch] {
+        didSet { persist(MutualMatch.persistable(matches), to: Self.matchesURL) }
+    }
     /// Developer/testing settings, persisted so a tuning session survives a relaunch.
     @Published var settings: Settings {
         didSet { persist(settings, to: Self.settingsURL) }
@@ -86,11 +92,12 @@ final class Store: ObservableObject {
     private static let privacyURL = directory.appendingPathComponent("privacy.json")
     private static let streetpassesURL = directory.appendingPathComponent("streetpasses.json")
     private static let ratingsURL = directory.appendingPathComponent("ratings.json")
+    private static let matchesURL = directory.appendingPathComponent("matches.json")
 
     init(inMemory: Bool = false) {
         if inMemory {
             profile = Profile(); connections = []; settings = Settings(); privacy = PrivacyPreferences()
-            streetpasses = []; ratings = [:]
+            streetpasses = []; ratings = [:]; matches = [:]
             return
         }
         profile = Self.load(Profile.self, from: Self.profileURL) ?? Profile()
@@ -102,6 +109,10 @@ final class Store: ObservableObject {
         // unrated, which is the correct starting state.
         ratings = InteractionRating.index(Self.load([InteractionRating].self,
                                                     from: Self.ratingsURL) ?? [])
+        // Likewise: no matches file means nothing has matched yet, which is the
+        // correct starting state and leaves every profile gated.
+        matches = MutualMatch.index(Self.load([MutualMatch].self,
+                                              from: Self.matchesURL) ?? [])
     }
 
     /// Whether the bump tutorial has been shown (a UI convenience, kept in
@@ -134,6 +145,7 @@ final class Store: ObservableObject {
     func delete(_ connection: SavedConnection) {
         connections.removeAll { $0.id == connection.id }
         ratings[connection.id] = nil
+        matches[connection.id] = nil
     }
 
     func deleteConnections(at offsets: IndexSet) {
@@ -141,7 +153,7 @@ final class Store: ObservableObject {
         // longer point at the rows they described.
         let doomed = offsets.compactMap { connections.indices.contains($0) ? connections[$0].id : nil }
         connections.remove(atOffsets: offsets)
-        for id in doomed { ratings[id] = nil }
+        for id in doomed { ratings[id] = nil; matches[id] = nil }
     }
 
     // MARK: Ratings
@@ -159,6 +171,20 @@ final class Store: ObservableObject {
     var unratedConnections: [SavedConnection] {
         connections.filter { ratings[$0.id] == nil }
     }
+
+    // MARK: Matches
+
+    /// Records a mutual match. Idempotent by id, and the FIRST match wins: a
+    /// later call cannot move the date of a moment that already happened.
+    func recordMatch(_ match: MutualMatch) {
+        guard matches[match.id] == nil else { return }
+        matches[match.id] = match
+    }
+
+    func match(for id: UUID) -> MutualMatch? { matches[id] }
+
+    /// Whether this connection's full profile is unlocked.
+    func isMatched(_ id: UUID) -> Bool { matches[id] != nil }
 
     // MARK: Streetpasses
 

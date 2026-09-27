@@ -1,11 +1,14 @@
 import SwiftUI
 
-/// One chronological feed of what has already happened: people you bumped, and
-/// people whose phone passed nearby without a bump.
+/// One chronological feed of what has already happened: people you bumped, people
+/// you both wanted to connect with, and people whose phone passed nearby without a
+/// bump.
 ///
-/// Bumps are read straight from `store.connections` — there is no second copy of
-/// that history. Passers-by carry a name and a time and nothing else; a profile
-/// only ever arrives after a confirmed bump.
+/// Every row is DERIVED from what is already stored — `store.connections`,
+/// `store.matches`, `store.streetpasses`. There is no second copy of that history
+/// and no separate notification record to fall out of step with it. Passers-by
+/// carry a name and a time and nothing else; a profile only ever arrives after a
+/// confirmed bump.
 struct NotificationsScreen: View {
     @ObservedObject var store: Store
     @Environment(\.dismiss) private var dismiss
@@ -46,6 +49,18 @@ struct NotificationsScreen: View {
                                 detail: "Bumped · \(Self.relative.localizedString(for: connection.metOn, relativeTo: Date()))",
                                 photo: connection.partnerPhoto,
                                 tint: BumpColor.brand,
+                                chevron: true)
+                        }
+                        .buttonStyle(NavigationRowStyle())
+
+                    case .match(let connection, let match):
+                        NavigationLink {
+                            ConnectionDetail(connection: connection, store: store)
+                        } label: {
+                            row(name: connection.partnerName,
+                                detail: "You both want to connect \u{00B7} \(Self.relative.localizedString(for: match.matchedOn, relativeTo: Date()))",
+                                photo: connection.partnerPhoto,
+                                tint: BumpColor.primary,
                                 chevron: true)
                         }
                         .buttonStyle(NavigationRowStyle())
@@ -108,24 +123,35 @@ struct NotificationsScreen: View {
 
     private enum FeedItem: Identifiable {
         case bump(SavedConnection)
+        /// A mutual match. Separate from `.bump` on purpose: it happened at its own
+        /// time, often days later, so it belongs at that point in the feed rather
+        /// than decorating the original bump row.
+        case match(SavedConnection, MutualMatch)
         case streetpass(StreetpassEvent)
 
         var date: Date {
             switch self {
             case .bump(let c): return c.metOn
+            case .match(_, let m): return m.matchedOn
             case .streetpass(let e): return e.seenAt
             }
         }
         var id: String {
             switch self {
             case .bump(let c): return "bump-\(c.id)"
+            case .match(let c, _): return "match-\(c.id)"
             case .streetpass(let e): return "pass-\(e.id)"
             }
         }
     }
 
     private var items: [FeedItem] {
+        let matched = store.connections.compactMap { connection -> FeedItem? in
+            guard let match = store.match(for: connection.id) else { return nil }
+            return .match(connection, match)
+        }
         let merged = store.connections.map(FeedItem.bump)
+            + matched
             + store.streetpasses.map(FeedItem.streetpass)
         return merged.sorted { $0.date > $1.date }
     }
