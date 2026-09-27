@@ -4,6 +4,9 @@ import UIKit
 struct BumpScreen: View {
     @ObservedObject var engine: BumpEngine
     @ObservedObject var store: Store
+    /// Called with the connection a saved bump produced, so the root can take
+    /// the user to that person instead of leaving them on the radar.
+    var onSaved: (SavedConnection) -> Void = { _ in }
 
     @State private var roomCode = ""
     @State private var showManualPicker = false
@@ -508,8 +511,19 @@ struct BumpScreen: View {
                     result: result,
                     myName: store.profile.displayName,
                     myPhoto: store.profile.photo,
-                    onSave: { engine.saveCurrentConnection(); engine.bumpAgain() },
-                    onAgain: { engine.bumpAgain() }
+                    // Saving re-arms the engine either way — the room may have
+                    // been lost while the cover was open — but only the second
+                    // route leaves the user looking at the radar.
+                    onSave: {
+                        let saved = engine.saveCurrentConnection()
+                        engine.bumpAgain()
+                        if let saved { onSaved(saved) }
+                    },
+                    onSaveAndContinue: {
+                        engine.saveCurrentConnection()
+                        engine.bumpAgain()
+                    },
+                    onDiscard: { engine.bumpAgain() }
                 )
             }
         }

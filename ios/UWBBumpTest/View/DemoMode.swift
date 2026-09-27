@@ -12,6 +12,10 @@ import SwiftUI
 enum DemoMode: String {
     case onboarding, ready, confirm, reveal, connections, you, tools, home, tutorial
     case notifications
+    /// The post-interaction rating card, shown over the Connections tab.
+    case rate
+    /// The trends screen, with enough seeded ratings to rank something.
+    case insights
     case onboardingIntro = "onboardingintro"
     case onboardingQuestion = "onboardingquestion"
     case onboardingCard = "onboardingcard"

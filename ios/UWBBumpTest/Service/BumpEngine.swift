@@ -1705,16 +1705,22 @@ final class BumpEngine: ObservableObject {
         autoStart()
     }
 
-    func saveCurrentConnection() {
-        guard case .connected(let result) = phase else { return }
-        store.save(SavedConnection(partnerName: result.partner.displayName,
-                                   partnerBio: result.partner.bio,
-                                   partnerPhoto: result.partner.photo,
-                                   metOn: result.metOn,
-                                   roomName: result.roomName,
-                                   insight: result.insight,
-                                   pairingEvidence: result.evidence))
+    /// Returns what it saved, so the caller can take the user to that
+    /// connection. Without this the id is unrecoverable at the call site, and
+    /// the reveal has nowhere to go but back to the radar.
+    @discardableResult
+    func saveCurrentConnection() -> SavedConnection? {
+        guard case .connected(let result) = phase else { return nil }
+        let connection = SavedConnection(partnerName: result.partner.displayName,
+                                         partnerBio: result.partner.bio,
+                                         partnerPhoto: result.partner.photo,
+                                         metOn: result.metOn,
+                                         roomName: result.roomName,
+                                         insight: result.insight,
+                                         pairingEvidence: result.evidence)
+        store.save(connection)
         Haptics.tap()
+        return connection
     }
 
     // MARK: Helpers
