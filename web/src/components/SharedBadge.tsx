@@ -2,14 +2,18 @@ import { useLayoutEffect, useRef } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { scallop } from '../shapes'
+import { motifMarkup, themeFor } from '../interestThemes'
 
 gsap.registerPlugin(ScrollTrigger)
 
 /**
  * "You both share this", in the manner of the animated shape on
  * m3.material.io/styles/shape: a pale circle with a darker rounded shape
- * inside that slowly turns and morphs through the MD3 shape set. The 'night'
- * tone (night hiking) is dark blue with twinkling white stars.
+ * inside that slowly turns and morphs through the MD3 shape set.
+ *
+ * Colours and the small animated motif come from the app's interest themes
+ * (src/interestThemes.ts, ported from ios-mockup/interest-themes.js): anime
+ * gets Film, jazz piano Music, night hiking Night sky, and so on.
  *
  * Morphing works because every scallop() path has the same 360 points, so
  * GSAP can interpolate the `d` strings number by number. The shape turns
@@ -25,21 +29,11 @@ const FORMS = [
   scallop(7, 0.12), // soft heptagon
 ]
 
-export type BadgeTone = 'primary' | 'secondary' | 'tertiary' | 'night'
-
-// Stars for the 'night' tone: [x, y, size] in the 100 x 100 box, kept inside
-// the circle. Four-point sparkles for the bigger ones, dots for the rest.
-// They stay out of the middle band (y 34 to 68) where the text sits, except
-// right at the edges.
-const STARS: [number, number, number][] = [
-  [22, 24, 3.2], [74, 20, 2.4], [84, 72, 3], [26, 80, 2.2], [58, 88, 1.6],
-  [11, 48, 1.4], [48, 10, 1.3], [90, 42, 1.2], [70, 84, 1.1], [36, 16, 1],
-]
-const sparkle = ([x, y, s]: [number, number, number]) =>
-  `M${x} ${y - s}Q${x} ${y} ${x + s} ${y}Q${x} ${y} ${x} ${y + s}Q${x} ${y} ${x - s} ${y}Q${x} ${y} ${x} ${y - s}Z`
-
-export default function SharedBadge({ interest, tone = 'primary' }: { interest: string; tone?: BadgeTone }) {
+export default function SharedBadge({ interest }: { interest: string }) {
   const root = useRef<HTMLDivElement>(null)
+  // The app's own theme for this interest: colours, motif and its animation.
+  const theme = themeFor(interest)
+  const motif = motifMarkup(theme.id)
 
   useLayoutEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
@@ -80,18 +74,19 @@ export default function SharedBadge({ interest, tone = 'primary' }: { interest: 
   }, [])
 
   return (
-    <div ref={root} className={`shared-badge shared-badge--${tone}`}>
+    <div ref={root} className="shared-badge" data-theme={theme.id}>
       <svg className="shared-badge__art" viewBox="0 0 100 100" aria-hidden="true">
         <ellipse className="shared-badge__oval" cx="50" cy="50" rx="50" ry="50" />
         <g className="shared-badge__turn">
           <path className="shared-badge__form" d={FORMS[0]} transform="translate(50 50) scale(0.8) translate(-50 -50)" />
         </g>
-        <g className="shared-badge__stars">
-          {STARS.map((st, i) => st[2] >= 2
-            ? <path key={i} className="shared-badge__star" d={sparkle(st)} />
-            : <circle key={i} className="shared-badge__star" cx={st[0]} cy={st[1]} r={st[2] * 0.55} />)}
-        </g>
       </svg>
+      <svg
+        className={`shared-badge__motif theme-motif${motif.night ? ' theme-motif--night' : ''}`}
+        viewBox="0 0 100 100"
+        aria-hidden="true"
+        dangerouslySetInnerHTML={{ __html: motif.html }}
+      />
       {/* aria-live so switching examples is announced, not silent */}
       <p className="shared-badge__text" aria-live="polite">
         <span className="shared-badge__kicker">You both share this</span>

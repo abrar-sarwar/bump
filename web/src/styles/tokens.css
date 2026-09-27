@@ -82,6 +82,24 @@
      role; used only where the site shows the app's own UI. */
   --bump-color-success: #2e7d5b;
 
+  /* Interest badge themes: flat ring/form pairs, white text on the form.
+     Copied from ios-mockup/tokens.css so the site matches the app. */
+  --interest-night-ring: #123d72;   --interest-night-form: #001c3a;
+  --interest-photography-ring: #d5eadb;   --interest-photography-form: #176747;
+  --interest-music-ring: #e0e0ff;   --interest-music-form: #394fa3;
+  --interest-art-ring: #ffe2d9;   --interest-art-form: #a24b44;
+  --interest-food-ring: #ffe7c2;   --interest-food-form: #a64b24;
+  --interest-drink-ring: #d6eff1;   --interest-drink-form: #176a72;
+  --interest-outdoors-ring: #e0edcf;   --interest-outdoors-form: #3a6a39;
+  --interest-sports-ring: #ffe1d4;   --interest-sports-form: #a74735;
+  --interest-books-ring: #e9def6;   --interest-books-form: #694b8c;
+  --interest-technology-ring: #d8e6ef;   --interest-technology-form: #284f6d;
+  --interest-gaming-ring: #e7dfff;   --interest-gaming-form: #6545a0;
+  --interest-travel-ring: #d7ecf7;   --interest-travel-form: #176d92;
+  --interest-cinema-ring: #f2dfee;   --interest-cinema-form: #7a456d;
+  --interest-collecting-ring: #e8e3d4;   --interest-collecting-form: #675c35;
+  --interest-general-ring: #d4e3ff;   --interest-general-form: #155fa9;
+
   /* --- MD3 typescale ------------------------------------------------------
      MD3 role names, fluid values. The spec fixes display-large at 57px, which
      is an app-UI size; a marketing hero legitimately runs larger, so these
