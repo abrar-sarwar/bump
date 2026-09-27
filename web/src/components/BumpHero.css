@@ -1,6 +1,6 @@
 .hero {
   position: relative;
-  background: var(--ivory);
+  background: var(--md-sys-color-surface);
 }
 
 .hero__stage {
@@ -45,7 +45,7 @@
    the left), so its right edge is the contact edge. */
 .hero__phone--blue {
   left: 0;
-  width: 46vw;
+  width: 60vw;   /* wide enough that the wrist crop never reaches the viewport */
   transform-origin: 20% 50%;
   margin-top: -2vh;
 }
@@ -53,7 +53,7 @@
 /* The orange phone's body sits at the LEFT end of its image. */
 .hero__phone--orange {
   right: 0;
-  width: 46vw;
+  width: 60vw;
   transform-origin: 80% 50%;
   margin-top: 6vh;
 }
@@ -68,7 +68,7 @@
   translate: -50% -50%;
   margin-top: 1vh;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(115, 169, 245, 0.42) 0%, rgba(115, 169, 245, 0) 68%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--md-sys-color-primary) 34%, transparent) 0%, transparent 68%);
   z-index: 3;
   pointer-events: none;
   opacity: 0;
@@ -85,18 +85,18 @@
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  font-size: 0.78rem;
+  font-size: var(--md-sys-typescale-label-medium-size);
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--navy-soft);
+  color: var(--md-sys-color-on-surface-variant);
   white-space: nowrap;
 }
 
 .hero__cue-line {
   width: 1px;
   height: clamp(28px, 5vh, 46px);
-  background: linear-gradient(to bottom, transparent, var(--navy-soft));
+  background: linear-gradient(to bottom, transparent, var(--md-sys-color-outline));
 }
 
 /* --- the reveal copy --------------------------------------------------- */
@@ -117,9 +117,9 @@
 }
 
 .hero__tagline {
-  font-size: var(--step-1);
+  font-size: var(--md-sys-typescale-headline-small-size);
   font-weight: 500;
-  color: var(--navy);
+  color: var(--md-sys-color-on-surface);
   text-wrap: balance;
 }
 
@@ -136,10 +136,10 @@
   .hero__reveal { margin-top: clamp(64px, 22vw, 130px); }
 }
 
-/* Ultrawide: cap the artwork so the photographs never stretch into the void. */
+/* Ultrawide: cap the wordmark only. The phones are NOT capped: a capped photo
+   is narrower than the 60vw the timeline assumes, which puts the cropped wrist
+   back on screen. A slightly soft photo beats a visibly severed arm. */
 @media (min-width: 1700px) {
-  .hero__phone--blue,
-  .hero__phone--orange { width: min(46vw, 820px); }
   .hero__mark { width: min(92vw, 1560px); }
 }
 

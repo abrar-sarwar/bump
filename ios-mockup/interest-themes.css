@@ -1,0 +1,50 @@
+/* Flat, keyword-selected interest badges. Theme art is decorative only. */
+.badge--themed { --on-badge: #fff; color: #fff; isolation: isolate; }
+.badge--themed[data-theme="night"] { --badge-c: var(--interest-night-ring); --badge: var(--interest-night-form); }
+.badge--themed[data-theme="photography"] { --badge-c: var(--interest-photography-ring); --badge: var(--interest-photography-form); }
+.badge--themed[data-theme="music"] { --badge-c: var(--interest-music-ring); --badge: var(--interest-music-form); }
+.badge--themed[data-theme="art"] { --badge-c: var(--interest-art-ring); --badge: var(--interest-art-form); }
+.badge--themed[data-theme="food"] { --badge-c: var(--interest-food-ring); --badge: var(--interest-food-form); }
+.badge--themed[data-theme="drink"] { --badge-c: var(--interest-drink-ring); --badge: var(--interest-drink-form); }
+.badge--themed[data-theme="outdoors"] { --badge-c: var(--interest-outdoors-ring); --badge: var(--interest-outdoors-form); }
+.badge--themed[data-theme="sports"] { --badge-c: var(--interest-sports-ring); --badge: var(--interest-sports-form); }
+.badge--themed[data-theme="books"] { --badge-c: var(--interest-books-ring); --badge: var(--interest-books-form); }
+.badge--themed[data-theme="technology"] { --badge-c: var(--interest-technology-ring); --badge: var(--interest-technology-form); }
+.badge--themed[data-theme="gaming"] { --badge-c: var(--interest-gaming-ring); --badge: var(--interest-gaming-form); }
+.badge--themed[data-theme="travel"] { --badge-c: var(--interest-travel-ring); --badge: var(--interest-travel-form); }
+.badge--themed[data-theme="cinema"] { --badge-c: var(--interest-cinema-ring); --badge: var(--interest-cinema-form); }
+.badge--themed[data-theme="collecting"] { --badge-c: var(--interest-collecting-ring); --badge: var(--interest-collecting-form); }
+.badge--themed[data-theme="general"] { --badge-c: var(--interest-general-ring); --badge: var(--interest-general-form); }
+.badge--themed .badge__motif { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; color: #fff; pointer-events: none; }
+.badge--themed .theme-motif { width: 100%; height: 100%; overflow: visible; opacity: .82; }
+.badge--themed .badge__text { z-index: 2; }
+.badge--themed[data-theme="night"] .theme-motif { opacity: 1; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .badge--themed[data-theme="night"] .theme-motif__part { transform-origin: center; animation: motif-twinkle 3s ease-in-out infinite alternate; }
+  .badge--themed[data-theme="night"] .theme-motif__part:nth-child(2) { animation-delay: -1.7s; }
+  .badge--themed[data-theme="photography"] .theme-motif__part { transform-origin: 50% 75%; animation: motif-sway 4s ease-in-out infinite alternate; }
+  .badge--themed[data-theme="photography"] .theme-motif__part:nth-child(2) { animation-delay: -2s; }
+  .badge--themed[data-theme="music"] .theme-motif__part { animation: motif-rise 2.6s ease-in-out infinite alternate; }
+  .badge--themed[data-theme="music"] .theme-motif__part:nth-child(2) { animation-delay: -1.3s; }
+  .badge--themed[data-theme="art"] .theme-motif__part { stroke-dasharray: 24; animation: motif-draw 4s ease-in-out infinite alternate; }
+  .badge--themed[data-theme="food"] .theme-motif__part:first-child { transform-origin: center; animation: motif-breathe 3.5s ease-in-out infinite alternate; }
+  .badge--themed[data-theme="drink"] .theme-motif__part:nth-child(2), .badge--themed[data-theme="drink"] .theme-motif__part:nth-child(3) { animation: motif-rise 2.7s ease-in-out infinite alternate; }
+  .badge--themed[data-theme="outdoors"] .theme-motif__part:last-child { animation: motif-drift 4s ease-in-out infinite alternate; }
+  .badge--themed[data-theme="sports"] .theme-motif__part:first-child { animation: motif-bounce 2.3s ease-in-out infinite; }
+  .badge--themed[data-theme="books"] .theme-motif__part:last-child { animation: motif-page 3s ease-in-out infinite alternate; }
+  .badge--themed[data-theme="technology"] .theme-motif__part:last-child { animation: motif-twinkle 2s ease-in-out infinite alternate; }
+  .badge--themed[data-theme="gaming"] .theme-motif__part:last-child { animation: motif-breathe 2s ease-in-out infinite alternate; }
+  .badge--themed[data-theme="travel"] .theme-motif__part:first-child { animation: motif-glide 4s ease-in-out infinite alternate; }
+  .badge--themed[data-theme="cinema"] .theme-motif__part:last-child { animation: motif-breathe 2.5s ease-in-out infinite alternate; }
+  .badge--themed[data-theme="collecting"] .theme-motif__part:first-child { animation: motif-page 3s ease-in-out infinite alternate; }
+}
+@keyframes motif-twinkle { from { opacity: .25; transform: scale(.92); } to { opacity: 1; transform: scale(1.08); } }
+@keyframes motif-sway { from { transform: rotate(-2deg); } to { transform: rotate(2deg); } }
+@keyframes motif-rise { from { transform: translateY(1.5px); opacity: .6; } to { transform: translateY(-1.5px); opacity: 1; } }
+@keyframes motif-draw { from { stroke-dashoffset: 24; opacity: .45; } to { stroke-dashoffset: 0; opacity: 1; } }
+@keyframes motif-breathe { from { transform: scale(.94); opacity: .55; } to { transform: scale(1.04); opacity: 1; } }
+@keyframes motif-drift { from { transform: translate(-1px, 1px) rotate(-2deg); } to { transform: translate(1px, -1px) rotate(2deg); } }
+@keyframes motif-bounce { 0%, 100% { transform: translateY(1px); } 50% { transform: translateY(-2px); } }
+@keyframes motif-page { from { transform: scaleX(.95); opacity: .5; } to { transform: scaleX(1.04); opacity: 1; } }
+@keyframes motif-glide { from { transform: translate(-2px, 1px); } to { transform: translate(2px, -1px); } }

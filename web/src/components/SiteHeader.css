@@ -2,16 +2,18 @@
   position: absolute;
   inset: 0 0 auto 0;
   z-index: 20;
-  padding-top: clamp(18px, 2.6vw, 34px);
+  padding-top: clamp(16px, 2.2vw, 28px);
+  font-family: var(--folk-typeface);
+  text-transform: lowercase;
 }
 
 .header__skip {
   position: absolute;
   left: 50%; translate: -50% -200%;
-  background: var(--navy); color: var(--white);
-  padding: 10px 18px; border-radius: 0 0 var(--radius) var(--radius);
+  background: var(--folk-ink); color: #fff;
+  padding: 10px 18px; border-radius: 0 0 12px 12px;
   text-decoration: none; font-weight: 600;
-  transition: translate 0.2s var(--ease);
+  transition: translate var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized);
 }
 .header__skip:focus-visible { translate: -50% 0; }
 
@@ -19,28 +21,43 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-l);
+  gap: var(--space-m);
 }
 
 .header__brand { display: inline-flex; }
 .header__mark img { width: clamp(76px, 7vw, 104px); height: auto; }
 
+/* folk's nav: a frosted pill with the links and a dark action inside. */
+.header__pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--folk-card-fill);
+  box-shadow: var(--folk-card-shadow);
+}
 .header__nav {
   display: flex;
-  gap: clamp(16px, 2.4vw, 36px);
   list-style: none;
   margin: 0;
   padding: 0;
 }
-.header__nav a {
-  color: var(--navy);
+.header__nav a,
+.header__repo {
+  display: block;
+  padding: 8px 12px;
+  border-radius: 9px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
   text-decoration: none;
-  font-weight: 500;
-  font-size: 0.95rem;
 }
-.header__nav a:hover { text-decoration: underline; }
+.header__nav a { color: var(--folk-ink-soft); }
+.header__nav a:hover { color: var(--folk-ink); background: var(--folk-track); }
+.header__repo { background: var(--folk-ink); color: #fff; margin-left: 4px; }
 
 @media (max-width: 560px) {
-  .header__nav { gap: 14px; font-size: 0.85rem; }
-  .header__nav a { font-size: 0.85rem; }
+  .header__nav a { padding: 7px 8px; font-size: 0.8rem; }
+  .header__repo { display: none; }
 }

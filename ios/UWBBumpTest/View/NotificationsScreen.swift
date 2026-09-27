@@ -63,7 +63,7 @@ struct NotificationsScreen: View {
                 Button("Clear passers-by") { store.clearStreetpasses() }
                     .buttonStyle(.bumpText)
             }
-            NoticeText(text: "BUMP only learns who someone is once you both bump. A passer-by is a name and a time, kept on this phone.", tone: .neutral)
+            InfoNotice(text: "BUMP only learns who someone is once you both bump. A passer-by is a name and a time, kept on this phone.", tone: .neutral)
         }
     }
 

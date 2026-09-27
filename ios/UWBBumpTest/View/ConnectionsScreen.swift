@@ -12,82 +12,66 @@ struct ConnectionsScreen: View {
                     list
                 }
             }
-            .background(BumpColor.surface.ignoresSafeArea())
-            .toolbar(.hidden, for: .navigationBar)
+            .background(BumpColor.background)
+            .navigationTitle("Friends")
+            .navigationBarTitleDisplayMode(.large)
         }
-    }
-
-    private var header: some View {
-        PageTitle(title: "Connections",
-                  subtitle: store.connections.isEmpty ? nil
-                    : (store.connections.count == 1 ? "1 person you've met" : "\(store.connections.count) people you've met"))
-            .padding(.horizontal, Space.gutter)
-            .padding(.top, Space.l)
-            .padding(.bottom, Space.s)
     }
 
     private var emptyState: some View {
-        VStack(spacing: 0) {
-            header
-            Spacer()
+        ZStack {
+            BumpColor.background.ignoresSafeArea()
+            Backdrop(style: .soft).ignoresSafeArea()
             VStack(spacing: Space.m) {
-                PhonesIllustration()
-                Text("Nobody yet")
-                    .font(BumpFont.headlineMedium)
-                    .foregroundStyle(BumpColor.onSurface)
+                Spacer()
+                PhonesIllustration(apart: true)
+                    .padding(.top, 60)
+                    .padding(.horizontal, Space.gutter)
+                ScreenTitle("Nobody yet", alignment: .center)
                 Text("The people you bump show up here, with what you have in common and the question you started on.")
-                    .font(BumpFont.bodyLarge)
-                    .foregroundStyle(BumpColor.onSurfaceVariant)
+                    .font(BumpFont.body)
+                    .foregroundStyle(BumpColor.secondaryText)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, Space.xl)
+                Spacer()
+                Spacer()
             }
-            Spacer()
-            Spacer()
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
     }
 
+    /// A plain List, kept for swipe to delete, with each row a frosted pill.
     private var list: some View {
         List {
-            Section {
-                ForEach(store.connections) { connection in
-                    NavigationLink {
-                        ConnectionDetail(connection: connection, store: store)
-                    } label: {
-                        row(connection)
-                    }
-                    .listRowBackground(BumpColor.surfaceContainerLowest)
-                    .listRowSeparatorTint(BumpColor.outlineVariant)
-                    .listRowInsets(EdgeInsets(top: 12, leading: Space.m, bottom: 12, trailing: Space.m))
-                    .alignmentGuide(.listRowSeparatorLeading) { _ in 68 }
+            ForEach(Array(store.connections.enumerated()), id: \.element.id) { index, connection in
+                NavigationLink {
+                    ConnectionDetail(connection: connection, store: store)
+                } label: {
+                    row(connection, warm: index.isMultiple(of: 2))
                 }
-                .onDelete { store.deleteConnections(at: $0) }
-            } header: {
-                header
-                    .textCase(nil)
-                    .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 5, leading: Space.gutter, bottom: 5, trailing: Space.gutter))
             }
+            .onDelete { store.deleteConnections(at: $0) }
         }
-        .listStyle(.insetGrouped)
-        .listSectionSpacing(0)
+        .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(BumpColor.surface)
-        .environment(\.defaultMinListHeaderHeight, 0)
+        .background(BumpColor.background)
     }
 
-    private func row(_ connection: SavedConnection) -> some View {
-        HStack(spacing: Space.m) {
-            Avatar(name: connection.partnerName, size: 44, photo: connection.partnerPhoto)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(connection.partnerName)
-                    .font(BumpFont.titleMedium)
-                    .foregroundStyle(BumpColor.onSurface)
-                Text(summary(connection))
-                    .font(BumpFont.bodyMedium)
-                    .foregroundStyle(BumpColor.onSurfaceVariant)
-                    .lineLimit(2)
-            }
+    private func row(_ connection: SavedConnection, warm: Bool) -> some View {
+        RowPill(block: true) {
+            Avatar(name: connection.partnerName, size: 48,
+                   tint: warm ? BumpColor.illustrationWarm : BumpColor.primary,
+                   photo: connection.partnerPhoto)
+        } content: {
+            RowText.title(connection.partnerName)
+            Text(summary(connection))
+                .font(BumpFont.caption)
+                .foregroundStyle(BumpColor.secondaryText)
+                .lineLimit(2)
         }
     }
 
@@ -105,43 +89,53 @@ struct ConnectionDetail: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        Screen {
+        Screen(backdrop: .soft) {
             VStack(alignment: .leading, spacing: Space.l) {
-                HStack(spacing: Space.m) {
-                    Avatar(name: connection.partnerName, size: 72, photo: connection.partnerPhoto)
-                        .overlay(Circle().strokeBorder(BumpColor.primaryContainer, lineWidth: 3))
-                    VStack(alignment: .leading, spacing: Space.xs) {
-                        Text(connection.partnerName)
-                            .font(BumpFont.headlineMedium)
-                            .foregroundStyle(BumpColor.onSurface)
-                        Text("\(connection.metOn.formatted(date: .abbreviated, time: .shortened)) · \(connection.roomName)")
-                            .font(BumpFont.bodyMedium)
-                            .foregroundStyle(BumpColor.onSurfaceVariant)
-                    }
-                }
-
-                StatusPill(text: connection.pairingEvidence.label,
-                           tone: connection.pairingEvidence == .manualSelection ? .warn : .good,
-                           icon: connection.pairingEvidence == .manualSelection ? "hand.point.up.left.fill" : "checkmark.seal.fill")
-
-                if !connection.partnerBio.isEmpty {
-                    Card(style: .filled) {
-                        Text(connection.partnerBio)
-                            .font(BumpFont.bodyLarge)
-                            .foregroundStyle(BumpColor.onSurface)
-                            .fixedSize(horizontal: false, vertical: true)
+                Card(padding: 22) {
+                    VStack(alignment: .leading, spacing: Space.m) {
+                        HStack(spacing: Space.m) {
+                            Avatar(name: connection.partnerName, size: 72, tint: BumpColor.illustrationWarm,
+                                   photo: connection.partnerPhoto)
+                            VStack(alignment: .leading, spacing: Space.xs) {
+                                Text(connection.partnerName)
+                                    .font(BumpFont.sectionTitle)
+                                    .foregroundStyle(BumpColor.navy)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Text("\(connection.metOn.formatted(date: .abbreviated, time: .shortened)) · \(connection.roomName)")
+                                    .font(BumpFont.caption)
+                                    .foregroundStyle(BumpColor.secondaryText)
+                                StatusPill(text: connection.pairingEvidence.label,
+                                           tone: connection.pairingEvidence == .manualSelection ? .warn : .good)
+                            }
+                        }
+                        if !connection.partnerBio.isEmpty {
+                            Text(connection.partnerBio)
+                                .font(BumpFont.body)
+                                .foregroundStyle(BumpColor.secondaryText)
+                        }
                     }
                 }
 
                 if connection.insight.highlights.isEmpty {
                     Text("No shared interests were found.")
-                        .font(BumpFont.bodyLarge)
-                        .foregroundStyle(BumpColor.onSurfaceVariant)
+                        .font(BumpFont.body)
+                        .foregroundStyle(BumpColor.secondaryText)
                 } else {
                     VStack(alignment: .leading, spacing: Space.s) {
-                        Eyebrow(text: "Specific things you share")
+                        Eyebrow("Specific things you share")
+                            .padding(.horizontal, Space.xs)
                         ForEach(connection.insight.highlights) { highlight in
-                            HighlightCard(highlight: highlight, point: connection.insight.point(for: highlight))
+                            RowPill(block: true) {
+                                IconOrb(systemImage: "sparkles", size: 44)
+                            } content: {
+                                RowText.title(highlight.statement)
+                                RowText.subtitle(highlight.yourEntry == highlight.theirEntry
+                                     ? "Both of you list “\(highlight.yourEntry)”"
+                                     : "You listed “\(highlight.yourEntry)” · they listed “\(highlight.theirEntry)”")
+                                if let point = connection.insight.point(for: highlight) {
+                                    TalkingPromptLine(point: point)
+                                }
+                            }
                         }
                     }
                 }
@@ -151,8 +145,17 @@ struct ConnectionDetail: View {
                 }
 
                 VStack(alignment: .leading, spacing: Space.s) {
-                    Eyebrow(text: "Something to talk about")
-                    OpenerCard(opener: connection.insight.opener, source: connection.insight.openerSource.label)
+                    Eyebrow("Something to talk about")
+                        .padding(.horizontal, Space.xs)
+                    Card {
+                        VStack(alignment: .leading, spacing: Space.xs) {
+                            Text(connection.insight.opener)
+                                .font(BumpFont.archivo(Archivo.semibold, 19, relativeTo: .title3))
+                            Text(connection.insight.openerSource.label)
+                                .font(BumpFont.caption2)
+                                .foregroundStyle(BumpColor.faint)
+                        }
+                    }
                 }
 
                 Button("Delete connection", role: .destructive) {
@@ -165,7 +168,6 @@ struct ConnectionDetail: View {
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(BumpColor.surface, for: .navigationBar)
     }
 }
 

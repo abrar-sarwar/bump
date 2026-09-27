@@ -1,158 +1,136 @@
 import SwiftUI
 
-/// The BUMP design system: colour roles, shape, type, spacing and motion.
-/// One source of truth, organised the way Material Design 3 organises tokens
-/// (colour roles + tonal surfaces, a shape scale, a type scale, spring motion)
-/// but rendered with native SwiftUI on the existing BUMP palette: warm ivory
-/// ground, the light wordmark blue, deep navy ink.
+/// The BUMP design system: colour, type, spacing. One source of truth.
+///
+/// Ported from `ios-mockup/tokens.css`, which follows the marketing site
+/// (`web/`) with the brand kept exactly: the wordmark is artwork (never a
+/// font), type is Archivo, colour is the site's Material 3 scheme generated
+/// from the wordmark ink (seed #70AAF9), and cards use the site's frosted
+/// card language. The older names (`navy`, `paleBlue`, …) are kept so every
+/// view keeps compiling; they now point at the new values.
 
-// MARK: - Colour roles
+// MARK: - Colour
 
 enum BumpColor {
-
-    // Brand / primary -----------------------------------------------------
-
-    /// The wordmark blue. Decorative use: wordmark, illustration, rings.
-    static let brand = Color(hex: 0x73A9F5)
-    /// `primary`: filled controls, active indicators, links. ~5:1 on white.
-    static let primary = Color(hex: 0x2F6FD0)
+    // MD3 roles, light scheme (web/src/styles/tokens.css).
+    static let primary = Color(hex: 0x155FA9)
     static let onPrimary = Color.white
-    /// `primaryContainer`: tonal buttons, selected chips, hero cards.
-    static let primaryContainer = Color(hex: 0xDCE9FD)
-    static let onPrimaryContainer = Color(hex: 0x0E2F5E)
+    static let primaryContainer = Color(hex: 0xD4E3FF)
+    static let onPrimaryContainer = Color(hex: 0x001C3A)
+    static let secondary = Color(hex: 0x545F71)
+    static let secondaryContainer = Color(hex: 0xD8E3F8)
+    static let onSecondaryContainer = Color(hex: 0x111C2B)
+    static let tertiary = Color(hex: 0x6D5676)
+    static let tertiaryContainer = Color(hex: 0xF7D8FF)
+    static let onTertiaryContainer = Color(hex: 0x291430)
+    static let error = Color(hex: 0xBA1A1A)
+    static let errorContainer = Color(hex: 0xFFDAD6)
+    static let surfaceMD = Color(hex: 0xFDFCFF)
+    static let onSurface = Color(hex: 0x1A1C1E)
+    static let onSurfaceVariant = Color(hex: 0x43474E)
+    static let outline = Color(hex: 0x74777F)
+    static let outlineVariant = Color(hex: 0xC3C6CF)
+    static let surfaceContainerHighest = Color(hex: 0xE3E2E6)
+    static let surfaceContainerLowest = Color.white
 
-    // Secondary (navy family, used for quiet emphasis) ----------------------
+    /// Slate ink the site's cards use for dark accents (its back-to-top button).
+    static let ink = Color(hex: 0x1F2A2F)
+    /// Grey pill track: tags, pill tabs, status pills (ink at 6%).
+    static let track = Color(hex: 0x1F2A2F, opacity: 0.06)
+    /// Faint tertiary text (on-surface at 45%).
+    static let faint = Color(hex: 0x1A1C1E, opacity: 0.45)
 
-    static let secondary = Color(hex: 0x4E657F)
-    static let secondaryContainer = Color(hex: 0xE2EAF4)
-    static let onSecondaryContainer = Color(hex: 0x16304D)
-
-    // Tertiary (the warm accent from the orange phone) ----------------------
-
-    static let tertiary = Color(hex: 0xA8501E)
-    static let tertiaryContainer = Color(hex: 0xFFDCC8)
-    static let onTertiaryContainer = Color(hex: 0x4A1E05)
-    /// The warm phone in the illustration. Kept under its historic name.
+    // Brand reference: artwork only, never chrome.
+    /// The wordmark ink. Decorative only.
+    static let brand = Color(hex: 0x70AAF9)
+    /// The orange phone. Illustration, and "the other person".
     static let illustrationWarm = Color(hex: 0xF0955A)
 
-    // Surfaces (tonal layering replaces shadows) -----------------------------
-
-    /// `surface`: the warm ivory page ground.
-    static let surface = Color(hex: 0xFFF9F0)
-    static let surfaceContainerLowest = Color.white
-    static let surfaceContainerLow = Color(hex: 0xFFFCF7)
-    static let surfaceContainer = Color(hex: 0xF8F2E8)
-    static let surfaceContainerHigh = Color(hex: 0xF2EBDF)
-    static let surfaceContainerHighest = Color(hex: 0xEBE3D5)
-    /// `onSurface`: primary text.
-    static let onSurface = Color(hex: 0x183555)
-    /// `onSurfaceVariant`: secondary text (~4.9:1 on ivory).
-    static let onSurfaceVariant = Color(hex: 0x5A7290)
-    static let outline = Color(hex: 0x8B99AD)
-    static let outlineVariant = Color(hex: 0xE3DCCF)
-    /// Inverse surface for snackbars / tooltips.
-    static let inverseSurface = Color(hex: 0x1E2A3A)
-    static let inverseOnSurface = Color(hex: 0xF4F0E8)
-
-    // Semantic --------------------------------------------------------------
-
-    static let positive = Color(hex: 0x2E7D5B)
-    static let positiveContainer = Color(hex: 0xD7F0E3)
-    static let warning = Color(hex: 0xB4761F)
-    static let warningContainer = Color(hex: 0xFFEBCC)
-    static let negative = Color(hex: 0xB03A3A)
-    static let negativeContainer = Color(hex: 0xFADADA)
-
-    // Legacy aliases (older call sites) ------------------------------------
-
-    static let background = surface
+    // The names the views already use, repointed.
+    static let background = surfaceMD
     static let action = primary
     static let navy = onSurface
     static let secondaryText = onSurfaceVariant
-    static let paleBlue = primaryContainer
-    static let hairline = outlineVariant
+    static let surface = Color.white
+    static let paleBlue = track
+    static let hairline = Color(hex: 0x1F2A2F, opacity: 0.08)
+    static let positive = Color(hex: 0x2E7D5B)
+    static let positiveContainer = Color(hex: 0xD7F0E3)
+    static let warning = Color(hex: 0x8A5A00)
+    static let negative = error
 }
 
 extension Color {
-    init(hex: UInt32) {
+    init(hex: UInt32, opacity: Double = 1) {
         self.init(
             .sRGB,
             red: Double((hex >> 16) & 0xFF) / 255,
             green: Double((hex >> 8) & 0xFF) / 255,
             blue: Double(hex & 0xFF) / 255,
-            opacity: 1
+            opacity: opacity
         )
     }
 }
 
-// MARK: - State layers
-
-/// Material state-layer opacities, applied as an overlay of the content colour.
-enum StateLayer {
-    static let hover: Double = 0.08
-    static let focus: Double = 0.10
-    static let pressed: Double = 0.10
-    static let dragged: Double = 0.16
-    /// Disabled controls: 38% content on a 12% container.
-    static let disabledContent: Double = 0.38
-    static let disabledContainer: Double = 0.12
-}
-
-// MARK: - Shape
-
-/// The M3 shape scale. `full` is a capsule.
-enum Radius {
-    static let extraSmall: CGFloat = 4
-    static let small: CGFloat = 8
-    static let medium: CGFloat = 12
-    static let large: CGFloat = 16
-    static let largeIncreased: CGFloat = 20
-    static let extraLarge: CGFloat = 28
-    static let extraLargeIncreased: CGFloat = 32
-    static let full: CGFloat = 999
-}
-
 // MARK: - Type
 
-/// M3 type roles, expressed as Dynamic Type styles so they scale with the
-/// user's text size. Display and headline use the rounded design: the same
-/// friendliness as the wordmark, without shipping a font.
-enum BumpFont {
-    /// The wordmark: heavy and wide. Fixed size on purpose: it is a logo, not
-    /// body copy, but always inside a `minimumScaleFactor`.
-    static func wordmark(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .black).width(.expanded)
-    }
-
-    static let displayLarge = Font.system(.largeTitle, design: .rounded, weight: .bold)
-    static let displaySmall = Font.system(.title, design: .rounded, weight: .bold)
-    static let headlineLarge = Font.system(.title, design: .rounded, weight: .bold)
-    static let headlineMedium = Font.system(.title2, design: .rounded, weight: .bold)
-    static let headlineSmall = Font.system(.title3, design: .rounded, weight: .semibold)
-    static let titleLarge = Font.system(.title3, design: .rounded, weight: .semibold)
-    static let titleMedium = Font.system(.body, weight: .semibold)
-    static let titleSmall = Font.system(.subheadline, weight: .semibold)
-    static let bodyLarge = Font.system(.body)
-    static let bodyMedium = Font.system(.subheadline)
-    static let bodySmall = Font.system(.footnote)
-    static let labelLarge = Font.system(.subheadline, weight: .semibold)
-    static let labelMedium = Font.system(.footnote, weight: .semibold)
-    static let labelSmall = Font.system(.caption, weight: .semibold)
-    static let mono = Font.system(.caption2, design: .monospaced)
-
-    // Legacy aliases (older call sites)
-    static let screenTitle = headlineLarge
-    static let sectionTitle = titleLarge
-    static let body = bodyLarge
-    static let bodyEmphasis = titleMedium
-    static let caption = bodySmall
-    static let button = labelLarge
+/// Archivo, bundled in `Fonts/` and registered in Info.plist (UIAppFonts).
+///
+/// The static files carry the PostScript names below (their internal family
+/// is "Archivo SemiBold" at every weight, so we address faces by PostScript
+/// name rather than family + weight). If a face ever fails to load, SwiftUI
+/// falls back to the system font, so text still renders.
+enum Archivo {
+    static let regular = "ArchivoSemiBold-Regular"      // 400
+    static let medium = "ArchivoSemiBold-Medium"        // 500
+    static let semibold = "ArchivoSemiBold-SemiBold"    // 600
+    static let bold = "ArchivoSemiBold-Bold"            // 700
+    static let extraBold = "ArchivoSemiBold-ExtraBold"  // 800
 }
 
-// MARK: - Spacing
+enum BumpFont {
+    /// Archivo at a size that scales with Dynamic Type relative to `style`.
+    static func archivo(_ face: String, _ size: CGFloat, relativeTo style: Font.TextStyle) -> Font {
+        .custom(face, size: size, relativeTo: style)
+    }
+
+    /// Headings run heavy and tight, like the site's (800, -0.025em).
+    static let screenTitle = archivo(Archivo.extraBold, 31, relativeTo: .largeTitle)
+    static let display = archivo(Archivo.extraBold, 40, relativeTo: .largeTitle)
+    static let sectionTitle = archivo(Archivo.bold, 20, relativeTo: .title3)
+    static let body = archivo(Archivo.regular, 16, relativeTo: .body)
+    static let bodyEmphasis = archivo(Archivo.semibold, 16, relativeTo: .body)
+    static let caption = archivo(Archivo.regular, 14, relativeTo: .subheadline)
+    static let captionEmphasis = archivo(Archivo.semibold, 14, relativeTo: .subheadline)
+    static let captionMedium = archivo(Archivo.medium, 14, relativeTo: .subheadline)
+    static let caption2 = archivo(Archivo.medium, 12, relativeTo: .caption)
+    static let button = archivo(Archivo.semibold, 16, relativeTo: .body)
+    // Roles used by the new main-branch screens, expressed in the existing
+    // Archivo family so they keep this branch's typography.
+    static let headlineSmall = sectionTitle
+    static let titleLarge = sectionTitle
+    static let titleMedium = bodyEmphasis
+    static let bodyLarge = body
+    static let bodyMedium = caption
+    static let bodySmall = caption2
+    static let labelLarge = captionEmphasis
+    static let labelMedium = captionMedium
+    static let labelSmall = caption2
+    /// The site's "SCROLL TO BUMP" line: uppercase, letter-spaced. Pair with
+    /// `.textCase(.uppercase)` and `.tracking(Tracking.eyebrow)`.
+    static let eyebrow = archivo(Archivo.semibold, 12.5, relativeTo: .caption)
+    static let mono = Font.system(.caption2, design: .monospaced)
+}
+
+/// Letter spacing, in points at the base size.
+enum Tracking {
+    static let title: CGFloat = -0.8      // -0.025em at 31pt
+    static let eyebrow: CGFloat = 2.0     // 0.16em at 12.5pt
+}
+
+// MARK: - Spacing & shape
 
 enum Space {
-    static let xxs: CGFloat = 2
     static let xs: CGFloat = 4
     static let s: CGFloat = 8
     static let sm: CGFloat = 12
@@ -163,30 +141,37 @@ enum Space {
 
     /// Standard screen gutter.
     static let gutter: CGFloat = 20
-    static let corner: CGFloat = Radius.large
-    static let cornerLarge: CGFloat = Radius.extraLarge
+    /// Frosted card corner.
+    static let corner: CGFloat = 18
+    /// Bento corner (the site's --folk-radius-bento).
+    static let cornerLarge: CGFloat = 22
+    /// Primary / secondary button height.
+    static let buttonHeight: CGFloat = 54
 }
 
 // MARK: - Motion
 
-/// M3 Expressive motion: spatial springs move things, effects springs change
-/// colour and opacity without overshoot. Every animated view still checks
-/// Reduce Motion before using these.
-enum Motion {
-    /// Spatial, default. Layout and position changes.
-    /// (M3 Expressive: stiffness 380, damping 0.8 → response ≈ 0.32 s.)
-    static let spatial = Animation.spring(response: 0.38, dampingFraction: 0.8)
-    /// Spatial, fast. Presses and small movements (stiffness 800, damping 0.6).
-    static let spatialFast = Animation.spring(response: 0.24, dampingFraction: 0.62)
-    /// Spatial, slow. Large hero moves (stiffness 200, damping 0.8).
-    static let spatialSlow = Animation.spring(response: 0.5, dampingFraction: 0.8)
-    /// Expressive: visible overshoot for celebratory moments (the reveal).
-    static let expressive = Animation.spring(response: 0.5, dampingFraction: 0.6)
-    /// Effects, default. Colour and opacity; never overshoots (stiffness 1600).
-    static let effects = Animation.spring(response: 0.2, dampingFraction: 1)
-    static let effectsFast = Animation.spring(response: 0.12, dampingFraction: 1)
-
-    /// M3 "emphasized" easing, for the rare curve-based animation.
-    static let emphasized = Animation.timingCurve(0.2, 0, 0, 1, duration: 0.5)
+enum BumpMotion {
+    /// MD3 standard easing, cubic-bezier(0.2, 0, 0, 1).
     static let standard = Animation.timingCurve(0.2, 0, 0, 1, duration: 0.3)
+    /// MD3 emphasized decelerate, cubic-bezier(0.05, 0.7, 0.1, 1).
+    static let emphasizedIn = Animation.timingCurve(0.05, 0.7, 0.1, 1, duration: 0.5)
+    /// Shared badge timing lives with its maths (ScallopGeometry, testable).
+    static let badgeLoop: Double = ScallopGeometry.badgeLoop
+    static let badgeInterestHold: Double = ScallopGeometry.badgeInterestHold
+}
+
+// Names used by main's new interactions. Their timing follows this branch's
+// restrained motion rather than changing the established visual language.
+enum Motion {
+    static let spatial = BumpMotion.standard
+    static let spatialFast = Animation.easeOut(duration: 0.2)
+    static let spatialSlow = BumpMotion.emphasizedIn
+    static let expressive = BumpMotion.emphasizedIn
+    static let effects = Animation.easeOut(duration: 0.2)
+}
+
+enum Radius {
+    static let extraLarge: CGFloat = Space.cornerLarge
+    static let extraLargeIncreased: CGFloat = 32
 }

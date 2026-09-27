@@ -13,7 +13,7 @@ struct TestingToolsScreen: View {
         Screen {
             VStack(alignment: .leading, spacing: Space.l) {
 
-                NoticeText(text: "Engineering instrumentation for tuning on real phones. Values here are live sensor readings, not part of the normal BUMP experience.",
+                InfoNotice(text: "Engineering instrumentation for tuning on real phones. Values here are live sensor readings, not part of the normal BUMP experience.",
                            icon: "wrench.and.screwdriver.fill", tone: .neutral)
 
                 // MARK: Two-phone diagnostics

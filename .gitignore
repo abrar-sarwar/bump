@@ -14,5 +14,5 @@ xcuserdata/
 *.ipa
 *.dSYM.zip
 
-# Subagent-driven-development scratch workspaces
+# Local scratch workspaces for subagent work.
 .superpowers/

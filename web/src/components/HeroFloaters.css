@@ -1,0 +1,110 @@
+/* Foreground fragments on the hero. Positions and tilt come inline from the
+   FLOATERS table (the CSS `rotate` property, so GSAP's rotation adds to it
+   rather than replacing it). Above the phones and the contact mark. */
+
+.hero__floaters {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  font-family: var(--folk-typeface);
+}
+
+.hero__float { position: absolute; }
+/* 10% larger. On the inner content, not the element GSAP moves, so the scale
+   never gets folded into GSAP's own transform. */
+.hero__float > * { scale: 1.1; transform-origin: center; }
+
+/* Chat bubbles, folk-style: frosted white for "them", brand blue for "me". */
+.float-bubble {
+  max-width: 280px;
+  padding: 11px 16px;
+  border-radius: 20px 20px 20px 6px;
+  background: var(--folk-card-fill);
+  box-shadow: var(--folk-card-shadow);
+  color: var(--folk-ink);
+  font-size: 0.98rem;
+  line-height: 1.35;
+}
+.float-bubble--narrow { max-width: 240px; }
+.float-bubble--me {
+  border-radius: 20px 20px 6px 20px;
+  background: var(--folk-bubble-me);
+  color: var(--md-sys-color-on-primary);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--md-sys-color-primary) 28%, transparent);
+}
+
+/* A single glossy sticker. */
+.float-sticker {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: var(--folk-orb-fill);
+  box-shadow: var(--folk-orb-shadow);
+  color: var(--brand-phone-orange);
+  --md-icon-size: 30px;
+  font-variation-settings: 'FILL' 1;
+}
+
+/* UI cards: MD3 elevated surfaces, in the folk voice. */
+.float-card {
+  position: relative;
+  --md-elevation-level: 3;
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--folk-ink);
+  border-radius: var(--md-sys-shape-corner-large);
+  font-size: 0.92rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.float-card--row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  --md-icon-size: 20px;
+}
+.float-card--row md-icon { color: var(--md-sys-color-primary); }
+
+.float-card--confirm {
+  display: grid;
+  gap: 10px;
+  padding: 18px 18px 12px;
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  background: var(--md-sys-color-surface-container-high);
+  font-size: 1rem;
+}
+.float-card__actions { display: flex; justify-content: flex-end; gap: 4px; }
+
+.float-card--toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px 10px 10px;
+  border-radius: 999px;
+}
+.float-card__orb {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-primary);
+  --md-icon-size: 22px;
+}
+.float-card--toast > span:last-child { display: grid; line-height: 1.25; }
+.float-card__sub { font-weight: 500; color: var(--folk-ink-soft); }
+
+/* Mobile has no free side bands: the phones take the full width. */
+@media (max-width: 860px) {
+  .hero__floaters { display: none; }
+}
+
+/* Reduced motion stacks the hero in normal flow; absolute fragments would
+   land on top of it. The static page does without them. */
+@media (prefers-reduced-motion: reduce) {
+  .hero__floaters { display: none; }
+}

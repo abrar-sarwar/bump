@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import wordmark from '../assets/wordmark.png'
+import HeroBackdrop from './HeroBackdrop'
+import HeroFloaters from './HeroFloaters'
 import './BumpHero.css'
 
 gsap.registerPlugin(ScrollTrigger)
@@ -25,13 +27,22 @@ gsap.registerPlugin(ScrollTrigger)
  * rather than by nudging whole-image bounds together.
  */
 
+// Scroll lengths are 400vh desktop / 300vh mobile.
+//
+// ONE CONSTANT SPEED. Every movement is linear (ease 'none'), the phones go
+// straight from closing to parting with only a brief touch between, and the
+// two spans are sized so the phones cover about the same pixels per pixel
+// scrolled on the way in as on the way out (measured at 1440x900: ~33px of
+// phone movement per 144px scrolled, both directions). There used
+// to be power1.in on the approach, an eased recoil, a ~400px dead zone after
+// contact and power1.inOut on the parting: it crawled near the bump and then
+// rushed away. Keep the eases linear and the gap short, or that comes back.
 const STAGE = {
-  cueOut: 0.10,      // the "scroll to bump" cue fades away
-  approachIn: 0.15,  // phones start closing
-  contact: 0.50,     // edges meet
-  recoilOut: 0.62,   // recoil settles, reveal begins
-  revealIn: 0.66,    // wordmark takes focus, copy arrives
-  settled: 0.90,     // composition holds before release
+  cueOut: 0.08,      // the "scroll to bump" cue fades away
+  approachIn: 0.035, // phones start closing almost as soon as you scroll
+  contact: 0.40,     // edges meet
+  revealIn: 0.412,   // a brief touch, then parting and the reveal begin
+  settled: 0.912,    // composition holds before release
 }
 
 type Layout = {
@@ -61,8 +72,13 @@ type Layout = {
 }
 
 const DESKTOP: Layout = {
-  restOffset: 26, travel: 19.3, drift: 0, axis: 'x',
-  partX: 15, partY: 31, markReveal: 76, markFrom: 0.9,
+  // The photos are 60vw wide so the cropped wrist of each arm stays past the
+  // viewport edge for the whole sequence, including contact. restOffset was
+  // re-derived with it so the leading phone edges sit exactly where they did
+  // at 46vw: blue rests at 33.9vw and meets at 53.2vw, and the image's left
+  // (wrist) edge is at -26vw at rest and -6.7vw at contact, never on screen.
+  restOffset: 43.3, travel: 19.3, drift: 0, axis: 'x',
+  partX: 15, partY: 50, markReveal: 76, markFrom: 0.9,
 }
 
 const MOBILE: Layout = {
@@ -116,7 +132,12 @@ export default function BumpHero() {
         // and only `scale` animates, so the bloom is a transform, not a layout
         // change. CSS already sets opacity: 0 so it cannot flash before GSAP runs.
         gsap.set(mark, {
-          width: `${L.markReveal}vw`, yPercent: -50,
+          // Centre with xPercent, and zero x explicitly. GSAP folds the CSS
+          // `translate: -50%` into a PIXEL x the first time it touches the
+          // transform, measured at the CSS width (92vw); after this resize to
+          // markReveal that stale offset put the word ~115px left of centre,
+          // i.e. not opening from the point where the phones met.
+          width: `${L.markReveal}vw`, x: 0, xPercent: -50, yPercent: -50,
           // Fully opaque but masked to a zero-width sliver at the centre, which
           // is exactly where the phones meet. The reveal opens that mask
           // outwards, so the WORD grows from the contact point instead of
@@ -136,7 +157,7 @@ export default function BumpHero() {
             end: () => '+=' + window.innerHeight * (scrollVh / 100),
             pin: '.hero__stage',
             pinSpacing: true,
-            scrub: 0.6,
+            scrub: 0.9,  // a touch more smoothing, so the turn at contact glides
             invalidateOnRefresh: true,
           },
         })
@@ -144,70 +165,75 @@ export default function BumpHero() {
         // ---- cue out
         tl.to('.hero__cue', { opacity: 0, y: 14, duration: STAGE.cueOut }, 0)
 
+        // ---- background parallax, across the whole scroll. Slow and linear,
+        // so it reads as depth rather than as something happening.
+        tl.to(q('.hero__backdrop'), { y: () => -7 * vh(), duration: 1 }, 0)
+        tl.to(q('.hero__shape'), {
+          rotation: (i: number) => [28, -22, 34, -18, 0, 16][i] ?? 0,
+          duration: 1,
+        }, 0)
+        // The reveal's one shared motion: the phones parting and the wordmark
+        // opening use this start, duration and (linear) ease, and the
+        // foreground fragments slide off at the same pace.
+        const partAt = STAGE.revealIn
+        const partFor = STAGE.settled - STAGE.revealIn
+        const linear = 'none'
+
+        // Foreground UI fragments: from just after the cue fades, each slides
+        // sideways off its own edge, a small stagger between them. Distances
+        // come from untransformed layout (offsetLeft/Width) so a refresh
+        // mid-scroll measures correctly.
+        q('.hero__float').forEach((el: HTMLElement, i: number) => {
+          const out = () => el.dataset.side === 'left'
+            ? -(el.offsetLeft + el.offsetWidth * 1.1 + 80)
+            : window.innerWidth - el.offsetLeft + 80
+          tl.to(el, {
+            x: out,
+            rotation: `+=${Number(el.dataset.turn) * 3}`,
+            duration: partFor,
+            ease: linear,
+          }, STAGE.cueOut * 0.5 + i * 0.012)
+        })
+
         // ---- the approach (translate + a little rotation, never a zoom)
         const approach = STAGE.contact - STAGE.approachIn
         const blueIn = inward(1)
         const orangeIn = inward(-1)
-        tl.to(blue, {
-          ...blueIn, rotation: 1.5,
-          duration: approach, ease: 'power1.in',
-        }, STAGE.approachIn)
-        tl.to(orange, {
-          ...orangeIn, rotation: -1.5,
-          duration: approach, ease: 'power1.in',
-        }, STAGE.approachIn)
+        tl.to(blue, { ...blueIn, rotation: 1.5, duration: approach, ease: linear }, STAGE.approachIn)
+        tl.to(orange, { ...orangeIn, rotation: -1.5, duration: approach, ease: linear }, STAGE.approachIn)
 
-        // ---- contact: a short, readable beat, then a restrained recoil
-        const beat = STAGE.recoilOut - STAGE.contact
-        const recoil = L.axis === 'x' ? 1.6 * vw() : 1.6 * vh()
-        const back = (p: { x: number; y: number }, sign: number) =>
-          L.axis === 'x' ? { x: p.x - sign * recoil, y: p.y } : { x: p.x, y: p.y - sign * recoil }
-        const blueRest = back(blueIn, 1)
-        const orangeRest = back(orangeIn, -1)
-        tl.to(spark, { opacity: 1, scale: 1, duration: beat * 0.28 }, STAGE.contact)
-        tl.to(blue, { ...blueRest, rotation: -0.5, duration: beat * 0.5, ease: 'power2.out' }, STAGE.contact + beat * 0.2)
-        tl.to(orange, { ...orangeRest, rotation: 0.5, duration: beat * 0.5, ease: 'power2.out' }, STAGE.contact + beat * 0.2)
-        tl.to(spark, { opacity: 0, scale: 1.5, duration: beat * 0.5 }, STAGE.contact + beat * 0.35)
+        // ---- contact: the mark blooms and fades across the turn. Opacity
+        // only, so it never interrupts the phones' constant speed.
+        tl.to(spark, { opacity: 1, scale: 1, duration: 0.02 }, STAGE.contact - 0.005)
+        tl.to(spark, { opacity: 0, scale: 1.5, duration: 0.05 }, STAGE.contact + 0.015)
 
         // ---- the reveal: the SAME wordmark becomes the focal point
-        const reveal = STAGE.settled - STAGE.revealIn
         // Part outwards, clearing the centre for the wordmark and the copy.
         // Desktop: both sink toward the lower outside corners.
         // Mobile: they separate back along the axis they closed on: blue up,
         // orange down, so the tagline and button get a clean band between them.
+        // The wordmark opens out of the meeting point AS they part, same start,
+        // duration and ease, so the mask's edges track the phones.
         const partX = L.partX * vw()
         const partY = L.partY * vh()
-        // 1. the wordmark blooms out of the meeting point. This starts at
-        //    STAGE.revealIn, which is strictly after the recoil and the contact
-        //    mark have finished (see the assertion below).
+        const blueOut = L.axis === 'x'
+          ? { x: blueIn.x - partX, y: blueIn.y + partY }
+          : { x: blueIn.x - partX, y: blueIn.y - partY }
+        const orangeOut = { x: orangeIn.x + partX, y: orangeIn.y + partY }
+        tl.to(blue, { ...blueOut, rotation: -9, duration: partFor, ease: linear }, partAt)
+        tl.to(orange, { ...orangeOut, rotation: 9, duration: partFor, ease: linear }, partAt)
         tl.fromTo(mark,
           { clipPath: 'inset(0% 50% 0% 50%)', scale: L.markFrom },
-          {
-            clipPath: 'inset(0% 0% 0% 0%)', scale: 1,
-            duration: reveal * 0.6, ease: 'power2.out',
-          },
-          STAGE.revealIn,
+          { clipPath: 'inset(0% 0% 0% 0%)', scale: 1, duration: partFor, ease: linear },
+          partAt,
         )
 
-        // 2. the phones move aside so it becomes fully readable
-        const blueOut = L.axis === 'x'
-          ? { x: blueRest.x - partX, y: blueRest.y + partY }
-          : { x: blueRest.x - partX, y: blueRest.y - partY }
-        const orangeOut = { x: orangeRest.x + partX, y: orangeRest.y + partY }
-        tl.to(blue, {
-          ...blueOut, rotation: -9,
-          duration: reveal * 0.88, ease: 'power1.inOut',
-        }, STAGE.revealIn + reveal * 0.12)
-        tl.to(orange, {
-          ...orangeOut, rotation: 9,
-          duration: reveal * 0.88, ease: 'power1.inOut',
-        }, STAGE.revealIn + reveal * 0.12)
-
-        // 3. only then the supporting line and the CTA
+        // Then the supporting line and the CTA: in once the word is past
+        // halfway open, landing with `settled`.
         tl.fromTo('.hero__reveal',
           { opacity: 0, y: 24 },
-          { opacity: 1, y: 0, duration: reveal * 0.5, ease: 'power2.out' },
-          STAGE.revealIn + reveal * 0.5,
+          { opacity: 1, y: 0, duration: partFor * 0.4, ease: linear },
+          partAt + partFor * 0.6,
         )
 
         // The STAGE numbers are fractions of the WHOLE scroll, so the timeline
@@ -216,9 +242,14 @@ export default function BumpHero() {
         tl.set({}, {}, 1)
       }
 
-      mm.add('(min-width: 861px)', build(DESKTOP, 320))
-      mm.add('(max-width: 860px)', build(MOBILE, 240))
+      mm.add('(min-width: 861px)', build(DESKTOP, 400))
+      mm.add('(max-width: 860px)', build(MOBILE, 300))
     }, root)
+
+    // The pin adds ~3x the viewport height of spacer above everything below
+    // the hero. Any ScrollTrigger created earlier (the intro's word reveal)
+    // measured the page without it, so re-measure now that it exists.
+    ScrollTrigger.refresh()
 
     // Fonts can change the cue/reveal text metrics after first paint.
     document.fonts?.ready.then(() => ScrollTrigger.refresh())
@@ -234,6 +265,8 @@ export default function BumpHero() {
           BUMP. Meet someone, find your overlap.
         </h1>
 
+        <HeroBackdrop />
+
         <img className="hero__mark" src={wordmark} alt="" aria-hidden="true" />
 
         <div className="hero__spark" aria-hidden="true" />
@@ -242,7 +275,7 @@ export default function BumpHero() {
           className="hero__phone hero__phone--blue"
           src="/assets/phone-blue.png"
           srcSet="/assets/phone-blue.png 1100w, /assets/phone-blue@1600.png 1600w"
-          sizes="46vw"
+          sizes="(max-width: 860px) 82vw, 60vw"
           width={1100}
           height={506}
           alt=""
@@ -254,7 +287,7 @@ export default function BumpHero() {
           className="hero__phone hero__phone--orange"
           src="/assets/phone-orange.png"
           srcSet="/assets/phone-orange.png 1100w, /assets/phone-orange@1600.png 1600w"
-          sizes="46vw"
+          sizes="(max-width: 860px) 82vw, 60vw"
           width={1100}
           height={604}
           alt=""
@@ -268,9 +301,14 @@ export default function BumpHero() {
           Scroll to bump
         </p>
 
+        <HeroFloaters />
+
         <div className="hero__reveal">
           <p className="hero__tagline">A small gesture. A real connection.</p>
-          <a className="btn btn--primary" href="#how-it-works">See how it works</a>
+          <md-filled-button href="#how-it-works" trailing-icon="">
+            See how it works
+            <md-icon slot="icon">arrow_downward</md-icon>
+          </md-filled-button>
         </div>
       </div>
     </section>

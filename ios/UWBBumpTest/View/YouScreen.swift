@@ -3,188 +3,177 @@ import SwiftUI
 struct YouScreen: View {
     @ObservedObject var store: Store
     @ObservedObject var engine: BumpEngine
+    @State private var showCloudInfo = false
 
     var body: some View {
         NavigationStack {
-            Screen {
+            Screen(backdrop: .soft) {
                 VStack(alignment: .leading, spacing: Space.l) {
+                    profileCard
 
-                    // Profile header
-                    VStack(alignment: .leading, spacing: Space.m) {
-                        HStack(alignment: .center, spacing: Space.m) {
-                            PhotoPickerAvatar(photo: $store.profile.photo, name: store.profile.displayName, size: 80)
-                            VStack(alignment: .leading, spacing: Space.xs) {
-                                Text(store.profile.displayName.isEmpty ? "You" : store.profile.displayName)
-                                    .font(BumpFont.displaySmall)
-                                    .foregroundStyle(BumpColor.onSurface)
-                                    .lineLimit(2)
-                                    .minimumScaleFactor(0.7)
-                                HStack(spacing: Space.s) {
-                                    stat(store.profile.interests.count, "interests")
-                                    stat(store.profile.details.count, "details")
-                                }
+                    Card {
+                        HStack(spacing: Space.s) {
+                            Text("Allow cloud processing")
+                                .font(BumpFont.bodyEmphasis)
+                                .foregroundStyle(BumpColor.navy)
+                            Button { showCloudInfo = true } label: {
+                                Image(systemName: "info.circle")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(BumpColor.primary)
                             }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("About cloud processing")
                             Spacer(minLength: 0)
+                        Toggle(isOn: Binding(
+                            get: { store.privacy.allowsCloud },
+                            set: { store.privacy.cloud = $0 ? .allowed : .localOnly; engine.refreshCloudStatus() })) {
+                            Text("Allow cloud processing")
                         }
-
-                        if !store.profile.bio.isEmpty {
-                            Text(store.profile.bio)
-                                .font(BumpFont.bodyLarge)
-                                .foregroundStyle(BumpColor.onSurface)
-                                .fixedSize(horizontal: false, vertical: true)
+                        .labelsHidden()
+                        .tint(BumpColor.primary)
                         }
-
-                        if !store.profile.interests.isEmpty {
-                            FlowLayout {
-                                ForEach(store.profile.interests) { InterestChip(title: $0.label, selected: true) }
-                            }
-                        }
-
-                        ForEach([ProfileFact.Kind.experience, .goal], id: \.self) { kind in
-                            let facts = store.profile.details.filter { $0.kind == kind }
-                            if !facts.isEmpty {
-                                VStack(alignment: .leading, spacing: Space.s) {
-                                    Eyebrow(text: kind.title)
-                                    ForEach(facts) { fact in
-                                        HStack(alignment: .top, spacing: Space.s) {
-                                            Image(systemName: kind == .goal ? "flag.fill" : "star.fill")
-                                                .font(.system(size: 11, weight: .bold))
-                                                .foregroundStyle(BumpColor.tertiary)
-                                                .padding(.top, 5)
-                                            Text(fact.text)
-                                                .font(BumpFont.bodyLarge)
-                                                .foregroundStyle(BumpColor.onSurface)
-                                                .fixedSize(horizontal: false, vertical: true)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        NavigationLink {
-                            ProfileEditor(profile: $store.profile, isOnboarding: false, onDone: {})
-                        } label: {
-                            Label("Edit profile", systemImage: "pencil")
-                        }
-                        .buttonStyle(.bumpPrimary)
                     }
 
-                    // Cloud processing
                     VStack(alignment: .leading, spacing: Space.s) {
-                        Eyebrow(text: "Cloud processing")
-                        ListGroup {
-                            HStack(alignment: .top, spacing: Space.m) {
-                                Image(systemName: "cloud.fill")
-                                    .font(.system(size: 17, weight: .semibold))
-                                    .foregroundStyle(store.privacy.allowsCloud ? BumpColor.primary : BumpColor.onSurfaceVariant)
-                                    .frame(width: 40, height: 40)
-                                    .background(Circle().fill(store.privacy.allowsCloud ? BumpColor.primaryContainer : BumpColor.surfaceContainerHigh))
-                                Toggle(isOn: Binding(
-                                    get: { store.privacy.allowsCloud },
-                                    set: { store.privacy.cloud = $0 ? .allowed : .localOnly; engine.refreshCloudStatus() })) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Allow cloud processing")
-                                            .font(BumpFont.titleMedium).foregroundStyle(BumpColor.onSurface)
-                                        Text(cloudStatusText)
-                                            .font(BumpFont.bodyMedium).foregroundStyle(BumpColor.onSurfaceVariant)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
-                                }
-                                .tint(BumpColor.primary)
-                            }
-                            .padding(Space.m)
-                        }
-                        Text("Voice transcription, profile drafting and Grok talking points go through the BUMP server to xAI. Talking points use Grok only when you AND the person you bump both allow it.")
-                            .font(BumpFont.bodySmall)
-                            .foregroundStyle(BumpColor.onSurfaceVariant)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    // Common ground
-                    VStack(alignment: .leading, spacing: Space.s) {
-                        Eyebrow(text: "Nearby")
-                        ListGroup {
+                        Eyebrow("Nearby")
+                            .padding(.horizontal, Space.xs)
+                        Card {
                             Toggle(isOn: Binding(
                                 get: { store.privacy.sharesCommonGround },
                                 set: { store.privacy.showsCommonGround = $0 })) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Show what we have in common")
-                                        .font(BumpFont.titleMedium).foregroundStyle(BumpColor.onSurface)
+                                        .font(BumpFont.bodyEmphasis)
+                                        .foregroundStyle(BumpColor.navy)
                                     Text("Nearby BUMP users with this on can see which broad topics you share, like anime or coffee. Never your name, photo, bio or the exact things you listed.")
-                                        .font(BumpFont.bodyMedium).foregroundStyle(BumpColor.onSurfaceVariant)
+                                        .font(BumpFont.caption)
+                                        .foregroundStyle(BumpColor.secondaryText)
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
                             .tint(BumpColor.primary)
-                            .padding(Space.m)
                         }
                     }
 
-                    // Permissions
                     VStack(alignment: .leading, spacing: Space.s) {
-                        Eyebrow(text: "Permissions & capabilities")
-                        ListGroup {
-                            permissionRow("Motion", icon: "waveform.path.ecg",
-                                          engine.motion.isAvailable ? "Available" : "Not available on this iPhone",
-                                          engine.motion.isAvailable ? .good : .bad)
-                            permissionRow("Ultra-wideband", icon: "dot.radiowaves.left.and.right",
-                                          engine.ranging.isSupported
-                                            ? (engine.ranging.supportsDirection ? "Distance and direction" : "Distance only")
-                                            : "Not supported on this iPhone",
-                                          engine.ranging.isSupported ? .good : .warn)
-                            permissionRow("Nearby Interaction", icon: "location.fill",
-                                          engine.ranging.permissionDenied ? "Denied. Turn it on in Settings" : "Allowed",
-                                          engine.ranging.permissionDenied ? .bad : .good)
-                            permissionRow("On-device AI", icon: "cpu",
-                                          ConversationService.availabilityDescription,
-                                          ConversationService.onDeviceModelAvailable ? .good : .neutral)
-                        }
-                        Text("BUMP needs Local Network and Nearby Interaction access to find the phone next to you. Your card goes only to a partner you've both confirmed, directly between the two phones. There's no account. With cloud processing off, nothing goes to the BUMP server or xAI.")
-                            .font(BumpFont.bodySmall)
-                            .foregroundStyle(BumpColor.onSurfaceVariant)
-                            .fixedSize(horizontal: false, vertical: true)
+                        Eyebrow("Permissions & help")
+                            .padding(.horizontal, Space.xs)
+                        permissionRow("iphone.radiowaves.left.and.right", "Motion",
+                                      engine.motion.isAvailable ? "Available" : "Not available on this iPhone",
+                                      engine.motion.isAvailable ? .good : .bad)
+                        permissionRow("dot.radiowaves.left.and.right", "Ultra-wideband",
+                                      engine.ranging.isSupported
+                                        ? (engine.ranging.supportsDirection ? "Distance and direction" : "Distance only")
+                                        : "Not supported on this iPhone",
+                                      engine.ranging.isSupported ? .good : .warn)
+                        permissionRow("location.fill", "Nearby Interaction permission",
+                                      engine.ranging.permissionDenied ? "Denied. Turn it on in Settings" : "OK",
+                                      engine.ranging.permissionDenied ? .bad : .good)
+                        permissionRow("sparkles", "On-device AI", ConversationService.availabilityDescription,
+                                      ConversationService.onDeviceModelAvailable ? .good : .neutral)
                     }
 
-                    // More
-                    ListGroup {
+                    Text("BUMP needs Local Network and Nearby Interaction access to find the phone next to you. Your card goes only to a partner you've both confirmed, directly between the two phones. There's no account. With cloud processing off, nothing goes to the BUMP server or xAI.")
+                        .font(BumpFont.caption)
+                        .foregroundStyle(BumpColor.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, Space.xs)
+
+                    VStack(spacing: Space.s) {
                         Button {
                             if let url = URL(string: UIApplication.openSettingsURLString) {
                                 UIApplication.shared.open(url)
                             }
                         } label: {
-                            ListRow(icon: "gearshape.fill", iconTint: BumpColor.onSurfaceVariant,
-                                    iconContainer: BumpColor.surfaceContainerHigh,
-                                    title: "Open iPhone Settings") {
-                                Image(systemName: "arrow.up.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(BumpColor.outline)
-                            }
+                            TrailingIconLabel("Open iPhone Settings", systemImage: "gearshape.fill")
                         }
-                        .buttonStyle(NavigationRowStyle())
+                        .buttonStyle(.bumpSecondary)
 
                         NavigationLink {
                             TestingToolsScreen(engine: engine, store: store)
                         } label: {
-                            ListRow(icon: "wrench.and.screwdriver.fill", iconTint: BumpColor.onSurfaceVariant,
-                                    iconContainer: BumpColor.surfaceContainerHigh,
-                                    title: "Testing tools", subtitle: "Live sensor readings and tuning") {
-                                Chevron()
-                            }
+                            Text("Testing tools")
                         }
-                        .buttonStyle(NavigationRowStyle())
+                        .buttonStyle(.bumpSecondary)
                     }
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle("You")
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showCloudInfo) { cloudInfoSheet }
         }
     }
 
-    private func stat(_ count: Int, _ label: String) -> some View {
-        HStack(spacing: 4) {
-            Text("\(count)").font(BumpFont.labelLarge).foregroundStyle(BumpColor.onSurface)
-            Text(label).font(BumpFont.bodyMedium).foregroundStyle(BumpColor.onSurfaceVariant)
+    private var cloudInfoSheet: some View {
+        NavigationStack {
+            Screen {
+                VStack(alignment: .leading, spacing: Space.m) {
+                    Text("With this on, BUMP sends your intro and answers through its server to xAI for transcription and Grok suggestions. Talking points use Grok only when both people allow it.")
+                    Text("The BUMP server doesn't store your audio or text. xAI says API requests can be kept for up to 30 days for auditing. Turn this off to keep drafting on your phone.")
+                    Text(cloudStatusText)
+                        .foregroundStyle(BumpColor.secondaryText)
+                }
+                .font(BumpFont.body)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .navigationTitle("Cloud processing")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { showCloudInfo = false } } }
         }
-        .padding(.horizontal, 10)
-        .frame(height: 28)
-        .background(Capsule().fill(BumpColor.surfaceContainerHigh))
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+    }
+
+    /// The person's card: a flat avatar, name, bio,
+    /// your interests as tags.
+    private var profileCard: some View {
+        Card(padding: 22) {
+            VStack(alignment: .leading, spacing: Space.m) {
+                HStack(spacing: Space.m) {
+                    PhotoPickerAvatar(photo: $store.profile.photo, name: store.profile.displayName, size: 72)
+                    VStack(alignment: .leading, spacing: 2) {
+                        ScreenTitle(store.profile.displayName.isEmpty ? "You" : store.profile.displayName)
+                        Text("\(store.profile.interests.count) interests")
+                            .font(BumpFont.caption)
+                            .foregroundStyle(BumpColor.secondaryText)
+                    }
+                }
+
+                if !store.profile.bio.isEmpty {
+                    Text(store.profile.bio)
+                        .font(BumpFont.body)
+                        .foregroundStyle(BumpColor.secondaryText)
+                }
+
+                if !store.profile.interests.isEmpty {
+                    FlowLayout {
+                        ForEach(store.profile.interests) { InterestChip(title: $0.label) }
+                    }
+                }
+
+                ForEach([ProfileFact.Kind.experience, .goal], id: \.self) { kind in
+                    let facts = store.profile.details.filter { $0.kind == kind }
+                    if !facts.isEmpty {
+                        VStack(alignment: .leading, spacing: Space.xs) {
+                            Eyebrow(kind.title)
+                            ForEach(facts) { fact in
+                                Text("· \(fact.text)")
+                                    .font(BumpFont.body)
+                                    .foregroundStyle(BumpColor.navy)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+
+                NavigationLink {
+                    ProfileEditor(profile: $store.profile, isOnboarding: false, onDone: {})
+                } label: {
+                    TrailingIconLabel("Edit profile", systemImage: "pencil")
+                }
+                .buttonStyle(.bumpTonal)
+            }
+        }
     }
 
     private var cloudStatusText: String {
@@ -195,9 +184,15 @@ struct YouScreen: View {
         }
     }
 
-    private func permissionRow(_ title: String, icon: String, _ value: String, _ tone: StatusTone) -> some View {
-        ListRow(icon: icon, iconTint: tone.color, iconContainer: tone.container, title: title, subtitle: value) {
-            Circle().fill(tone.color).frame(width: 8, height: 8)
+    private func permissionRow(_ systemImage: String, _ title: String, _ value: String, _ tone: StatusTone) -> some View {
+        RowPill {
+            IconOrb(systemImage: systemImage, size: 40)
+        } content: {
+            RowText.title(title)
+            RowText.subtitle(value)
+        } trail: {
+            Circle().fill(tone.color).frame(width: 8, height: 8).padding(.trailing, 4)
         }
+        .accessibilityElement(children: .combine)
     }
 }

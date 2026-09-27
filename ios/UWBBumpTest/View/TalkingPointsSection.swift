@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// Talking points, split into what both people listed and what's merely
-/// related. A complementary point is framed as something to ask about, never
-/// as a claim that the two people share it.
+/// related. A complementary point is framed as something to ask about — never
+/// as a claim that the two people share it. Shown as chat bubbles, with the
+/// evidence from both cards under each.
 struct TalkingPointsSection: View {
     let points: [TalkingPoint]
 
@@ -14,15 +15,16 @@ struct TalkingPointsSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             if !shared.isEmpty {
-                group("You both listed", shared, icon: "person.2.fill")
+                group("You both listed", shared)
             }
             if !complementary.isEmpty {
-                group("Worth asking about", complementary, icon: "questionmark.bubble.fill")
+                group("Worth asking about", complementary)
             }
             if let label = sourceLabel {
                 Text(label)
-                    .font(BumpFont.bodySmall)
-                    .foregroundStyle(BumpColor.onSurfaceVariant)
+                    .font(BumpFont.caption2)
+                    .foregroundStyle(BumpColor.faint)
+                    .padding(.horizontal, 6)
             }
         }
     }
@@ -34,32 +36,22 @@ struct TalkingPointsSection: View {
         return only == .fallbackTemplate ? "Suggested questions, built from both cards" : only.label
     }
 
-    private func group(_ title: String, _ items: [TalkingPoint], icon: String) -> some View {
+    private func group(_ title: String, _ items: [TalkingPoint]) -> some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            Eyebrow(text: title)
-            ListGroup {
-                ForEach(items) { point in
-                    HStack(alignment: .top, spacing: Space.m) {
-                        Image(systemName: icon)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(BumpColor.onSecondaryContainer)
-                            .frame(width: 40, height: 40)
-                            .background(Circle().fill(BumpColor.secondaryContainer))
-                        VStack(alignment: .leading, spacing: Space.xs) {
-                            Text(point.prompt)
-                                .font(BumpFont.titleMedium)
-                                .foregroundStyle(BumpColor.onSurface)
-                                .fixedSize(horizontal: false, vertical: true)
-                            // Evidence from BOTH approved cards.
-                            Text("You: “\(point.yourEntry)” · Them: “\(point.theirEntry)”")
-                                .font(BumpFont.bodySmall)
-                                .foregroundStyle(BumpColor.onSurfaceVariant)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+            Eyebrow(title)
+                .padding(.horizontal, Space.xs)
+            ForEach(items) { point in
+                Card {
+                    VStack(alignment: .leading, spacing: Space.xs) {
+                        Text(point.prompt)
+                            .font(BumpFont.bodyEmphasis)
+                        // Evidence from BOTH approved cards.
+                        Text("You: “\(point.yourEntry)” · Them: “\(point.theirEntry)”")
+                            .font(BumpFont.caption2)
+                            .foregroundStyle(BumpColor.faint)
                     }
-                    .padding(Space.m)
-                    .accessibilityElement(children: .combine)
                 }
+                .accessibilityElement(children: .combine)
             }
         }
     }
@@ -72,22 +64,21 @@ struct TalkingPromptLine: View {
     var body: some View {
         HStack(alignment: .top, spacing: Space.s) {
             Image(systemName: "bubble.left.fill")
-                .font(.caption)
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(BumpColor.primary)
                 .padding(.top, 3)
             VStack(alignment: .leading, spacing: 2) {
                 Text(point.prompt)
-                    .font(BumpFont.bodyLarge)
-                    .foregroundStyle(BumpColor.onSurface)
+                    .font(BumpFont.captionEmphasis)
+                    .foregroundStyle(BumpColor.primary)
                     .fixedSize(horizontal: false, vertical: true)
                 if point.source == .grok {
                     Text(point.source.label)
-                        .font(BumpFont.labelSmall)
-                        .foregroundStyle(BumpColor.onSurfaceVariant)
+                        .font(BumpFont.caption2)
+                        .foregroundStyle(BumpColor.faint)
                 }
             }
         }
-        .padding(.top, Space.s)
-        .padding(.leading, 2)
+        .padding(.top, Space.xs)
     }
 }

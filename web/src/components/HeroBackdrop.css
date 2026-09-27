@@ -1,0 +1,71 @@
+/* Background detail behind the hero. Everything here is deliberately faint:
+   it should read as texture, never as content, and never compete with the
+   photographs or the wordmark. Colours are MD3 roles mixed toward transparent. */
+
+.hero__backdrop {
+  position: absolute;
+  /* Taller than the stage so the parallax drift never exposes an edge. */
+  inset: -6% 0 -14% 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.hero__dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent) 1.1px,
+    transparent 1.6px
+  );
+  background-size: 26px 26px;
+  /* Strongest at the edges, gone in the middle where the phones meet. */
+  mask-image: radial-gradient(ellipse 70% 62% at 50% 50%, transparent 30%, #000 100%);
+}
+
+.hero__shape {
+  position: absolute;
+  overflow: visible;
+}
+.hero__shape--primary { --tone: var(--md-sys-color-primary); }
+.hero__shape--secondary { --tone: var(--md-sys-color-secondary); }
+.hero__shape--tertiary { --tone: var(--md-sys-color-tertiary); }
+
+.hero__shape--fill path { fill: color-mix(in srgb, var(--tone) 6%, transparent); stroke: none; }
+.hero__shape--line path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--tone) 14%, transparent);
+  stroke-width: 1.5px;
+}
+
+/* Placement: the corners and edges, clear of the centre band. */
+.hero__shape--cookie { width: clamp(120px, 17vw, 300px); left: 5%;  top: 14%; }
+.hero__shape--clover { width: clamp(90px, 12vw, 210px);  right: 7%; top: 11%; }
+.hero__shape--sunny  { width: clamp(80px, 10vw, 180px);  left: 16%; bottom: 17%; }
+.hero__shape--flower { width: clamp(130px, 19vw, 330px); right: 3%; bottom: 20%; }
+.hero__shape--dot    { width: clamp(28px, 3.4vw, 60px);  left: 43%; top: 15%; }
+.hero__shape--pill   { width: clamp(90px, 11vw, 200px);  left: 64%; bottom: 16%; rotate: -24deg; }
+
+.hero__glyph {
+  position: absolute;
+  --md-icon-size: clamp(28px, 3vw, 48px);
+  color: color-mix(in srgb, var(--md-sys-color-primary) 11%, transparent);
+  font-variation-settings: 'FILL' 1;
+}
+.hero__glyph--waving_hand { left: 27%; top: 22%; rotate: -12deg; }
+.hero__glyph--chat_bubble { right: 25%; top: 25%; rotate: 8deg; }
+.hero__glyph--favorite    { left: 8%;  bottom: 34%; rotate: -8deg; }
+.hero__glyph--handshake   { right: 14%; bottom: 43%; rotate: 10deg; }
+
+@media (max-width: 860px) {
+  .hero__dots { background-size: 22px 22px; }
+  .hero__shape--sunny,
+  .hero__shape--pill,
+  .hero__glyph--handshake,
+  .hero__glyph--favorite { display: none; }
+  .hero__shape--cookie { top: 8%; left: -6%; }
+  .hero__shape--flower { bottom: 18%; right: -8%; }
+  .hero__glyph--waving_hand { left: 70%; top: 13%; }
+  .hero__glyph--chat_bubble { right: auto; left: 10%; top: auto; bottom: 22%; }
+}
