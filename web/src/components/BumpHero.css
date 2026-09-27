@@ -12,6 +12,16 @@
   place-items: center;
 }
 
+/* The whole composition, so it can drift up as one piece when the pinned
+   sequence hands off to normal scrolling. Mirrors the stage's centring. */
+.hero__scene {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  will-change: transform;
+}
+
 /* --- the wordmark, behind everything --------------------------------- */
 .hero__mark {
   position: absolute;

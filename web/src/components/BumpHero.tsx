@@ -157,7 +157,10 @@ export default function BumpHero() {
             end: () => '+=' + window.innerHeight * (scrollVh / 100),
             pin: '.hero__stage',
             pinSpacing: true,
-            scrub: 0.9,  // a touch more smoothing, so the turn at contact glides
+            // Less lag than 0.9: a long catch-up was still animating when
+            // the pin released, which read as a stutter into normal scroll.
+            scrub: 0.5,
+            anticipatePin: 1,
             invalidateOnRefresh: true,
           },
         })
@@ -243,6 +246,18 @@ export default function BumpHero() {
         // The STAGE numbers are fractions of the WHOLE scroll, so the timeline
         // has to be exactly 1 unit long. Without this it ends at `settled`
         // (0.90) and every beat lands ~10% late, and the reveal never finishes.
+        // ---- hand-off to normal scrolling. Instead of holding still and then
+        // jumping to full scroll speed when the pin releases, the whole scene
+        // drifts up with an ease-in over the hold. With power1.in, moving half
+        // the hold's length means it ends at exactly 1px per px scrolled, the
+        // same speed the page moves at once unpinned, so there is no seam.
+        const hold = 1 - STAGE.settled
+        tl.to(q('.hero__scene'), {
+          y: () => -(hold * scrollVh * vh()) / 2,
+          duration: hold,
+          ease: 'power1.in',
+        }, STAGE.settled)
+
         tl.set({}, {}, 1)
       }
 
@@ -264,6 +279,7 @@ export default function BumpHero() {
   return (
     <section ref={root} className="hero" aria-labelledby="hero-heading">
       <div className="hero__stage">
+       <div className="hero__scene">
         {/* The real heading for assistive tech and SEO; the artwork is decorative. */}
         <h1 id="hero-heading" className="sr-only">
           BUMP. Meet someone, find your overlap.
@@ -314,6 +330,7 @@ export default function BumpHero() {
             <md-icon slot="icon">arrow_downward</md-icon>
           </md-filled-button>
         </div>
+       </div>
       </div>
     </section>
   )
