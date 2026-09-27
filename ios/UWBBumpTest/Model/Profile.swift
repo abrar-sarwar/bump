@@ -119,6 +119,11 @@ struct SharedProfile: Codable, Equatable, Hashable, Sendable {
         details = try c.decodeIfPresent([SharedFact].self, forKey: .details) ?? []
         photo = try c.decodeIfPresent(Data.self, forKey: .photo)
     }
+
+    /// The same partition `Profile` makes, so the unlocked profile can be shown
+    /// under the same three headings the owner sees.
+    var experiences: [SharedFact] { details.filter { $0.kind == .experience } }
+    var goals: [SharedFact] { details.filter { $0.kind == .goal } }
 }
 
 /// One grounded thing two profiles genuinely share.
@@ -249,6 +254,13 @@ struct SavedConnection: Codable, Equatable, Identifiable, Sendable {
     /// How the two phones were paired. A manual pick is recorded honestly and is
     /// NOT counted as a hardware-detected bump.
     var pairingEvidence: PairingEvidence
+    /// The card the partner handed over at bump time, kept so a mutual match has
+    /// something to unlock. Held back until `Store.isMatched(id)` — receiving it
+    /// is not the same as being allowed to read all of it.
+    ///
+    /// Optional because connections saved before this existed have no card; those
+    /// say so rather than showing an empty profile.
+    var partnerProfile: SharedProfile?
 
     enum PairingEvidence: String, Codable, Sendable {
         case motionOnly

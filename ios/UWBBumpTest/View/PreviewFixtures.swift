@@ -30,7 +30,12 @@ enum PreviewFixtures {
             InterestCatalog.byID["hiking"]!,
             InterestCatalog.byID["espresso"]!,
         ],
-        details: [SharedFact(id: "demo-goal", kind: .goal, text: "Learn to bake bread")]
+        details: [
+            SharedFact(id: "demo-goal", kind: .goal, text: "Learn to bake bread"),
+            SharedFact(id: "demo-goal-2", kind: .goal, text: "Play a set at an open mic"),
+            SharedFact(id: "demo-exp", kind: .experience, text: "Toured with a quartet for two summers"),
+            SharedFact(id: "demo-exp-2", kind: .experience, text: "Walked the Camino in 2023"),
+        ]
     )
 
     static var insight: ConnectionInsight {
@@ -77,7 +82,10 @@ enum PreviewFixtures {
                                    metOn: Date().addingTimeInterval(-86_400),
                                    roomName: "demo",
                                    insight: insight,
-                                   pairingEvidence: .motionAndUWB))
+                                   pairingEvidence: .motionAndUWB,
+                                   partnerProfile: partner))
+        // The second is deliberately left WITHOUT a partner card, so the demos
+        // also cover a connection saved before BUMP kept them.
         store.save(SavedConnection(id: secondConnectionID,
                                    partnerName: "Second Sample (demo)",
                                    partnerBio: "Demo data. Not a real person.",
@@ -99,7 +107,8 @@ enum PreviewFixtures {
                         metOn: Date().addingTimeInterval(-daysAgo * 86_400),
                         roomName: "demo",
                         insight: insight,
-                        pairingEvidence: .motionAndUWB)
+                        pairingEvidence: .motionAndUWB,
+                        partnerProfile: partner)
     }
 
     /// The canonical overlap ids from `insight`, so ratings reference interests
@@ -114,7 +123,8 @@ enum PreviewFixtures {
         for (id, name, daysAgo, landedCount) in ratedSeed {
             store.save(connection(id: id, name: name, daysAgo: daysAgo))
             store.saveRating(InteractionRating(id: id,
-                                               landedInterestIDs: Array(sharedIDs.prefix(landedCount))))
+                                               landedInterestIDs: Array(sharedIDs.prefix(landedCount)),
+                                               wantsToConnect: landedCount > 0))
         }
         store.save(connection(id: secondConnectionID, name: "Second Sample (demo)", daysAgo: 0.5))
     }
@@ -151,7 +161,15 @@ enum PreviewFixtures {
                                    metOn: Date().addingTimeInterval(-86_400),
                                    roomName: "demo",
                                    insight: insight,
-                                   pairingEvidence: .motionAndUWB))
+                                   pairingEvidence: .motionAndUWB,
+                                   partnerProfile: partner))
+        // Matched, so previews of the unlocked profile, the success card and the
+        // match notification row all have something to show.
+        store.recordMatch(MutualMatch(id: firstConnectionID,
+                                      matchedOn: Date().addingTimeInterval(-3_600)))
+        store.saveRating(InteractionRating(id: firstConnectionID,
+                                          landedInterestIDs: Array(sharedIDs.prefix(1)),
+                                          wantsToConnect: true))
         for pass in streetpasses {
             store.recordStreetpass(name: pass.peerName, roomName: pass.roomName, at: pass.seenAt)
         }

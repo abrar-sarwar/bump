@@ -355,3 +355,28 @@ Branch `landing-page-design`. **Uncommitted** at time of writing.
 - Connected the mockup tutorial badge to the interests approved on the onboarding card or profile editor. Each interest changes the text, flat palette, and small edge motif together during the cycle; the reveal and tutorial now share the same cycling badge builder.
 - Passed real profile interests into the SwiftUI tutorial and canonical category hints into SwiftUI tutorial/reveal badges. Added a collecting theme in both implementations and category fallback for short catalogue labels.
 - Browser verified photography → climbing → cold brew color/motif changes, approved card interests populating the tutorial, all 15 gallery themes, and no page errors. JavaScript syntax and Swift parsing passed. Xcode build remains pending on a Mac. Changes remain uncommitted.
+
+## 2026-09-27 — Claude — mutual "want to connect" on the post-bump card
+- Added a thumbs up/down beside the existing interest-tags question
+  (`InteractionRating.wantsToConnect`, optional so unanswered stays distinct
+  from no, and so older `ratings.json` still loads). The card now carries two
+  separate privacy lines, because the two answers have different privacy.
+- A yes on both sides records a `MutualMatch` (`matches.json`, sticky, cleared
+  only with the connection), which raises `MatchSuccessSheet`, adds a derived
+  row to `NotificationsScreen`, and ungates the partner's interests /
+  experiences / goals on `ConnectionDetail`.
+- `SavedConnection.partnerProfile` now KEEPS the `SharedProfile` that already
+  arrived at bump time (`BumpEngine.saveCurrentConnection`); it was previously
+  discarded. Optional, so pre-existing connections load and say so.
+- `MutualLikeResolver` is a seam. Its only implementation,
+  `LocalMutualLikeResolver`, is a documented STAND-IN: there is no user database
+  and no durable channel, so the partner's answer is derived from the
+  connection id. It is not reciprocity and the UI copy does not claim it is.
+- 20 new tests in `BumpTests/MatchTests.swift` (evaluator truth table,
+  stickiness, changeability, store persistence, both decode migrations) plus
+  thumb coverage in `RatingTests`; all pass. Device build and the full suite
+  run clean apart from 8 failures that already fail on an unmodified HEAD
+  (catalogue/talking-point/label regressions, unrelated to this work).
+- Verified in the Simulator via `-BumpDemo rate | match | unlocked |
+  notifications`: both questions fit the card, the success sheet, the unlocked
+  profile, the match rows at their own times, and matches surviving a relaunch.

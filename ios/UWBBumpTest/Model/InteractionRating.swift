@@ -2,13 +2,19 @@ import Foundation
 
 /// What actually happened in an interaction, recorded privately by one person.
 ///
-/// Local only. A rating is never exchanged with the partner, never written into
-/// `connections.json`, and never sent to the BUMP server or xAI. The partner's
-/// phone has its own, possibly different, answer and the two never meet.
+/// `landedInterestIDs` is local only: never exchanged with the partner, never
+/// written into `connections.json`, never sent to the BUMP server or xAI. The
+/// partner's phone has its own, possibly different, answer and the two never meet.
+///
+/// `wantsToConnect` is the ONE field that can be shared, and only in one
+/// direction: if both people answered yes, both learn it. A no is never
+/// revealed, and neither is the absence of an answer — the partner cannot tell
+/// a no from a not-asked-yet. See `MatchEvaluator`.
 ///
 /// Deliberately NOT recorded: a score, a grade, tags, or free text. The only
-/// question asked is which of the shared interests were actually talked about,
-/// because that is the one answer the app can act on honestly.
+/// questions asked are which of the shared interests were actually talked
+/// about, and whether you'd want to connect again — the two answers the app can
+/// act on honestly.
 struct InteractionRating: Codable, Equatable, Identifiable, Sendable {
     /// Matches `SavedConnection.id`, which is how a rating finds its connection.
     var id: UUID
@@ -19,12 +25,25 @@ struct InteractionRating: Codable, Equatable, Identifiable, Sendable {
     /// Empty is a real answer: "none of these landed". That is different from
     /// never having been asked, which is the ABSENCE of an `InteractionRating`.
     var landedInterestIDs: [String]
+    /// Whether the user would want to connect with this person again.
+    ///
+    /// `nil` means the question was not answered, which is deliberately DISTINCT
+    /// from a recorded `false`: a match needs an explicit yes from both sides, so
+    /// skipping the question can never produce one. Changeable — re-rating may
+    /// flip it, and a yes that arrives later still matches.
+    ///
+    /// Optional on the way in too (the synthesised decoder treats a missing key
+    /// for an optional as `nil`), so a `ratings.json` written before this field
+    /// existed still loads, as every unanswered.
+    var wantsToConnect: Bool?
 
-    init(id: UUID, ratedOn: Date = Date(), landedInterestIDs: [String]) {
+    init(id: UUID, ratedOn: Date = Date(), landedInterestIDs: [String],
+         wantsToConnect: Bool? = nil) {
         self.id = id
         self.ratedOn = ratedOn
         // Sorted so two equal answers compare equal regardless of tap order.
         self.landedInterestIDs = landedInterestIDs.sorted()
+        self.wantsToConnect = wantsToConnect
     }
 }
 

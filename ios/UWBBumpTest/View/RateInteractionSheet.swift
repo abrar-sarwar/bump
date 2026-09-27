@@ -1,11 +1,16 @@
 import SwiftUI
 
-/// Asks one private question about an interaction that already happened: of the
-/// things you turned out to share, which did you actually talk about?
+/// Asks two questions about an interaction that already happened: of the things
+/// you turned out to share, which did you actually talk about, and would you want
+/// to connect with this person again?
 ///
-/// Deliberately not a star rating. There is no score, no grade and no judgement
-/// of the other person — the app only needs to know which shared ground carried a
-/// conversation, so that is the only thing it asks.
+/// Deliberately not a star rating. There is no score and no grade — the app needs
+/// to know which shared ground carried a conversation, and whether there is
+/// mutual interest in more.
+///
+/// The two answers have DIFFERENT privacy, so they carry their own separate
+/// promises rather than one blanket line: what landed never leaves the phone,
+/// while the thumb is revealed only if the other person also tapped up.
 struct RateInteractionSheet: View {
     let connection: SavedConnection
     /// Already-recorded answer, when re-rating from the Connections tab.
@@ -15,6 +20,8 @@ struct RateInteractionSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var selected: Set<String> = []
+    /// `nil` until answered — skipping is allowed and can never match.
+    @State private var wantsToConnect: Bool?
 
     private var isUpdate: Bool { existing != nil }
 
@@ -25,6 +32,7 @@ struct RateInteractionSheet: View {
                     header
                     question
                     choices
+                    connectAsk
                 }
                 .padding(.horizontal, Space.gutter)
                 .padding(.top, Space.l)
@@ -35,7 +43,8 @@ struct RateInteractionSheet: View {
             bottomBar {
                 Button(primaryLabel) {
                     onSave(InteractionRating(id: connection.id,
-                                             landedInterestIDs: Array(selected)))
+                                             landedInterestIDs: Array(selected),
+                                             wantsToConnect: wantsToConnect))
                     dismiss()
                 }
                 .buttonStyle(.bumpPrimary)
@@ -48,7 +57,10 @@ struct RateInteractionSheet: View {
             }
         }
         .background(BumpColor.surfaceContainerLowest)
-        .onAppear { selected = Set(existing?.landedInterestIDs ?? []) }
+        .onAppear {
+            selected = Set(existing?.landedInterestIDs ?? [])
+            wantsToConnect = existing?.wantsToConnect
+        }
     }
 
     /// `BottomBar` is private to the onboarding flow, so the card carries the
@@ -94,6 +106,62 @@ struct RateInteractionSheet: View {
                 .foregroundStyle(BumpColor.onSurfaceVariant)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    /// The second question. Its privacy line is its own, because unlike the tags
+    /// above, this answer CAN reach the other person — and only in the one case
+    /// where they said the same thing.
+    private var connectAsk: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Divider().overlay(BumpColor.outlineVariant)
+                .padding(.bottom, Space.xs)
+            Text("Would you Bump again?")
+                .font(BumpFont.sectionTitle)
+                .foregroundStyle(BumpColor.onSurface)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: Space.s) {
+                thumbButton(up: true, label: "Yes", symbol: "hand.thumbsup.fill")
+                thumbButton(up: false, label: "No", symbol: "hand.thumbsdown.fill")
+            }
+            Text("Only shared if you both tap yes, and then you each unlock the other\u{2019}s full profile. A no stays private: \(connection.partnerName) is never told either way.")
+                .font(BumpFont.bodySmall)
+                .foregroundStyle(BumpColor.onSurfaceVariant)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// Tapping the chosen thumb again clears it, so an answer given by mistake can
+    /// be taken back to unanswered rather than forced to the opposite.
+    private func thumbButton(up: Bool, label: String, symbol: String) -> some View {
+        let isOn = wantsToConnect == up
+        return Button {
+            wantsToConnect = isOn ? nil : up
+            Haptics.tap()
+        } label: {
+            HStack(spacing: Space.xs) {
+                Image(systemName: symbol)
+                    .font(.system(size: 18, weight: .regular))
+                Text(label)
+                    .font(BumpFont.bodyLarge)
+            }
+            .foregroundStyle(isOn ? BumpColor.primary : BumpColor.onSurfaceVariant)
+            .padding(.vertical, Space.m)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: Space.corner, style: .continuous)
+                    .fill(isOn ? BumpColor.primaryContainer : BumpColor.track)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Space.corner, style: .continuous)
+                    .stroke(isOn ? BumpColor.primary : .clear, lineWidth: 1.5)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .animation(Motion.effects, value: isOn)
+        .accessibilityLabel(label)
+        .accessibilityHint("Whether you would bump \(connection.partnerName) again")
+        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
     }
 
     private var choices: some View {
@@ -183,22 +251,46 @@ struct RateInteractionPresentation: ViewModifier {
     /// Called with the connection's id when the card is waved off rather than
     /// answered, so a caller that tracks "Not now" can record it.
     var onSkip: (UUID) -> Void
+    /// Where the partner's answer comes from. Injected so tests and the DEBUG demo
+    /// entry points can make a match happen on demand.
+    var resolver: MutualLikeResolver = LocalMutualLikeResolver()
+    /// Called once, with the connection, the moment a new mutual match is recorded.
+    var onMatch: (SavedConnection) -> Void = { _ in }
 
-    @ScaledMetric(relativeTo: .body) private var cardHeight: CGFloat = 520
+    /// Tall enough that the second question is visible without scrolling on a
+    /// typical connection — a thumb the person never scrolls to is a thumb they
+    /// never answer. `.large` is offered alongside it for long highlight lists and
+    /// for larger Dynamic Type, where the content genuinely does not fit.
+    @ScaledMetric(relativeTo: .body) private var cardHeight: CGFloat = 760
 
     func body(content: Content) -> some View {
         content.sheet(item: $connection) { connection in
             RateInteractionSheet(
                 connection: connection,
                 existing: store.rating(for: connection.id),
-                onSave: { store.saveRating($0) },
+                onSave: { rating in
+                    store.saveRating(rating)
+                    recordMatchIfAny(rating, connection)
+                },
                 onSkip: { onSkip(connection.id) }
             )
-            .presentationDetents([.height(cardHeight)])
+            .presentationDetents([.height(cardHeight), .large])
             .presentationCornerRadius(Radius.extraLargeIncreased)
             .presentationBackground(BumpColor.surfaceContainerLowest)
             .presentationDragIndicator(.visible)
         }
+    }
+
+    /// Evaluates the answer, and tells the caller only about a match that is NEW.
+    /// `MatchEvaluator` returns nil for an existing match, so re-rating a matched
+    /// connection never celebrates twice.
+    private func recordMatchIfAny(_ rating: InteractionRating, _ connection: SavedConnection) {
+        let match = MatchEvaluator().evaluate(rating: rating,
+                                              partnerLike: resolver.partnerLike(for: connection),
+                                              existing: store.match(for: connection.id))
+        guard let match else { return }
+        store.recordMatch(match)
+        onMatch(connection)
     }
 }
 
@@ -207,8 +299,11 @@ extension View {
     /// `item` as `\.ratingTarget` so descendants can raise the card themselves.
     func rateInteraction(item: Binding<SavedConnection?>,
                          store: Store,
-                         onSkip: @escaping (UUID) -> Void = { _ in }) -> some View {
-        modifier(RateInteractionPresentation(connection: item, store: store, onSkip: onSkip))
+                         onSkip: @escaping (UUID) -> Void = { _ in },
+                         resolver: MutualLikeResolver = LocalMutualLikeResolver(),
+                         onMatch: @escaping (SavedConnection) -> Void = { _ in }) -> some View {
+        modifier(RateInteractionPresentation(connection: item, store: store, onSkip: onSkip,
+                                             resolver: resolver, onMatch: onMatch))
             .environment(\.ratingTarget, item)
     }
 }

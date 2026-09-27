@@ -26,6 +26,15 @@ struct RootView: View {
     /// Set when a bump has just been saved, so the Connections tab pushes that
     /// person instead of dropping the user back on the radar.
     @State private var savedConnection: SavedConnection?
+    /// A mutual match to celebrate. Its own state, raised only after the rating
+    /// card has dismissed: two sheets at once and SwiftUI drops one.
+    @State private var matchToCelebrate: SavedConnection?
+    /// A match recorded while the rating card is still on screen, held until it
+    /// dismisses. Not written into `matchToCelebrate` directly: setting that while
+    /// a sheet is up means SwiftUI never presents it.
+    @State private var pendingMatch: SavedConnection?
+    /// Height of the match card's single detent.
+    @ScaledMetric(relativeTo: .body) private var matchCardHeight: CGFloat = 430
 
     enum Stage { case welcome, onboarding, main }
 
@@ -106,7 +115,27 @@ struct RootView: View {
                     .presentationDragIndicator(.visible)
                 }
                 .rateInteraction(item: $connectionToRate, store: store,
-                                 onSkip: { prompter.dismiss($0) })
+                                 onSkip: { prompter.dismiss($0) },
+                                 resolver: mutualLikeResolver,
+                                 onMatch: { pendingMatch = $0 })
+                .sheet(item: $matchToCelebrate) { connection in
+                    MatchSuccessSheet(
+                        connection: connection,
+                        onSeeProfile: { handleSavedConnection(connection) },
+                        onDismiss: {}
+                    )
+                    .presentationDetents([.height(matchCardHeight)])
+                    .presentationCornerRadius(Radius.extraLargeIncreased)
+                    .presentationBackground(BumpColor.surfaceContainerLowest)
+                    .presentationDragIndicator(.visible)
+                }
+                .onChange(of: connectionToRate) { _, now in
+                    // The rating card has gone; if it produced a match, that is
+                    // the moment the celebration can safely come up.
+                    guard now == nil, let pending = pendingMatch else { return }
+                    pendingMatch = nil
+                    matchToCelebrate = pending
+                }
             }
         }
         .animation(.easeInOut(duration: 0.25), value: stage)
@@ -181,10 +210,34 @@ struct RootView: View {
             stage = .main
             if demo == .rate { connectionToRate = store.unratedConnections.first }
 
+        case .match, .unlocked:
+            // Straight to the celebration (.match) or to what it unlocks
+            // (.unlocked), with the partner's card already stored so there is a
+            // real profile to reveal.
+            store.profile = PreviewFixtures.profile
+            PreviewFixtures.seed(store)
+            tab = .connections
+            stage = .main
+            // The one that carries a partner card, so .unlocked shows the real
+            // unlocked profile rather than the legacy fallback.
+            if let connection = store.connections.first(where: { $0.partnerProfile != nil }) {
+                store.recordMatch(MutualMatch(id: connection.id))
+                if demo == .match { matchToCelebrate = connection }
+                else { savedConnection = connection }
+            }
+
         case .connections, .you, .tools, .home, .tutorial, .notifications:
             store.profile = PreviewFixtures.profile
             if demo == .connections { PreviewFixtures.seed(store); tab = .connections }
-            if demo == .notifications { PreviewFixtures.seed(store); tab = .bump }
+            if demo == .notifications {
+                PreviewFixtures.seed(store)
+                tab = .bump
+                // Matched, so the feed shows a match row alongside the bump rows.
+                if let first = store.connections.first {
+                    store.recordMatch(MutualMatch(id: first.id,
+                                                  matchedOn: Date().addingTimeInterval(-3_600)))
+                }
+            }
             if demo == .you || demo == .tools { tab = .you }
             stage = .main
         }
@@ -198,10 +251,25 @@ struct RootView: View {
         guard DemoMode.active == nil,
               stage == .main,
               connectionToRate == nil,
+              matchToCelebrate == nil,
+              pendingMatch == nil,
               savedConnection == nil,
               streetPassEngine.pendingEncounter == nil else { return }
         connectionToRate = prompter.next(connections: store.connections,
                                          ratings: store.ratings)
+    }
+
+    /// Where a partner's answer comes from. `LocalMutualLikeResolver` is a
+    /// stand-in (see its doc comment); under the rating demo it is replaced by one
+    /// that always says yes, so the match flow is reachable on demand rather than
+    /// depending on what the stand-in happens to derive.
+    private var mutualLikeResolver: MutualLikeResolver {
+        #if DEBUG
+        if DemoMode.active == .rate || DemoMode.active == .match {
+            return FixedMutualLikeResolver(yes: [], otherwise: .wantsToConnect)
+        }
+        #endif
+        return LocalMutualLikeResolver()
     }
 
     /// A bump has just been kept: show the person, not the radar.

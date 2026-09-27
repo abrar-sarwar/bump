@@ -70,7 +70,8 @@ both confirm → shared interests + a conversation opener → save the connectio
 ```
 View/    SwiftUI screens only. No sensors, no sockets.
 Design/  Theme.swift (colour/type/spacing) + Components.swift
-Model/   Profile, SharedProfile, SavedConnection, Interest catalogue
+Model/   Profile, SharedProfile, SavedConnection, Interest catalogue,
+         InteractionRating, MutualMatch
 Service/
   MotionDetector       CoreMotion → SpikeGate
   SpikeGate            pure threshold/rearm/cooldown state machine (unit-tested)
@@ -87,10 +88,48 @@ Service/
   OnboardingModel      the Pre-phase state machine (cancellation, fallbacks)
   IntroRecorder        45 s mic capture, interruptions, silence detection
   LocalDrafter         on-phone drafting + questions (local-only / fallback)
+  RatingPrompter       pure timing policy for the post-bump card (unit-tested)
+  MatchEvaluator       pure "did both say yes" rule (unit-tested)
+  MutualLikeResolver   where the partner's thumb comes from — SEE BELOW
 ```
 
+### The post-bump card, and what it unlocks
+
+`View/RateInteractionSheet` asks two questions after a bump. They have
+DIFFERENT privacy and say so in separate lines of copy:
+
+- **what landed** (`InteractionRating.landedInterestIDs`) never leaves the phone;
+- **the thumb** (`InteractionRating.wantsToConnect`) is revealed only when both
+  people answered yes. A no, and a skipped question, are indistinguishable from
+  the other side.
+
+A yes/yes records a `MutualMatch` (`matches.json`), which raises
+`View/MatchSuccessSheet`, adds a row to `View/NotificationsScreen`, and ungates
+the partner's interests/experiences/goals on `ConnectionDetail`. The card being
+unlocked is `SavedConnection.partnerProfile` — the `SharedProfile` that already
+arrived at bump time and is now kept rather than discarded. Optional, so
+connections saved before this say so instead of showing an empty profile.
+
+A match is **sticky**: flipping your own answer to no later does not revoke a
+profile the other person has already seen. Notification rows stay **derived**
+from `connections` + `matches` + `streetpasses`; there is no separate
+notification record.
+
+**`LocalMutualLikeResolver` is a STAND-IN, not reciprocity.** BUMP has no user
+database and no durable channel — `backend/src/server.js` is an xAI proxy plus a
+relay whose mailboxes live only for the duration of a bump — so there is nowhere
+to read a real answer from once the peer is gone. It derives a stable
+pseudo-answer from the connection's `id` so the flow is exercisable and
+demoable. Replacing it needs a durable per-person like mailbox and an identity
+the app does not yet have; at that point the type is deleted and the real client
+conforms to `MutualLikeResolver` instead. Nothing in the UI copy may describe
+the current behaviour as a real two-sided check.
+
+DEBUG demo entry points: `-BumpDemo rate`, `match`, `unlocked`, `notifications`.
+
 Tests in `ios/BumpTests/` include `ContractTests`, `LogicTests`,
-`OnboardingTests`, `DesignTests`, and `StreetPassTests`.
+`OnboardingTests`, `DesignTests`, `StreetPassTests`, `RatingTests`, and
+`MatchTests`.
 
 ## The central honesty constraint
 

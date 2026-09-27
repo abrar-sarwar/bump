@@ -16,6 +16,10 @@ enum DemoMode: String {
     case rate
     /// The trends screen, with enough seeded ratings to rank something.
     case insights
+    /// The mutual-match success card, over an already-matched fixture connection.
+    case match
+    /// A matched connection's detail screen, with the full profile unlocked.
+    case unlocked
     case onboardingIntro = "onboardingintro"
     case onboardingQuestion = "onboardingquestion"
     case onboardingCard = "onboardingcard"
