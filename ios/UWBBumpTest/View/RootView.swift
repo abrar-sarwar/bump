@@ -13,6 +13,13 @@ struct RootView: View {
     /// Height of the StreetPass pass card's single detent. @ScaledMetric so the
     /// card grows with Dynamic Type instead of clipping its buttons.
     @ScaledMetric(relativeTo: .body) private var passCardHeight: CGFloat = 470
+    /// Height of the post-interaction rating card's single detent.
+    @ScaledMetric(relativeTo: .body) private var rateCardHeight: CGFloat = 520
+
+    /// Decides which saved connection is worth asking about, and when.
+    @State private var prompter = RatingPrompter()
+    /// The connection the automatic prompt is currently asking about.
+    @State private var connectionToRate: SavedConnection?
 
     enum Stage { case welcome, onboarding, main }
 
@@ -38,6 +45,9 @@ struct RootView: View {
             // never bring up real transport/ranging.
             if DemoMode.active == nil, stage == .main {
                 streetPassEngine.start()
+                // A cold launch after a bump should ask too, not wait for the
+                // next background/foreground round trip.
+                promptForRatingIfDue()
             }
         }
     }
@@ -85,12 +95,29 @@ struct RootView: View {
                     .presentationBackground(BumpColor.surfaceContainerLowest)
                     .presentationDragIndicator(.visible)
                 }
+                // The post-interaction prompt. Same card treatment as StreetPass,
+                // but retrospective: it asks about a bump that already happened.
+                .sheet(item: $connectionToRate) { connection in
+                    RateInteractionSheet(
+                        connection: connection,
+                        existing: store.rating(for: connection.id),
+                        onSave: { store.saveRating($0) },
+                        onSkip: { prompter.dismiss(connection.id) }
+                    )
+                    .presentationDetents([.height(rateCardHeight)])
+                    .presentationCornerRadius(Radius.extraLargeIncreased)
+                    .presentationBackground(BumpColor.surfaceContainerLowest)
+                    .presentationDragIndicator(.visible)
+                }
             }
         }
         .animation(.easeInOut(duration: 0.25), value: stage)
         .onChange(of: scenePhase) { _, phase in
             engine.handleScenePhase(phase)
             streetPassEngine.handleScenePhase(phase)
+            // Coming back to the app is the signal that the interaction is over:
+            // they saved the connection, put the phone away, talked, and returned.
+            if phase == .active { promptForRatingIfDue() }
         }
         .onChange(of: stage) { _, newStage in
             if newStage == .main { streetPassEngine.start() }
@@ -156,6 +183,16 @@ struct RootView: View {
                                            mutualInterestStatement: "You're both into photography.",
                                            teasedMutualStatements: ["You're both into bouldering.",
                                                                     "You both like espresso."]))
+        case .rate, .insights:
+            // Seed rated demo history so both new screens have something to show,
+            // then open the card (.rate) or leave the tab for .insights, which is
+            // one tap away behind "What lands".
+            store.profile = PreviewFixtures.profile
+            PreviewFixtures.seedRatings(store)
+            tab = .connections
+            stage = .main
+            if demo == .rate { connectionToRate = store.unratedConnections.first }
+
         case .connections, .you, .tools, .home, .tutorial, .notifications:
             store.profile = PreviewFixtures.profile
             if demo == .connections { PreviewFixtures.seed(store); tab = .connections }
@@ -164,6 +201,21 @@ struct RootView: View {
             stage = .main
         }
         #endif
+    }
+
+    /// Asks about the oldest unrated connection still inside the recall window.
+    ///
+    /// Skipped while a StreetPass card is up — SwiftUI cannot present two sheets
+    /// from one view, and someone standing in front of you beats a question about
+    /// someone who already left. Also skipped under a DEBUG demo, and while a
+    /// prompt is already showing.
+    private func promptForRatingIfDue() {
+        guard DemoMode.active == nil,
+              stage == .main,
+              connectionToRate == nil,
+              streetPassEngine.pendingEncounter == nil else { return }
+        connectionToRate = prompter.next(connections: store.connections,
+                                         ratings: store.ratings)
     }
 
     private var streetPassSheetBinding: Binding<StreetPassEncounter?> {

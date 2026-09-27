@@ -53,6 +53,8 @@ enum PreviewFixtures {
     /// (`Store.save` is idempotent by id).
     private static let firstConnectionID = UUID(uuidString: "00000000-0000-0000-0000-00000000dec0")!
     private static let secondConnectionID = UUID(uuidString: "00000000-0000-0000-0000-00000000dec1")!
+    private static let thirdConnectionID = UUID(uuidString: "00000000-0000-0000-0000-00000000dec2")!
+    private static let fourthConnectionID = UUID(uuidString: "00000000-0000-0000-0000-00000000dec3")!
 
     /// Clearly-labelled passers-by, for the notifications feed.
     static var streetpasses: [StreetpassEvent] {
@@ -87,6 +89,55 @@ enum PreviewFixtures {
         for pass in streetpasses {
             store.recordStreetpass(name: pass.peerName, roomName: pass.roomName, at: pass.seenAt)
         }
+    }
+
+    /// A clearly-labelled demo connection sharing the standard fixture overlap.
+    static func connection(id: UUID, name: String, daysAgo: Double) -> SavedConnection {
+        SavedConnection(id: id,
+                        partnerName: name,
+                        partnerBio: "Demo data. Not a real person.",
+                        metOn: Date().addingTimeInterval(-daysAgo * 86_400),
+                        roomName: "demo",
+                        insight: insight,
+                        pairingEvidence: .motionAndUWB)
+    }
+
+    /// The canonical overlap ids from `insight`, so ratings reference interests
+    /// that actually appear on the fixture connections.
+    private static var sharedIDs: [String] { insight.highlights.map(\.interestID) }
+
+    /// Seeds rated demo history into an existing store, for the simulator demos.
+    /// Idempotent by connection id, like `seed`, so re-launching a demo does not
+    /// stack up extra rows.
+    @MainActor
+    static func seedRatings(_ store: Store) {
+        for (id, name, daysAgo, landedCount) in ratedSeed {
+            store.save(connection(id: id, name: name, daysAgo: daysAgo))
+            store.saveRating(InteractionRating(id: id,
+                                               landedInterestIDs: Array(sharedIDs.prefix(landedCount))))
+        }
+        store.save(connection(id: secondConnectionID, name: "Second Sample (demo)", daysAgo: 0.5))
+    }
+
+    /// id, name, days ago, how many of the shared interests landed.
+    private static var ratedSeed: [(UUID, String, Double, Int)] {
+        [
+            (firstConnectionID,  partner.displayName,    1, 1),
+            (thirdConnectionID,  "Third Sample (demo)",  3, 2),
+            (fourthConnectionID, "Fourth Sample (demo)", 5, 0),
+        ]
+    }
+
+    /// An in-memory store with enough rated connections to push
+    /// `InterestTrends` past its sparse threshold, for the Insights preview.
+    /// One connection is left unrated so the "waiting on you" block shows too.
+    @MainActor
+    static func ratedStore() -> Store {
+        let store = Store(inMemory: true)
+        store.profile = profile
+
+        seedRatings(store)
+        return store
     }
 
     /// An in-memory store so a preview never writes over a real profile.
