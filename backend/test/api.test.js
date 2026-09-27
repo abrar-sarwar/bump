@@ -510,3 +510,43 @@ test('MOCKED rate limiter: transcribe has its own tighter limit', async () => {
     await limited.close();
   }
 });
+
+test('MOCKED tts returns audio bytes and validates length', async () => {
+  fake.reply = () => ({ status: 200, body: 'ID3fakeaudio' });
+  const res = await fetch(`${api.url}/v1/tts`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text: 'What got you into bouldering?' }),
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'audio/mpeg');
+  assert.equal(Buffer.from(await res.arrayBuffer()).toString(), 'ID3fakeaudio');
+  const sent = fake.requests.at(-1);
+  assert.equal(sent.path, '/v1/tts');
+  assert.equal(sent.json.voice_id, 'eve');
+
+  const long = await fetch(`${api.url}/v1/tts`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text: 'x'.repeat(301) }),
+  });
+  assert.equal(long.status, 400);
+});
+
+test('MOCKED interest tags keep only asked interests and known ids', async () => {
+  replyWith({
+    tags: [
+      { interest: 'One Piece', ids: ['anime', 'manga', 'made-up'] },
+      { interest: 'naruto', ids: ['anime'] },
+      { interest: 'Something not asked', ids: ['anime'] },
+    ],
+  });
+  const res = await fetch(`${api.url}/v1/interests/tag`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      interests: ['One Piece', 'Naruto'],
+      vocabulary: [{ id: 'anime', label: 'Anime' }, { id: 'manga', label: 'Manga' }],
+    }),
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.deepEqual(body.tags, { 'One Piece': ['anime', 'manga'], Naruto: ['anime'] });
+});

@@ -398,7 +398,14 @@ private struct CloudConsentCard: View {
 private struct QuestionsStep: View {
     @ObservedObject var model: OnboardingModel
     let morphNamespace: Namespace.ID
+    @ObservedObject private var recorder: IntroRecorder
     @FocusState private var focused: Bool
+
+    init(model: OnboardingModel, morphNamespace: Namespace.ID) {
+        self.model = model
+        self.recorder = model.recorder
+        self.morphNamespace = morphNamespace
+    }
 
     var body: some View {
         Screen {
@@ -431,7 +438,9 @@ private struct QuestionsStep: View {
                     .accessibilityElement(children: .combine)
                 }
 
-                if model.busy == .thinking {
+                if model.busy == .transcribing {
+                    WorkingCard(title: "Listening back to your answer…", detail: nil, onCancel: model.cancelUpload)
+                } else if model.busy == .thinking {
                     WorkingCard(title: "Thinking of a good question…", detail: nil, onCancel: model.finishQuestions)
                 } else if let question = model.current {
                     VStack(alignment: .leading, spacing: Space.s) {
@@ -446,7 +455,23 @@ private struct QuestionsStep: View {
                         }
                         .id(question.text)
                         .transition(.opacity)
-                        BumpField(label: "Your answer", placeholder: "A sentence is plenty",
+                        HStack {
+                            Button(model.speaksQuestions ? "Read aloud: on" : "Read aloud: off",
+                                   systemImage: model.speaksQuestions ? "speaker.wave.2.fill" : "speaker.slash.fill") {
+                                model.speaksQuestions.toggle()
+                                if model.speaksQuestions { model.speakCurrent() }
+                            }
+                            .buttonStyle(.bumpText(BumpColor.onSurfaceVariant))
+                            Spacer()
+                        }
+                        if model.canAnswerByVoice {
+                            voiceAnswer
+                        }
+                        if let error = model.error {
+                            NoticeText(text: error)
+                        }
+                        BumpField(label: model.canAnswerByVoice ? "Or type your answer" : "Your answer",
+                                  placeholder: "A sentence is plenty",
                                   axis: .vertical, lines: 2...6, text: $model.answer)
                             .focused($focused)
                     }
@@ -490,8 +515,44 @@ private struct QuestionsStep: View {
                 }
             }
         }
-        .onAppear { focused = true }
-        .onChange(of: model.current) { _, q in if q != nil { focused = true } }
+        // Talking first: the keyboard stays down when voice answers are on,
+        // so the mic is the obvious next move.
+        .onAppear {
+            focused = !model.canAnswerByVoice
+            model.speakCurrent()
+        }
+        .onChange(of: model.current) { _, q in if q != nil { focused = !model.canAnswerByVoice } }
+        .onChange(of: recorder.state) { _, state in
+            if case .finished = state { model.useAnswerRecording() }
+        }
+        .onDisappear { model.voice.stop() }
+    }
+
+    @ViewBuilder
+    private var voiceAnswer: some View {
+        HStack(spacing: Space.m) {
+            switch recorder.state {
+            case .recording:
+                RecordButton(recording: true) { recorder.stop() }
+                LevelMeter(level: recorder.level)
+                Text("Tap to finish")
+                    .font(BumpFont.labelLarge).foregroundStyle(BumpColor.onSurfaceVariant)
+            case .denied:
+                Text("Microphone access is off for BUMP. Turn it on in Settings, or type below.")
+                    .font(BumpFont.bodySmall).foregroundStyle(BumpColor.onSurfaceVariant)
+                    .fixedSize(horizontal: false, vertical: true)
+            case .failed(let why):
+                RecordButton(recording: false) { model.startVoiceAnswer() }
+                Text(why)
+                    .font(BumpFont.bodySmall).foregroundStyle(BumpColor.onSurfaceVariant)
+                    .fixedSize(horizontal: false, vertical: true)
+            default:
+                RecordButton(recording: false) { focused = false; model.startVoiceAnswer() }
+                Text("Tap to answer out loud")
+                    .font(BumpFont.labelLarge).foregroundStyle(BumpColor.onSurface)
+            }
+            Spacer(minLength: 0)
+        }
     }
 
     @ViewBuilder

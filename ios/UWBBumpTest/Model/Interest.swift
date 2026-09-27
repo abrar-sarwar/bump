@@ -12,13 +12,20 @@ struct Interest: Codable, Hashable, Identifiable, Sendable {
     let specificity: Int
     /// True when the user typed this themselves rather than picking a chip.
     var custom: Bool = false
+    /// Invisible catalogue ids a custom interest belongs to ("One Piece" ->
+    /// ["anime", "manga"]), set once by Grok after onboarding. nil means not
+    /// tagged yet; [] means tagged and nothing fitted. Optional so older
+    /// profiles and older phones still decode.
+    var tags: [String]?
 
-    init(id: String, label: String, parent: String? = nil, specificity: Int = 1, custom: Bool = false) {
+    init(id: String, label: String, parent: String? = nil, specificity: Int = 1,
+         custom: Bool = false, tags: [String]? = nil) {
         self.id = id
         self.label = label
         self.parent = parent
         self.specificity = specificity
         self.custom = custom
+        self.tags = tags
     }
 }
 

@@ -30,7 +30,9 @@ enum InterestMatcher {
         let theirsByID = index(theirs)
 
         let sharedIDs = Set(mineByID.keys).intersection(theirsByID.keys)
-        guard !sharedIDs.isEmpty else { return [] }
+        guard !sharedIDs.isEmpty else {
+            return Array(broader(mineByID, theirsByID, excluding: []).prefix(limit))
+        }
 
         // Suppress a broad category when one of its specific children matched,
         // including custom interests that belong to it ("Jazz piano" → Music).
@@ -51,13 +53,82 @@ enum InterestMatcher {
             )
         }
 
-        return highlights
+        let exact = highlights
             .sorted {
                 if $0.specificity != $1.specificity { return $0.specificity > $1.specificity }
                 return $0.interestID < $1.interestID     // stable, so both phones agree
             }
-            .prefix(limit)
-            .map { $0 }
+        // Exact matches first; related interests fill any remaining room.
+        let covered = sharedIDs.union(matchedParents)
+            .union(sharedIDs.compactMap { mineByID[$0]?.parent })
+        return Array((exact + broader(mineByID, theirsByID, excluding: covered)).prefix(limit))
+    }
+
+    /// Different interests that share a wider one: "One Piece" and "Naruto"
+    /// are both anime. Uses each interest's Grok tags and catalogue parent.
+    /// Still grounded: the evidence is each person's own entry, and the claim
+    /// is only the category they both belong to.
+    /// Broad catalogue topics a profile belongs to: its tags, catalogue picks
+    /// and their parents. This is all "Show what we have in common" shares.
+    static func topics(_ interests: [Interest]) -> Set<String> {
+        var out = Set<String>()
+        for interest in interests {
+            let canonical = InterestCatalog.canonical(from: interest.label)
+            var ids = interest.tags ?? []
+            if let id = canonical?.id, InterestCatalog.byID[id] != nil { ids.append(id) }
+            if let parent = canonical?.parent ?? interest.parent { ids.append(parent) }
+            ids += ids.compactMap { InterestCatalog.byID[$0]?.parent }
+            out.formUnion(ids.filter { InterestCatalog.byID[$0] != nil })
+        }
+        return out
+    }
+
+    /// Readable shared topics, most specific first, with a broad topic left
+    /// out when one of its children is already listed.
+    static func sharedTopicLabels(_ a: Set<String>, _ b: Set<String>) -> [String] {
+        let shared = a.intersection(b)
+        let redundant = Set(shared.compactMap { InterestCatalog.byID[$0]?.parent })
+        return shared.subtracting(redundant)
+            .compactMap { InterestCatalog.byID[$0] }
+            .sorted { $0.specificity != $1.specificity ? $0.specificity > $1.specificity : $0.id < $1.id }
+            .map { lowercasedFirst($0.label) }
+    }
+
+    static func broader(_ mine: [String: Interest], _ theirs: [String: Interest],
+                        excluding covered: Set<String>) -> [SharedHighlight] {
+        func index(_ interests: [String: Interest]) -> [String: String] {
+            var out: [String: String] = [:]     // category id -> user's label
+            for (id, interest) in interests.sorted(by: { $0.key < $1.key }) {
+                var ids = interest.tags ?? []
+                if InterestCatalog.byID[id] != nil { ids.append(id) }
+                ids += ids.compactMap { InterestCatalog.byID[$0]?.parent }
+                if let parent = interest.parent { ids.append(parent) }
+                for c in ids where out[c] == nil { out[c] = interest.label }
+            }
+            return out
+        }
+        let a = index(mine), b = index(theirs)
+        let shared = Set(a.keys).intersection(b.keys).subtracting(covered)
+        // A specific shared category (anime) makes its broad parent (Movies &
+        // TV) redundant.
+        let redundant = Set(shared.compactMap { InterestCatalog.byID[$0]?.parent })
+        return shared.subtracting(redundant).compactMap { id -> SharedHighlight? in
+            guard let category = InterestCatalog.byID[id], let yours = a[id], let theirs = b[id],
+                  yours.lowercased() != theirs.lowercased() else { return nil }
+            return SharedHighlight(
+                interestID: "related:\(id)",
+                statement: "You're both into \(lowercasedFirst(category.label)).",
+                yourEntry: yours,
+                theirEntry: theirs,
+                specificity: 1
+            )
+        }
+        .sorted {
+            let sa = InterestCatalog.byID[String($0.interestID.dropFirst(8))]?.specificity ?? 0
+            let sb = InterestCatalog.byID[String($1.interestID.dropFirst(8))]?.specificity ?? 0
+            if sa != sb { return sa > sb }                // anime before Movies & TV
+            return $0.interestID < $1.interestID
+        }
     }
 
     private static func index(_ interests: [Interest]) -> [String: Interest] {
@@ -68,8 +139,8 @@ enum InterestMatcher {
             // Keep the user's own wording for evidence, but key on the canonical id.
             out[canonical.id] = Interest(
                 id: canonical.id, label: interest.label,
-                parent: canonical.parent, specificity: canonical.specificity,
-                custom: canonical.custom
+                parent: canonical.parent ?? interest.parent, specificity: canonical.specificity,
+                custom: canonical.custom, tags: interest.tags
             )
         }
         return out

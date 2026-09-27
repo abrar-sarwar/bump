@@ -56,6 +56,10 @@ enum Wire {
         // ---- direct, partner-only exchange (never through the coordinator)
         case profile(proposalID: String, profile: SharedProfile, caps: PartnerCaps)
         case insight(proposalID: String, insight: ConnectionInsight)
+
+        // ---- opt-in, before any bump: broad topic ids only ("anime",
+        // "coffee"), never names, labels or the profile. Empty = withdrawn.
+        case commonTopics([String])
     }
 
     /// The minimum a confirmed partner needs to agree on who generates the

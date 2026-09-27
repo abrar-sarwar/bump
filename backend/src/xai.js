@@ -1,6 +1,7 @@
 // Upstream calls to xAI. Two endpoints:
 //   POST {base}/v1/responses : structured JSON output (Responses API)
 //   POST {base}/v1/stt        : speech to text (multipart)
+//   POST {base}/v1/tts        : text to speech (MP3 bytes)
 //
 // Failures map to contract errors: abort/timeout → 504 upstream_timeout,
 // non-2xx or network failure → 502 upstream_error, unusable body → 502
@@ -11,7 +12,7 @@ import { upstreamError, upstreamInvalid, upstreamTimeout } from './errors.js';
 
 const isTimeout = (err) => err?.name === 'TimeoutError' || err?.name === 'AbortError';
 
-async function postUpstream(config, path, { headers = {}, body }, timeoutMs) {
+async function postUpstream(config, path, { headers = {}, body, raw = false }, timeoutMs) {
   const signal = AbortSignal.timeout(timeoutMs);
   let res;
   try {
@@ -35,6 +36,7 @@ async function postUpstream(config, path, { headers = {}, body }, timeoutMs) {
 
   // Reading the body is covered by the same timeout signal.
   try {
+    if (raw) return Buffer.from(await res.arrayBuffer());
     return await res.json();
   } catch (err) {
     if (isTimeout(err)) throw upstreamTimeout();
@@ -114,4 +116,25 @@ export async function transcribe(config, audio, contentType) {
   if (json === null || typeof json !== 'object' || typeof json.text !== 'string') throw upstreamInvalid();
   const duration = typeof json.duration === 'number' && Number.isFinite(json.duration) ? json.duration : null;
   return { text: json.text, duration, model: config.sttModel };
+}
+
+/** Text to speech. Returns MP3 bytes. */
+export async function speak(config, text, voice) {
+  const audio = await postUpstream(
+    config,
+    '/v1/tts',
+    {
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        text,
+        voice_id: voice,
+        language: 'en',
+        output_format: { codec: 'mp3', sample_rate: 24000, bit_rate: 64000 },
+      }),
+      raw: true,
+    },
+    config.ttsTimeoutMs,
+  );
+  if (!audio.length) throw upstreamInvalid();
+  return audio;
 }

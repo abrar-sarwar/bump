@@ -140,10 +140,18 @@ struct BumpScreen: View {
                 .padding(.vertical, Space.m)
 
                 readinessIndicator
+
+                if let common = engine.nearbyCommon {
+                    commonGroundCard(common)
+                        .transition(.scale(scale: 0.92).combined(with: .opacity))
+                }
+
                 nearbyPeople
                 Spacer(minLength: Space.s)
 
-                if case .blocked(let step) = engine.autoStatus {
+                // No Start button: opening BUMP is the start.
+                switch engine.autoStatus {
+                case .blocked(let step):
                     title("One thing first", step)
                     Button("Open Settings") {
                         if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -151,13 +159,40 @@ struct BumpScreen: View {
                         }
                     }
                     .buttonStyle(.bumpPrimary)
-                } else {
-                    title("Meet someone new", "Bump their phone.")
-                    Button("Start bumping") {
-                        if engine.autoStatus == .paused { engine.resume() }
-                        else { engine.autoStart() }
+
+                case .paused:
+                    title("Paused", "BUMP isn't listening for a bump right now.")
+                    Button("Resume") { engine.resume() }
+                        .buttonStyle(.bumpPrimary)
+
+                case .preparing:
+                    title("Getting ready", "Starting BUMP on this phone.")
+
+                case .lookingForPhones(let hint):
+                    title("Looking for nearby phones", hint ?? "Ask the person in front of you to open BUMP too.")
+                    if hint != nil {
+                        Button("Open Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                        .buttonStyle(.bumpSecondary)
                     }
-                    .buttonStyle(.bumpPrimary)
+
+                case .connecting:
+                    title("Connecting", "Found a nearby phone. Joining it now.")
+
+                case .reconnecting:
+                    title("Reconnecting", "The other phone went away. Finding it again.")
+
+                case .listening:
+                    if engine.members.isEmpty {
+                        title("Waiting for someone to meet",
+                              "Ask the person in front of you to open BUMP too.")
+                    } else {
+                        title("Tap your phones together",
+                              "A gentle tap, back to back, with the person you want to meet.")
+                    }
                 }
             }
             .frame(minHeight: max(548, UIScreen.main.bounds.height - 262))
@@ -174,6 +209,38 @@ struct BumpScreen: View {
             }
         }
         .frame(maxWidth: .infinity)
+        .animation(Motion.effects, value: engine.nearbyCommon)
+    }
+
+    /// Someone within reach shares at least two broad topics. No name until
+    /// both people confirm a bump.
+    private func commonGroundCard(_ common: BumpEngine.NearbyCommon) -> some View {
+        Card(padding: Space.l) {
+            VStack(alignment: .leading, spacing: Space.s) {
+                Label("Someone nearby", systemImage: "sparkles")
+                    .font(BumpFont.captionEmphasis)
+                    .foregroundStyle(BumpColor.primary)
+                Text("You're both into \(Self.list(common.topics))")
+                    .font(BumpFont.sectionTitle)
+                    .foregroundStyle(BumpColor.navy)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(String(format: "About %.1f m away. Bump phones to connect.", common.distance))
+                    .font(BumpFont.caption)
+                    .foregroundStyle(BumpColor.secondaryText)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .animation(Motion.effects, value: common)
+        .accessibilityElement(children: .combine)
+    }
+
+    static func list(_ items: [String]) -> String {
+        switch items.count {
+        case 0: return ""
+        case 1: return items[0]
+        case 2: return "\(items[0]) and \(items[1])"
+        default: return items.dropLast().joined(separator: ", ") + " and " + items.last!
+        }
     }
 
     private var readinessIndicator: some View {
@@ -200,6 +267,19 @@ struct BumpScreen: View {
         .padding(.vertical, Space.s)
         .frostedCapsule()
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(readinessLabel)
+    }
+
+    private var readinessLabel: String {
+        switch engine.autoStatus {
+        case .preparing: return "Getting ready"
+        case .lookingForPhones(let hint): return "Looking for nearby phones. \(hint ?? "")"
+        case .connecting: return "Connecting to a nearby phone"
+        case .reconnecting: return "Reconnecting"
+        case .listening: return "Ready to bump. Tap your phones together."
+        case .paused: return "Paused"
+        case .blocked(let step): return "Setup needed. \(step)"
+        }
     }
 
     /// Three quiet steps, always visible on the home screen: the site's

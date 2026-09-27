@@ -140,6 +140,9 @@ final class BumpEngine: ObservableObject {
 
     /// Our own side of a live proposal.
     private var myProposal: Proposal?
+    /// When the proposal on screen expires. Set once, so the countdown runs
+    /// down and the Live Activity content does not change on every refresh.
+    private var myProposalExpiresAt: Date?
     private var partnerProfile: SharedProfile?
     private var sentProfileFor: String?
     private var iAmGenerator = false
@@ -267,6 +270,33 @@ final class BumpEngine: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Common ground: re-announce our topics when the choice or the
+        // profile changes, and re-evaluate on every ranging update.
+        Publishers.CombineLatest(store.$privacy.map(\.sharesCommonGround),
+                                 store.$profile.map { InterestMatcher.topics($0.interests) })
+            .removeDuplicates { $0 == $1 }
+            .dropFirst()
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.announceTopics(to: self.transport.connected.map(\.id))
+                    self.updateCommonGround()
+                }
+            }
+            .store(in: &cancellables)
+        ranging.$measurements
+            .sink { [weak self] _ in Task { @MainActor [weak self] in self?.updateCommonGround() } }
+            .store(in: &cancellables)
+
+        // Tag new custom interests in the background (one Grok call, once).
+        store.$profile
+            .map { $0.interests.filter { $0.custom && $0.tags == nil }.map(\.label) }
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in self?.tagInterestsIfNeeded() }
+            }
+            .store(in: &cancellables)
+
         liveActivity.onLog = { [weak self] line in self?.note(line) }
         // A crash or force quit can leave an activity behind. Adopt or clear it
         // before we start anything new, so there is only ever one.
@@ -279,6 +309,9 @@ final class BumpEngine: ObservableObject {
             // The bridge is nonisolated, so hop explicitly and capture the
             // engine inside the hop rather than across it.
             await MainActor.run { [weak self] in self?.handleIntent(action) }
+            // Return only once the new state has reached the Live Activity.
+            let controller = await MainActor.run { [weak self] in self?.liveActivity }
+            await controller?.flush()
         }
 
         transport.$discoveredRooms
@@ -1065,6 +1098,16 @@ final class BumpEngine: ObservableObject {
             note("received \(profile.displayName)'s interests")
             startGenerationIfReady(proposalID: proposalID)
 
+        case .commonTopics(let ids):
+            // Held in memory so turning the setting on later works at once,
+            // but only ever shown while we have opted in too.
+            if !ids.isEmpty {
+                peerTopics[peer] = Set(ids.prefix(120))
+            } else {
+                peerTopics[peer] = nil
+            }
+            updateCommonGround()
+
         case .insight(let proposalID, let insight):
             guard myProposal?.id == proposalID, !iAmGenerator else { return }
             // The generator wrote "your/their" from its side; flip for ours.
@@ -1085,6 +1128,7 @@ final class BumpEngine: ObservableObject {
         lockedCaps = nil
         coordinatorPick = nil
         sentProfileFor = nil
+        myProposalExpiresAt = Date().addingTimeInterval(Self.confirmationTimeout)
         phase = .confirming(proposal)
         armPhaseDeadline(Self.confirmationTimeout) { [weak self] in
             guard let self, case .confirming = self.phase else { return }
@@ -1219,6 +1263,79 @@ final class BumpEngine: ObservableObject {
         generationTask = nil
     }
 
+    // MARK: Common ground (opt-in, before a bump)
+
+    struct NearbyCommon: Equatable {
+        let peer: String
+        let topics: [String]
+        let distance: Double
+    }
+    /// The strongest nearby match right now, or nil. No name: that is only
+    /// shared after both people confirm a bump.
+    @Published private(set) var nearbyCommon: NearbyCommon?
+    private var peerTopics: [String: Set<String>] = [:]
+    static let commonGroundDistance: Double = 1.5
+    static let commonGroundMinimum = 2
+
+    private func announceTopics(to peers: [String]) {
+        guard !peers.isEmpty else { return }
+        let ids = store.privacy.sharesCommonGround
+            ? InterestMatcher.topics(store.profile.interests).sorted() : []
+        transport.send(.commonTopics(ids), to: peers)
+    }
+
+    private func updateCommonGround() {
+        let resting: Bool = {
+            switch phase { case .ready, .notReady, .preparing: return true; default: return false }
+        }()
+        guard store.privacy.sharesCommonGround, resting, !isBackgrounded else {
+            nearbyCommon = nil; return
+        }
+        let mine = InterestMatcher.topics(store.profile.interests)
+        let best = peerTopics.compactMap { peer, theirs -> NearbyCommon? in
+            // Fresh UWB distance only: a stale or missing reading proves nothing.
+            guard let m = ranging.freshMeasurement(for: peer), let d = m.distance,
+                  d <= Self.commonGroundDistance else { return nil }
+            let shared = InterestMatcher.sharedTopicLabels(mine, theirs)
+            guard shared.count >= Self.commonGroundMinimum else { return nil }
+            return NearbyCommon(peer: peer, topics: Array(shared.prefix(3)), distance: d)
+        }
+        .max { ($0.topics.count, -$0.distance) < ($1.topics.count, -$1.distance) }
+
+        if best?.peer != nearbyCommon?.peer, let best {
+            Haptics.tap()
+            note(String(format: "[common] %d shared topics with %@ at %.2f m", best.topics.count, name(best.peer), best.distance))
+        }
+        nearbyCommon = best
+    }
+
+    // MARK: Interest tags
+
+    private var tagging: Task<Void, Never>?
+
+    /// Files custom interests under catalogue categories so "One Piece" and
+    /// "Naruto" can meet at "Anime". Invisible to the person; only with cloud
+    /// processing allowed. A failure leaves them untagged for the next launch.
+    func tagInterestsIfNeeded() {
+        guard tagging == nil, store.privacy.allowsCloud, let client = apiClient else { return }
+        let untagged = store.profile.interests.filter { $0.custom && $0.tags == nil }.map(\.label)
+        guard !untagged.isEmpty else { return }
+        tagging = Task { [weak self] in
+            let result = try? await client.tagInterests(untagged)
+            guard let self else { return }
+            self.tagging = nil
+            guard let result else { return self.note("[tags] tagging failed; will retry later") }
+            let byLabel = Dictionary(result.map { ($0.key.lowercased(), $0.value) }, uniquingKeysWith: { a, _ in a })
+            self.store.profile.interests = self.store.profile.interests.map { interest in
+                guard interest.custom, interest.tags == nil, untagged.contains(interest.label) else { return interest }
+                var tagged = interest
+                tagged.tags = byLabel[interest.label.lowercased()] ?? []
+                return tagged
+            }
+            self.note("[tags] tagged \(untagged.count) interest(s)")
+        }
+    }
+
     // MARK: Cloud status
 
     private var apiClient: BumpAPIClient? { BumpAPIClient.resolve(override: store.settings.apiBaseURL) }
@@ -1267,6 +1384,7 @@ final class BumpEngine: ObservableObject {
     // MARK: Roster / peers
 
     private func peerJoined(_ peer: String) {
+        announceTopics(to: [peer])
         if !isCoordinator, room.code != nil {
             transport.send(.hello(displayName: store.profile.displayName,
                                   roomCode: room.code ?? "",
@@ -1283,6 +1401,8 @@ final class BumpEngine: ObservableObject {
 
     private func peerLeft(_ peer: String) {
         proximityGates[peer] = nil
+        peerTopics[peer] = nil
+        updateCommonGround()
         // A Multipeer drop is NOT proof that ranging has failed. Multipeer is a
         // foreground-only transport, so it disconnects the instant the app is
         // backgrounded, while a UWB session is allowed to keep running with an
@@ -1449,7 +1569,10 @@ final class BumpEngine: ObservableObject {
             c.state = .candidate
             c.peerName = proposal.partner.displayName
             c.proposalID = proposal.id
-            c.proposalExpiresAt = Date().addingTimeInterval(Self.confirmationTimeout)
+            // Stable, not "now + timeout": a fresh value on every refresh made
+            // each refresh a real update, used up iOS's update allowance and
+            // left button taps waiting behind a queue of throttled updates.
+            c.proposalExpiresAt = myProposalExpiresAt ?? Date().addingTimeInterval(Self.confirmationTimeout)
             return c
         case .waitingForPartner, .exchanging:
             c.state = .awaitingPeer
@@ -1692,6 +1815,9 @@ final class BumpEngine: ObservableObject {
             rows.append(("UWB \(short(peer))", "\(state), \(ranging.callbackCounts[peer] ?? 0) callbacks, last \(age(ranging.lastCallbackAt[peer]))"))
             rows.append(("  distance / direction", "\(m?.distance.map { String(format: "%.2f m", $0) } ?? "nil") / \(m?.direction == nil ? "nil" : "yes")"))
         }
+        rows.append(("Common ground", store.privacy.sharesCommonGround
+            ? "on, topics from \(peerTopics.count) peer(s), showing \(nearbyCommon.map { "\($0.topics.count) with \(short($0.peer)) at \(String(format: "%.2f m", $0.distance))" } ?? "nothing")"
+            : "off"))
         rows.append(("Proposal", myProposal.map { "\($0.id.prefix(8)) with \(short($0.partner.id))" } ?? "none"))
         return rows
     }

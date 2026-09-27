@@ -35,6 +35,27 @@ struct YouScreen: View {
                     }
 
                     VStack(alignment: .leading, spacing: Space.s) {
+                        Eyebrow("Nearby")
+                            .padding(.horizontal, Space.xs)
+                        Card {
+                            Toggle(isOn: Binding(
+                                get: { store.privacy.sharesCommonGround },
+                                set: { store.privacy.showsCommonGround = $0 })) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Show what we have in common")
+                                        .font(BumpFont.bodyEmphasis)
+                                        .foregroundStyle(BumpColor.navy)
+                                    Text("Nearby BUMP users with this on can see which broad topics you share, like anime or coffee. Never your name, photo, bio or the exact things you listed.")
+                                        .font(BumpFont.caption)
+                                        .foregroundStyle(BumpColor.secondaryText)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .tint(BumpColor.primary)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: Space.s) {
                         Eyebrow("Permissions & help")
                             .padding(.horizontal, Space.xs)
                         permissionRow("iphone.radiowaves.left.and.right", "Motion",

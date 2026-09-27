@@ -280,3 +280,37 @@ export function checkTalkingPointsOutput(raw, { candidates }) {
   if (!opener) throw upstreamInvalid();
   return { points, opener };
 }
+
+// ---------------------------------------------------------------------------
+// Interest tagging
+// ---------------------------------------------------------------------------
+
+export function parseTagRequest(body) {
+  requireObject(body);
+  const interests = arrayField(body.interests, 'interests', 30).map((x, i) =>
+    stringField(x, `interests[${i}]`, { min: 1, max: 80 }));
+  const vocabulary = arrayField(body.vocabulary, 'vocabulary', 200).map((v, i) => {
+    if (v === null || typeof v !== 'object') throw badRequest(`"vocabulary[${i}]" must be an object.`);
+    return {
+      id: stringField(v.id, `vocabulary[${i}].id`, { min: 1, max: 40 }),
+      label: stringField(v.label, `vocabulary[${i}].label`, { min: 1, max: 60 }),
+    };
+  });
+  return { interests, vocabulary };
+}
+
+/** Keep only asked-about interests and ids that exist in the vocabulary. */
+export function checkTagOutput(raw, { interests, vocabulary }) {
+  requireOutputObject(raw);
+  if (!Array.isArray(raw.tags)) throw upstreamInvalid();
+  const allowed = new Set(vocabulary.map((v) => v.id));
+  const asked = new Map(interests.map((x) => [fold(x), x]));
+  const tags = {};
+  for (const t of raw.tags) {
+    const label = asked.get(fold(String(t?.interest ?? '')));
+    if (!label || !Array.isArray(t.ids)) continue;
+    const ids = [...new Set(t.ids.map(String).filter((id) => allowed.has(id)))].slice(0, 2);
+    if (ids.length) tags[label] = ids;
+  }
+  return { tags };
+}

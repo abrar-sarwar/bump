@@ -136,6 +136,16 @@ final class LiveActivityController: ObservableObject {
     /// Push new content, but only when something a person could see changed.
     /// `alert` asks iOS to surface the update; it decides the presentation, we
     /// do not claim to force an expansion.
+    /// The update or end currently being handed to ActivityKit.
+    private var pending: Task<Void, Never>?
+
+    /// Wait until the latest update or end has reached the system. A Live
+    /// Activity button awaits this, so iOS redraws with the result as soon as
+    /// the action finishes instead of whenever the update gets there.
+    func flush() async {
+        await pending?.value
+    }
+
     func update(_ state: BumpActivityAttributes.ContentState, alert: Bool = false) {
         #if canImport(ActivityKit)
         guard #available(iOS 16.2, *), let activity else { return }
@@ -148,7 +158,9 @@ final class LiveActivityController: ObservableObject {
             state: state,
             staleDate: Date().addingTimeInterval(BumpActivity.staleAfter)
         )
-        Task {
+        let previous = pending
+        pending = Task {
+            await previous?.value           // keep updates in order
             if alert, #available(iOS 16.2, *) {
                 let name = state.peerName ?? "someone"
                 await activity.update(content, alertConfiguration: .init(
@@ -172,7 +184,9 @@ final class LiveActivityController: ObservableObject {
         let content = final.map {
             ActivityContent(state: $0, staleDate: nil)
         }
-        Task {
+        let previous = pending
+        pending = Task {
+            await previous?.value
             await activity.end(content,
                                dismissalPolicy: keepVisible ? .after(Date().addingTimeInterval(240)) : .immediate)
         }
