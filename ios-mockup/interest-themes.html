@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Interest badge lab | BUMP mockup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+  <link rel="stylesheet" href="interest-themes.css">
+  <link rel="stylesheet" href="interest-themes-page.css">
+</head>
+<body class="theme-lab">
+  <header class="theme-lab__bar">
+    <a class="theme-lab__brand" href="index.html#reveal" aria-label="Back to BUMP mockup"><img src="assets/wordmark.png" alt="BUMP"></a>
+    <span>Interest badge lab</span>
+    <a class="theme-lab__back" href="index.html#reveal">View reveal screen <span aria-hidden="true">↗</span></a>
+  </header>
+  <main class="theme-lab__main">
+    <section class="theme-lab__intro">
+      <div class="theme-lab__eyebrow">BUMP / motion studies</div>
+      <h1>One badge, different worlds.</h1>
+      <p>Shared interests set the color, illustration, and movement. Search the themes or type any interest to see which one BUMP picks.</p>
+    </section>
+    <section class="theme-lab__workspace" aria-label="Badge preview and filters">
+      <div class="theme-lab__preview-panel">
+        <div class="theme-lab__preview-head"><span>Live preview</span><span id="theme-kind">Night sky</span></div>
+        <div id="theme-preview" class="theme-lab__preview"></div>
+        <label class="theme-lab__field" for="theme-phrase">Try your own interest
+          <input id="theme-phrase" type="text" value="Night hiking" placeholder="e.g. jazz piano or pour-over coffee" autocomplete="off" spellcheck="false">
+        </label>
+        <p class="theme-lab__match" id="theme-match" aria-live="polite"></p>
+      </div>
+      <div class="theme-lab__library">
+        <div class="theme-lab__library-head"><div><div class="theme-lab__eyebrow">Theme library</div><h2>Browse the types</h2></div><span id="theme-count"></span></div>
+        <div id="theme-filters" class="theme-lab__filters" role="group" aria-label="Filter by category"></div>
+        <label class="theme-lab__search" for="theme-search"><span class="theme-lab__sr-only">Search themes and keywords</span>
+          <input id="theme-search" type="search" placeholder="Search themes or keywords" autocomplete="off">
+        </label>
+        <div id="theme-grid" class="theme-lab__grid"></div>
+      </div>
+    </section>
+  </main>
+  <script src="shapes.js"></script>
+  <script src="interest-themes.js"></script>
+  <script src="interest-themes-page.js"></script>
+</body>
+</html>

@@ -245,9 +245,9 @@ struct SavedConnection: Codable, Equatable, Identifiable, Sendable {
 
         var label: String {
             switch self {
-            case .motionOnly: return "Matched by motion"
-            case .motionAndUWB: return "Matched by motion + UWB"
-            case .manualSelection: return "Picked manually"
+            case .motionOnly: return "Matched thru motion"
+            case .motionAndUWB: return "Matched thru BUMP"
+            case .manualSelection: return "Matched thru manual pick"
             }
         }
     }

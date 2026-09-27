@@ -56,6 +56,23 @@
   --brand-wordmark-ink: #70aaf9;
   --brand-phone-orange: #f0955a;
 
+  /* Interest badge themes: flat pairs, with enough contrast for white text. */
+  --interest-night-ring: #123d72; --interest-night-form: #001c3a;
+  --interest-photography-ring: #d5eadb; --interest-photography-form: #176747;
+  --interest-music-ring: #e0e0ff; --interest-music-form: #394fa3;
+  --interest-art-ring: #ffe2d9; --interest-art-form: #a24b44;
+  --interest-food-ring: #ffe7c2; --interest-food-form: #a64b24;
+  --interest-drink-ring: #d6eff1; --interest-drink-form: #176a72;
+  --interest-outdoors-ring: #e0edcf; --interest-outdoors-form: #3a6a39;
+  --interest-sports-ring: #ffe1d4; --interest-sports-form: #a74735;
+  --interest-books-ring: #e9def6; --interest-books-form: #694b8c;
+  --interest-technology-ring: #d8e6ef; --interest-technology-form: #284f6d;
+  --interest-gaming-ring: #e7dfff; --interest-gaming-form: #6545a0;
+  --interest-travel-ring: #d7ecf7; --interest-travel-form: #176d92;
+  --interest-cinema-ring: #f2dfee; --interest-cinema-form: #7a456d;
+  --interest-collecting-ring: #e8e3d4; --interest-collecting-form: #675c35;
+  --interest-general-ring: #d4e3ff; --interest-general-form: #155fa9;
+
   /* Status colours (not in the site; kept for the app's evidence states). */
   --bump-color-success: #2E7D5B;
   --bump-color-warning: #8a5a00;
@@ -70,7 +87,7 @@
   /* The site's --md-ref-typeface-brand: Archivo for everything. */
   --bump-typeface: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  --folk-card-fill: linear-gradient(rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.78));
+  --folk-card-fill: #ffffff;
   --folk-card-shadow:
     inset 0 1px 0 #fff, inset 0 -1px 0 rgba(255, 255, 255, 0.5),
     0 0 0 0.5px rgba(31, 42, 47, 0.08), 0 1px 2px rgba(31, 42, 47, 0.03),
@@ -82,15 +99,15 @@
   --folk-radius-card: 15px;
   --folk-radius-bento: 22px;
 
-  --folk-orb-fill: radial-gradient(circle at 34% 28%, #ffffff 0%, #eef1f4 46%, #d6dce3 100%);
+  --folk-orb-fill: #d4e3ff;
   --folk-orb-shadow:
     inset 0 -3px 6px rgba(31, 42, 47, 0.08), inset 0 2px 3px #fff,
     0 0 0 0.5px rgba(31, 42, 47, 0.08), 0 6px 14px rgba(31, 42, 47, 0.12);
 
-  --folk-wash-mint: radial-gradient(120% 90% at 20% 100%, #c9f1ea 0%, rgba(201, 241, 234, 0) 60%), radial-gradient(90% 80% at 100% 100%, #dfe2fb 0%, rgba(223, 226, 251, 0) 65%), #f3f5f8;
-  --folk-wash-peach: radial-gradient(110% 90% at 30% 100%, #f8e0d4 0%, rgba(248, 224, 212, 0) 62%), radial-gradient(80% 70% at 100% 90%, #ece0f5 0%, rgba(236, 224, 245, 0) 65%), #f4f4f7;
-  --folk-wash-lilac: radial-gradient(120% 90% at 10% 100%, #e6dcfa 0%, rgba(230, 220, 250, 0) 60%), radial-gradient(90% 80% at 100% 100%, #d9ecfb 0%, rgba(217, 236, 251, 0) 65%), #f3f4f8;
-  --folk-wash-sky: radial-gradient(120% 90% at 50% 100%, #d7ebfb 0%, rgba(215, 235, 251, 0) 62%), #f3f5f8;
+  --folk-wash-mint: #e5f4ef;
+  --folk-wash-peach: #fff0e7;
+  --folk-wash-lilac: #f1edfa;
+  --folk-wash-sky: #e8f2ff;
 
   --folk-bubble-them: #e9ebef;
   --folk-bubble-me: var(--md-sys-color-primary);

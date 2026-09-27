@@ -293,3 +293,65 @@ Branch `landing-page-design`. **Uncommitted** at time of writing.
 - Folded the added `agents.md` Mac server and Cloudflare quick-tunnel notes into
   `20-backend.md` and `30-ios.md`; removed that duplicate file. The current
   Debug and Release `BUMP_API_BASE_URL` values remain `http://localhost:8787`.
+
+## 2026-09-26 — Codex — flat iOS visual revision
+- Applied the ten screenshot notes in `ios-mockup/` and matching SwiftUI views:
+  removed decorative message floaters, flattened avatars/icon discs and common
+  surfaces, used a Material-style mic, tightened onboarding copy, separated
+  tutorial avatars, and moved the Bump home prompt and action down with the
+  steps below the initial viewport.
+- Preserved `main`'s automatic nearby discovery. The visible Start bumping
+  button calls the idempotent start or resumes a paused session.
+- Rendered all 38 mockup screens in headless Chromium: no page errors or
+  decorative floaters; chat bubbles remain only on Grok questions. JavaScript
+  syntax checks and Swift parsing passed. Xcode build and native screen review
+  remain unavailable on this WSL machine. Changes are uncommitted.
+
+## 2026-09-26 — Codex — reveal, onboarding transitions, and match labels
+- Simplified the reveal into a 320px cycling shared-interest badge and compact
+  suggested-question list; removed the rarity disclaimer. Flattened remaining
+  mockup washes, simplified the cloud switch with an info sheet, changed the
+  Connections UI label to Friends, and corrected the onboarding progress and
+  Bump home spacing in the mockup and SwiftUI views.
+- Fixed the mockup click handler that rerendered every screen on touch by
+  scoping the mode selector to the toolbar. Added mockup View Transitions for
+  idle microphone to recording, transcription toast to editable field, and
+  drafting toast to Grok question; added matching SwiftUI geometry/scale
+  transitions. Match-source labels now say "Matched thru BUMP," "Matched thru
+  motion," or "Matched thru manual pick" in the model, confirmation view, and
+  mockup.
+- Headless Chromium confirmed all three animations were active, reduced-motion
+  routing, badge cycling, label copy, and no page errors. JavaScript syntax,
+  Swift parsing, and `git diff --check` passed. Native type-check/build still
+  requires Xcode. Changes remain uncommitted.
+
+## 2026-09-26 — Codex — interest themes and recording layout
+- Added a standalone interest-theme gallery with category filters, keyword
+  search, and live free-text preview. Fourteen themes cover the requested
+  night, photography, music, art/design, food and drink cases plus other common
+  interests. The mockup reveal uses the same resolver and cycles each interest
+  with its own flat palette, SVG motif, and motion. SwiftUI `SharedBadge`
+  mirrors the keyword selection and palette using SF Symbol decorations.
+- Kept one recording control mounted between idle and recording, preserving
+  the top bar, control position, and scroll height. Both blue and red circles
+  are 116px inside a fixed 148px layout slot. Shortened the event-ready prompt
+  to "Bump someone's phone" and tightened its CTA/nearby/leave group.
+- Browser checks covered gallery filters/search, representative keyword
+  matches, theme cycling, mobile width, unchanged recording geometry, and no
+  page errors. Swift syntax parses on Linux; native type-check/build needs a
+  Mac. Changes remain uncommitted.
+
+## 2026-09-26 — Codex — smaller edge motifs on interest badges
+- Replaced the large SVG category drawings with small symbols placed around
+  the badge edge, clear of the text band. Matched the website night badge's
+  dark outer circle, navy centre, and sparse star positions. Reduced motif
+  movement to subtle twinkles and short drifts. SwiftUI decorations were
+  reduced and moved to the edge, with more sparse stars for night.
+- Inspected settled browser close-ups of night, music, and photography badges;
+  their text remains unobstructed. JavaScript syntax, Swift parsing, and
+  whitespace checks passed. Changes remain uncommitted.
+
+## 2026-09-26 — Codex — profile-driven cycling badge themes
+- Connected the mockup tutorial badge to the interests approved on the onboarding card or profile editor. Each interest changes the text, flat palette, and small edge motif together during the cycle; the reveal and tutorial now share the same cycling badge builder.
+- Passed real profile interests into the SwiftUI tutorial and canonical category hints into SwiftUI tutorial/reveal badges. Added a collecting theme in both implementations and category fallback for short catalogue labels.
+- Browser verified photography → climbing → cold brew color/motif changes, approved card interests populating the tutorial, all 15 gallery themes, and no page errors. JavaScript syntax and Swift parsing passed. Xcode build remains pending on a Mac. Changes remain uncommitted.

@@ -3,6 +3,7 @@ import SwiftUI
 struct YouScreen: View {
     @ObservedObject var store: Store
     @ObservedObject var engine: BumpEngine
+    @State private var showCloudInfo = false
 
     var body: some View {
         NavigationStack {
@@ -10,26 +11,27 @@ struct YouScreen: View {
                 VStack(alignment: .leading, spacing: Space.l) {
                     profileCard
 
-                    Bento(wash: .lilac, label: "Cloud processing", systemImage: "cloud.fill") {
-                        Text("Voice transcription, profile drafting and Grok talking points go through the BUMP server to xAI. Talking points use Grok only when you AND the person you bump both allow it.")
-                            .font(BumpFont.caption)
-                            .foregroundStyle(BumpColor.secondaryText)
-                            .fixedSize(horizontal: false, vertical: true)
+                    Card {
+                        HStack(spacing: Space.s) {
+                            Text("Allow cloud processing")
+                                .font(BumpFont.bodyEmphasis)
+                                .foregroundStyle(BumpColor.navy)
+                            Button { showCloudInfo = true } label: {
+                                Image(systemName: "info.circle")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(BumpColor.primary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("About cloud processing")
+                            Spacer(minLength: 0)
                         Toggle(isOn: Binding(
                             get: { store.privacy.allowsCloud },
                             set: { store.privacy.cloud = $0 ? .allowed : .localOnly; engine.refreshCloudStatus() })) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Allow cloud processing")
-                                    .font(BumpFont.bodyEmphasis).foregroundStyle(BumpColor.navy)
-                                Text(cloudStatusText)
-                                    .font(BumpFont.caption).foregroundStyle(BumpColor.secondaryText)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
+                            Text("Allow cloud processing")
                         }
+                        .labelsHidden()
                         .tint(BumpColor.primary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
-                        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.7)))
+                        }
                     }
 
                     VStack(alignment: .leading, spacing: Space.s) {
@@ -77,10 +79,31 @@ struct YouScreen: View {
             }
             .navigationTitle("You")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showCloudInfo) { cloudInfoSheet }
         }
     }
 
-    /// The site's person card: an orb avatar, the name, your bio as a bubble,
+    private var cloudInfoSheet: some View {
+        NavigationStack {
+            Screen {
+                VStack(alignment: .leading, spacing: Space.m) {
+                    Text("With this on, BUMP sends your intro and answers through its server to xAI for transcription and Grok suggestions. Talking points use Grok only when both people allow it.")
+                    Text("The BUMP server doesn't store your audio or text. xAI says API requests can be kept for up to 30 days for auditing. Turn this off to keep drafting on your phone.")
+                    Text(cloudStatusText)
+                        .foregroundStyle(BumpColor.secondaryText)
+                }
+                .font(BumpFont.body)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .navigationTitle("Cloud processing")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { showCloudInfo = false } } }
+        }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+    }
+
+    /// The person's card: a flat avatar, name, bio,
     /// your interests as tags.
     private var profileCard: some View {
         Card(padding: 22) {
@@ -96,7 +119,9 @@ struct YouScreen: View {
                 }
 
                 if !store.profile.bio.isEmpty {
-                    ChatBubble(store.profile.bio)
+                    Text(store.profile.bio)
+                        .font(BumpFont.body)
+                        .foregroundStyle(BumpColor.secondaryText)
                 }
 
                 if !store.profile.interests.isEmpty {

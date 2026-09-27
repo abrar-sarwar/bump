@@ -137,9 +137,7 @@
         `<svg class="${cls}" style="--tone:var(--md-sys-color-${tone});${style}" viewBox="${box}" aria-hidden="true"><path d="${d}"/></svg>`;
       const sets = {
         hero: svg(S.cookie, "line", "width:170px;left:-40px;top:6%") + svg(S.flower, "fill", "width:190px;right:-60px;bottom:14%", "tertiary") +
-          svg(S.clover, "line", "width:110px;right:18px;top:12%", "secondary") + svg(S.circle, "fill", "width:28px;left:48%;top:9%") +
-          `<span class="glyph" style="left:68%;top:14%;rotate:-12deg">${ms("waving_hand", 30, { fill: true })}</span>` +
-          `<span class="glyph" style="left:9%;bottom:24%;rotate:8deg">${ms("chat_bubble", 28, { fill: true })}</span>`,
+          svg(S.clover, "line", "width:110px;right:18px;top:12%", "secondary") + svg(S.circle, "fill", "width:28px;left:48%;top:9%"),
         soft: svg(S.cookie, "line", "width:150px;right:-50px;top:4%") + svg(S.clover, "fill", "width:120px;left:-44px;bottom:18%", "secondary"),
       };
       return `<div class="backdrop" aria-hidden="true">${set === "hero" ? '<div class="backdrop__dots"></div>' : ""}${sets[set]}</div>`;
@@ -149,14 +147,6 @@
     phones(animated = false, { apart = false } = {}) {
       const p = (c) => `<div class="phone-art phone-art--${c}"><div class="phone-art__cam"><i></i><i></i></div></div>`;
       return `<div class="phones ${animated ? "phones--animated" : ""} ${apart ? "phones--apart" : ""}" aria-hidden="true">${p("blue")}${p("warm")}</div>`;
-    },
-
-    /** Tilted chat bubbles laid over some art, like the site's hero floaters.
-     *  items: [text, { me, left|right, top|bottom, rotate }] */
-    floaters(inner, items) {
-      const pos = (o) => ["left", "right", "top", "bottom"].filter((k) => o[k] !== undefined).map((k) => `${k}:${o[k]}`).join(";");
-      return `<div class="floaters">${inner}<div class="floaters__layer" aria-hidden="true">${items.map(([t, o = {}]) =>
-        `<div style="${pos(o)};rotate:${o.rotate || 0}deg">${ui.bubble(esc(t), { me: o.me })}</div>`).join("")}</div></div>`;
     },
 
     pulse(inner, active = true) {
@@ -189,7 +179,7 @@
 
     /** BottomBar { } */
     bottomBar(inner) {
-      return `<div class="v stretch gap-xs" style="padding:var(--Space-s) var(--Space-gutter);padding-bottom:calc(var(--Space-s) + var(--safe-bottom));background:linear-gradient(to top, var(--BumpColor-background) 70%, transparent)">${inner}</div>`;
+      return `<div class="v stretch gap-xs" style="padding:var(--Space-s) var(--Space-gutter);padding-bottom:calc(var(--Space-s) + var(--safe-bottom));background:var(--BumpColor-background)">${inner}</div>`;
     },
     screen(inner, { backdrop } = {}) {
       return `<div class="scroll ${backdrop ? "has-backdrop" : ""}">${backdrop ? ui.backdrop(backdrop) : ""}<div class="screen-pad">${inner}</div></div>`;
@@ -205,7 +195,7 @@
 
     tabbar(active) {
       const tab = (id, label, svg, go) => `<button class="tab ${active === id ? "on" : ""}" data-go="${go}">${svg}<span>${label}</span></button>`;
-      return `<nav class="tabbar">${tab("bump", "Bump", icon.handTap(), "bump-home")}${tab("connections", "Connections", icon.people(), "conn-list")}${tab("you", "You", icon.personCircle(), "you")}</nav>`;
+      return `<nav class="tabbar">${tab("bump", "Bump", icon.handTap(), "bump-home")}${tab("connections", "Friends", icon.people(), "conn-list")}${tab("you", "You", icon.personCircle(), "you")}</nav>`;
     },
 
     toggle(on, act) { return `<button class="md-switch ${on ? "on" : ""}" role="switch" aria-checked="${on}" ${wire({ act })}><i>${ms("check", 16)}</i></button>`; },

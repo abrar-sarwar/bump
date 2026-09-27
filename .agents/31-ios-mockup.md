@@ -1,5 +1,42 @@
 # ios-mockup/ — the iOS app, as HTML, for designing without a Mac
 
+**2026-09-26 visual revision:** the human supplied screen references and asked
+for flat 2D avatars/icon discs, no decorative message bubbles in graphics,
+shorter onboarding copy, and a lower Bump home prompt/action with the steps
+below the first viewport. This supersedes the historical glossy orb and
+"bubbles everywhere" directions below. The mockup and SwiftUI were updated
+together. Bump still starts nearby discovery automatically from `main`; the
+visible Start bumping action retries or resumes it.
+
+**2026-09-26 follow-up:** reveal now uses one larger cycling shared-interest
+badge and a short list of questions; Friends replaces Connections in the UI;
+cloud processing is a single switch with an info sheet; match-source labels
+read "Matched thru BUMP/motion/manual pick." Mockup onboarding morphs the
+record button into recording, the transcription toast into the transcript
+field, and the drafting toast into Grok chat. SwiftUI mirrors these transitions
+with a recording scale animation and matched geometry. The mockup uses the
+View Transitions API with an instant reduced-motion fallback. A broad
+`[data-mode]` click selector formerly rerendered the phone on every tap; it is
+now scoped to the toolbar segment. Xcode build is still pending on a Mac.
+
+**Interest-theme experiment:** `interest-themes.html` is a standalone,
+filterable review page (linked in the mockup sidebar) with 15 keyword-selected
+badge types and a free-text interest preview. `interest-themes.js` is shared
+with the reveal and tutorial, which change flat color and SVG motif with every
+interest in the cycle. The tutorial reads interests approved on the card or
+profile editor; catalogue category hints handle short labels such as R&B.
+Direct screen previews use a three-interest sample until a profile is chosen.
+The 15th theme covers collecting.
+`interest-themes.css` contains distinct motif motion and reduced-motion rules.
+The SwiftUI `SharedBadge` mirrors the keyword categories and palette with SF
+Symbol decorations. The record button now stays mounted through idle and
+recording states, and both visuals are 116px within a fixed 148px layout slot.
+The event-ready mockup prompt is "Bump someone's phone" and its three lower
+controls use tighter spacing. Native rendering still needs Xcode review.
+The theme motifs were subsequently reduced to tiny edge accents, leaving the
+text band empty. Night now follows the website's dark outer circle, navy inner
+shape, and sparse twinkling stars; the other motifs use the same placement rule.
+
 **Current update:** the mockup design was ported to Swift in commit `a38909d`,
 then the current `main` behavior was merged locally into that UI. The merged
 Swift app still needs an Xcode build and screen review. The historical porting

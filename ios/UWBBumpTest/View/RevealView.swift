@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The payoff screen, in the site's "overlap" language: the shared badge
 /// cycling through what you both listed, the evidence as pill rows, and the
-/// opener as your own blue bubble. No artificial delay; the reveal animates as
+/// opener as a suggestion card. No artificial delay; the reveal animates as
 /// soon as the result exists.
 struct RevealView: View {
     let result: BumpEngine.Result
@@ -15,13 +15,20 @@ struct RevealView: View {
     @State private var revealed = false
 
     private var hasOverlap: Bool { !result.insight.highlights.isEmpty }
+    private var suggestedQuestions: [String] {
+        ([result.insight.opener] + result.insight.talkingPoints.map(\.prompt))
+            .filter { !$0.isEmpty }
+            .reduce(into: [String]()) { questions, prompt in
+                if !questions.contains(prompt) && questions.count < 3 { questions.append(prompt) }
+            }
+    }
 
     var body: some View {
         Screen(backdrop: .hero) {
             VStack(alignment: .leading, spacing: Space.l) {
 
                 VStack(spacing: Space.s) {
-                    HStack(spacing: -12) {
+                    HStack(spacing: Space.m) {
                         Avatar(name: myName, size: 52, photo: myPhoto)
                         Avatar(name: result.partner.displayName, size: 52, tint: BumpColor.illustrationWarm,
                                photo: result.partner.photo)
@@ -42,42 +49,32 @@ struct RevealView: View {
 
                 if hasOverlap {
                     // Cycles through every interest you both actually listed.
-                    SharedBadge(kicker: "You both share this",
+                    SharedBadge(kicker: "You're both into",
                                 interests: result.insight.highlights.map(\.yourEntry),
-                                size: 230, popIn: true)
+                                themeHints: result.insight.highlights.map { InterestCatalog.byID[$0.interestID].map { $0.parent ?? $0.id } },
+                                size: 320, popIn: true)
                         .frame(maxWidth: .infinity)
 
                     VStack(alignment: .leading, spacing: Space.s) {
-                        Eyebrow("Specific things you share")
+                        Eyebrow("Try asking")
                             .padding(.horizontal, Space.xs)
-
-                        ForEach(Array(result.insight.highlights.enumerated()), id: \.element.id) { index, highlight in
-                            RowPill(block: true) {
-                                IconOrb(systemImage: "sparkles", size: 44)
-                            } content: {
-                                RowText.title(highlight.statement)
-                                // Evidence: the entry in each profile that
-                                // supports the claim. Collapsed when both
-                                // profiles hold the identical entry.
-                                RowText.subtitle(highlight.yourEntry == highlight.theirEntry
-                                     ? "Both of you list “\(highlight.yourEntry)”"
-                                     : "You listed “\(highlight.yourEntry)” · they listed “\(highlight.theirEntry)”")
-                                if let point = result.insight.point(for: highlight) {
-                                    TalkingPromptLine(point: point)
+                        Card(padding: 14) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                ForEach(Array(suggestedQuestions.enumerated()), id: \.offset) { index, prompt in
+                                    if index > 0 { Divider() }
+                                    HStack(alignment: .top, spacing: Space.s) {
+                                        Text(String(format: "%02d", index + 1))
+                                            .font(BumpFont.caption2)
+                                            .foregroundStyle(BumpColor.primary)
+                                        Text(prompt)
+                                            .font(BumpFont.captionEmphasis)
+                                            .foregroundStyle(BumpColor.navy)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    .padding(.vertical, Space.s)
                                 }
                             }
-                            .opacity(revealed ? 1 : 0)
-                            .offset(y: revealed ? 0 : 12)
-                            .animation(reduceMotion ? nil
-                                       : BumpMotion.emphasizedIn.delay(0.15 + Double(index) * 0.09),
-                                       value: revealed)
                         }
-
-                        Text("Ranked by how specific they are, not by how rare they are. We don't have data on how common an interest is, so we don't claim to.")
-                            .font(BumpFont.caption2)
-                            .foregroundStyle(BumpColor.faint)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, Space.xs)
                     }
                 } else {
                     Card(padding: 22) {
@@ -88,22 +85,26 @@ struct RevealView: View {
                     }
                 }
 
-                if !result.insight.unattachedPoints.isEmpty {
+                if !hasOverlap && !result.insight.unattachedPoints.isEmpty {
                     TalkingPointsSection(points: result.insight.unattachedPoints)
                 }
 
-                VStack(alignment: .leading, spacing: Space.s) {
+                if !hasOverlap { VStack(alignment: .leading, spacing: Space.s) {
                     Eyebrow("Something to talk about")
                         .padding(.horizontal, Space.xs)
-                    // A template is never passed off as an AI result: the
-                    // source label rides above the bubble.
-                    ChatBubble(isMe: true, who: result.insight.openerSource.label) {
-                        Text(result.insight.opener)
-                            .font(BumpFont.archivo(Archivo.semibold, 19, relativeTo: .title3))
+                    Card {
+                        VStack(alignment: .leading, spacing: Space.xs) {
+                            Text(result.insight.opener)
+                                .font(BumpFont.archivo(Archivo.semibold, 19, relativeTo: .title3))
+                            Text(result.insight.openerSource.label)
+                                .font(BumpFont.caption2)
+                                .foregroundStyle(BumpColor.faint)
+                        }
                     }
                 }
                 .opacity(revealed ? 1 : 0)
                 .animation(reduceMotion ? nil : BumpMotion.emphasizedIn.delay(0.3), value: revealed)
+                }
 
                 VStack(spacing: Space.s) {
                     Button(action: onSave) {

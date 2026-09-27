@@ -58,7 +58,7 @@
   padding-top: var(--safe-top);
   background: var(--BumpColor-background);
 }
-.scroll { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+.scroll { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; overscroll-behavior-y: contain; }
 .scroll::-webkit-scrollbar { display: none; }
 .screen-pad { padding: var(--Space-l) var(--Space-gutter); }
 .safe-bottom { padding-bottom: var(--safe-bottom); }
@@ -198,7 +198,7 @@
 
 .device[data-chrome="bump"] .tabbar {
   left: 16px; right: 16px; bottom: 24px; height: 66px; padding: 5px; gap: 4px; border-radius: 22px;
-  background: linear-gradient(rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.84));
+  background: #fff;
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   box-shadow: var(--folk-card-shadow-hover);
 }

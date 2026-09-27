@@ -14,6 +14,16 @@ language with the brand kept (details, history and traps: `31-ios-mockup.md`).
 names each view's file. The site-style redesign has been ported to Swift but
 has not been built with Xcode. If you
 change a Swift view's layout or copy, update the mockup too, or the two drift.
+The latest reveal and tutorial badges select flat color and decorations from
+interest keywords, with the approved interest's catalogue category as a fallback
+for short labels. The tutorial receives the current profile's interests from
+`BumpScreen`; the reveal receives canonical interest IDs. This logic lives in
+`Design/Components.swift`; the mockup's filterable
+`interest-themes.html` is the visual review page. The recording control uses a
+fixed layout slot and equal-size idle/recording circles. These Swift edits
+parse on Linux but have not been type-checked or rendered in Xcode.
+The badge decorations were later reduced to small edge symbols; night uses
+the website's dark blue and navy palette with sparse stars.
 
 `main` now adds automatic nearby listening, a server relay fallback, StreetPass,
 Live Activities, and a notifications feed. The local merge into

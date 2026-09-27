@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// The site's hero on a phone: the backdrop, the two phones with bubbles
-/// floating around them, the wordmark artwork, one action.
+/// The site's hero on a phone: backdrop, drawn phones, wordmark, one action.
 struct WelcomeView: View {
     var onStart: () -> Void
 
@@ -14,10 +13,6 @@ struct WelcomeView: View {
 
                 PhonesIllustration(animated: true)
                     .padding(.vertical, 60)
-                    .floaters([
-                        Floater(text: FloaterLine.lecture, alignment: .topLeading, offset: CGSize(width: 0, height: 4), rotation: -4),
-                        Floater(text: FloaterLine.film, isMe: true, alignment: .bottomTrailing, offset: CGSize(width: 0, height: -8), rotation: 4),
-                    ])
                     .padding(.horizontal, Space.gutter)
 
                 Wordmark(size: .hero)

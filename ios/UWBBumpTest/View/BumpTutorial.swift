@@ -3,7 +3,13 @@ import SwiftUI
 /// A short walkthrough of how bumping works. Shown the first time someone
 /// opens the Bump tab, and any time from "How it works".
 struct BumpTutorial: View {
+    var interests: [Interest] = []
     var onDone: () -> Void
+
+    private var badgePicks: [Interest] {
+        var seen = Set<String>()
+        return interests.filter { !$0.label.trimmed().isEmpty && seen.insert($0.label.lowercased()).inserted }
+    }
 
     @State private var page = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -18,7 +24,7 @@ struct BumpTutorial: View {
 
     private let pages: [Page] = [
         Page(title: "Find someone to meet",
-             body: "You both open BUMP. No codes, no accounts, nothing to press. BUMP starts looking for the phones around you.",
+             body: "Bump their phone.",
              art: .open),
         Page(title: "Tap your phones together",
              body: "A gentle tap, back to back. That's how BUMP knows who you just met, and nobody else.",
@@ -115,21 +121,16 @@ struct BumpTutorial: View {
         case .open:
             ZStack {
                 PulseRings(active: active && !reduceMotion)
-                HStack(spacing: -12) {
+                HStack(spacing: Space.l) {
                     Avatar(name: "You", size: 72)
                     Avatar(name: "Them", size: 72, tint: BumpColor.illustrationWarm)
                 }
             }
             .frame(maxWidth: .infinity)
-            .floaters([
-                Floater(text: FloaterLine.lecture, alignment: .topLeading, rotation: -4),
-                Floater(text: FloaterLine.film, isMe: true, alignment: .bottomTrailing, rotation: 3),
-            ])
             .padding(.horizontal, Space.gutter)
         case .tap:
             PhonesIllustration(animated: active)
                 .padding(.vertical, 40)
-                .floaters([Floater(text: FloaterLine.mixer, alignment: .topLeading, offset: CGSize(width: 0, height: -20), rotation: -3)])
                 .padding(.horizontal, Space.gutter)
         case .confirm:
             // The site's hero floater "did you bump with dev?", as the moment.
@@ -161,7 +162,8 @@ struct BumpTutorial: View {
         case .share:
             // Pops in and cycles what two people might have in common.
             SharedBadge(kicker: "You both share this",
-                        interests: ["35mm photography", "Climbing", "Cold brew"],
+                        interests: badgePicks.isEmpty ? ["Something unexpected"] : badgePicks.map(\.label),
+                        themeHints: badgePicks.map { $0.parent ?? $0.id },
                         size: 300,
                         popIn: active)
         }
@@ -194,5 +196,9 @@ struct PulseRings: View {
 }
 
 #Preview {
-    BumpTutorial(onDone: {})
+    BumpTutorial(interests: [
+        Interest(id: "photography", label: "35mm photography", parent: "design"),
+        Interest(id: "climbing", label: "Climbing", parent: "movement"),
+        Interest(id: "cold-brew", label: "Cold brew", parent: "coffee"),
+    ], onDone: {})
 }

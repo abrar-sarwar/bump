@@ -7,7 +7,9 @@
  *   #screen-id  in the URL opens that screen directly (shareable).
  */
 (function () {
-  const { ME } = window.FIXTURES;
+  const { ME, CATALOG } = window.FIXTURES;
+  const groupHints = ["music", "coffee", "food", "movement", "games", "screen", "collecting", "outdoors", "building", "design", "words", "travel"];
+  const picked = (text) => ({ text, hint: groupHints[CATALOG.findIndex(([, items]) => items.includes(text))] || "" });
   const byId = Object.fromEntries(SCREENS.map((s) => [s.id, s]));
 
   // Sample state, seeded from PreviewFixtures.onboarding(...)
@@ -27,9 +29,11 @@
     browsing: false,
     onbSelected: new Set(["Climbing"]),
     editSelected: new Set(ME.interests),
+    tutorialInterests: ["35mm photography", "Climbing", "Cold brew"],
     opened: { onbSelected: new Set(), editSelected: new Set() },
     code: "",
     cloud: true,
+    cloudInfo: false,
     detailKind: "Experience",
   };
 
@@ -39,6 +43,7 @@
   let chrome = prefs.chrome || "bump";
   let zoom = prefs.zoom || "fit";
   let autoTimer = null;
+  let badgeTimer = null;
 
   function load() { try { return JSON.parse(localStorage.getItem("bump-mockup-v3") || "{}"); } catch { return {}; } }
   function save() { try { localStorage.setItem("bump-mockup-v3", JSON.stringify({ screen: current, mode, chrome, zoom })); } catch { /* private window */ } }
@@ -55,8 +60,8 @@
       <div class="island"></div>
       <div class="app ${s.tabs ? "has-tabs" : ""}">${body}</div>
       ${tabs}
-      ${sheet ? `<div class="sheet-layer"><div class="sheet-dim" data-go="${s.id.startsWith("bump-picker") ? "bump-timedout" : "bump-home"}"></div>
-        <div class="sheet sheet--${sheet.size}">${sheet.grabber ? '<div class="grabber"></div>' : ""}${sheet.html}</div></div>` : ""}
+      ${sheet ? `<div class="sheet-layer"><div class="sheet-dim" ${sheet.closeAct ? `data-act="${sheet.closeAct}"` : `data-go="${s.id.startsWith("bump-picker") ? "bump-timedout" : "bump-home"}"`}></div>
+        <div class="sheet sheet--${sheet.size}" role="dialog" aria-modal="true">${sheet.grabber ? '<div class="grabber"></div>' : ""}${sheet.html}</div></div>` : ""}
       <div class="home-indicator"></div>
     </div>`;
   }
@@ -68,10 +73,11 @@
 
   function render({ keepScroll = false } = {}) {
     clearTimeout(autoTimer);
+    clearInterval(badgeTimer);
     document.body.dataset.mode = mode;
     $("#chrome").value = chrome;
     $("#zoom").value = zoom;
-    document.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+    document.querySelectorAll(".seg [data-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
     document.querySelectorAll(".nav-list a").forEach((a) => a.classList.toggle("on", a.dataset.id === current));
 
     if (mode === "grid") {
@@ -93,6 +99,23 @@
     fit();
     if (keepScroll) { const el = stage.querySelector(".app .scroll, .sheet .scroll"); if (el) el.scrollTop = scrollTop; }
 
+    // Each cycling badge keeps its DOM while its interest, palette and tiny
+    // decorations change together. This also covers the tutorial badge.
+    const cycles = [...stage.querySelectorAll(".badge--themed[data-cycle]")].map((badge) => ({
+      badge, interests: [...badge.querySelectorAll(".badge__cycle > *")], active: 0,
+    })).filter((cycle) => cycle.interests.length > 1);
+    if (cycles.length && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      badgeTimer = setInterval(() => {
+        for (const cycle of cycles) {
+          cycle.interests[cycle.active].classList.remove("is-active");
+          cycle.active = (cycle.active + 1) % cycle.interests.length;
+          cycle.interests[cycle.active].classList.add("is-active");
+          const interest = cycle.interests[cycle.active];
+          BUMP_THEMES.apply(cycle.badge, interest.textContent, interest.dataset.themeHint);
+        }
+      }, 4000);
+    }
+
     const auto = stage.querySelector("[data-auto]");
     if (auto) autoTimer = setTimeout(() => go(auto.dataset.auto), Number(auto.dataset.delay || 1500));
     save();
@@ -111,10 +134,42 @@
 
   function go(id) {
     if (!byId[id]) return;
-    current = id;
-    if (location.hash.slice(1) !== id) history.replaceState(null, "", `#${id}`);
-    mode = "flow";
-    render();
+    if (current === "onb-card" && id === "tutorial-0") {
+      st.tutorialInterests = [...new Set([
+        ...st.items.filter((item) => item.kind === "interest" && item.on).map((item) => item.text),
+        ...st.onbSelected,
+      ])].map(picked);
+    }
+    if (current === "you-edit" && id === "you") {
+      st.tutorialInterests = [...st.editSelected].map(picked);
+    }
+    if (mode === "flow" && ((current === "onb-record" && id === "onb-recording") ||
+        (current === "onb-recording" && id === "onb-record"))) {
+      current = id;
+      if (location.hash.slice(1) !== id) history.replaceState(null, "", `#${id}`);
+      const recording = id === "onb-recording";
+      const control = stage.querySelector(".record-stage");
+      stage.querySelector(".device").dataset.screen = id;
+      control.classList.toggle("is-recording", recording);
+      control.dataset.go = recording ? "onb-transcribing" : "onb-recording";
+      control.setAttribute("aria-label", recording ? "Stop recording" : "Start recording");
+      document.querySelectorAll(".nav-list a").forEach((a) => a.classList.toggle("on", a.dataset.id === current));
+      save();
+      return;
+    }
+    const morph = [
+      ["onb-transcribing", "onb-transcript"],
+      ["onb-drafting", "onb-questions"],
+    ].some(([from, to]) => current === from && id === to);
+    const update = () => {
+      current = id;
+      if (location.hash.slice(1) !== id) history.replaceState(null, "", `#${id}`);
+      mode = "flow";
+      render();
+    };
+    if (morph && document.startViewTransition && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      document.startViewTransition(update);
+    } else update();
   }
 
   // MARK: Actions (the few interactions that change sample state)
@@ -129,6 +184,8 @@
     },
     toggleChip(arg) { const [key, k] = arg.split("|"); const sel = st[key]; sel.has(k) ? sel.delete(k) : sel.add(k); },
     toggleCloud() { st.cloud = !st.cloud; },
+    toggleCloudInfo() { st.cloudInfo = !st.cloudInfo; },
+    closeCloudInfo() { st.cloudInfo = false; },
     detailKind(k) { st.detailKind = k; },
     joinEvent(code) { st.code = code; current = "bump-event-ready"; },
   };
@@ -161,7 +218,7 @@
     const a = e.target.closest("a[data-id]");
     if (a) { e.preventDefault(); go(a.dataset.id); }
   });
-  document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => { mode = b.dataset.mode; render(); save(); }));
+  document.querySelectorAll(".seg [data-mode]").forEach((b) => b.addEventListener("click", () => { mode = b.dataset.mode; render(); save(); }));
   $("#chrome").addEventListener("change", (e) => { chrome = e.target.value; render({ keepScroll: true }); save(); });
   $("#zoom").addEventListener("change", (e) => { zoom = e.target.value; fit(); save(); });
   window.addEventListener("resize", fit);

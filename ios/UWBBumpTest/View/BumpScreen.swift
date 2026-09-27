@@ -21,9 +21,8 @@ struct BumpScreen: View {
                     topBar
                     header
 
-                    // Waiting is one screen whether or not the room is up yet:
-                    // joining happens by itself, so the person never sees a
-                    // "not started" state they have to act on.
+                    // Nearby discovery starts automatically. The primary
+                    // action also resumes or retries it when tapped.
                     if engine.room == .none { ambientHome } else { roomActive }
                 }
             }
@@ -33,7 +32,9 @@ struct BumpScreen: View {
             .sheet(isPresented: $showNotifications) { NotificationsScreen(store: store) }
             .fullScreenCover(isPresented: .constant(isRevealing)) { revealCover }
             .fullScreenCover(isPresented: $showTutorial) {
-                BumpTutorial { tutorialSeen = true; showTutorial = false }
+                BumpTutorial(interests: store.profile.interests) {
+                    tutorialSeen = true; showTutorial = false
+                }
             }
             .onAppear {
                 // First visit: explain bumping before anything else.
@@ -126,56 +127,43 @@ struct BumpScreen: View {
 
     // MARK: Ambient home
 
-    /// The waiting screen. There is no Start button: opening BUMP is the start.
+    /// The waiting screen, with the steps below the first viewport.
     private var ambientHome: some View {
         VStack(spacing: Space.l) {
-            ZStack {
-                PulseRings(active: engine.autoStatus == .listening)
-                PhonesIllustration(animated: engine.autoStatus == .listening)
-            }
+            VStack(spacing: Space.l) {
+                Spacer(minLength: Space.s)
+                ZStack {
+                    PulseRings(active: engine.autoStatus == .listening)
+                    PhonesIllustration(animated: engine.autoStatus == .listening)
+                }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 40)
-                .floaters([
-                    Floater(text: FloaterLine.mixer, alignment: .topLeading, offset: CGSize(width: -4, height: -6), rotation: -3),
-                    Floater(text: FloaterLine.film, isMe: true, alignment: .bottomTrailing, offset: CGSize(width: 4, height: 6), rotation: 4),
-                ])
+                .padding(.vertical, Space.m)
 
-            readinessIndicator
+                readinessIndicator
+                nearbyPeople
+                Spacer(minLength: Space.s)
 
-            switch engine.autoStatus {
-            case .blocked(let step):
-                title("One thing first", step)
-                Button("Open Settings") {
-                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(url)
-                    }
-                }.buttonStyle(.bumpPrimary)
-            case .paused:
-                title("Paused", "BUMP isn't listening for a bump right now.")
-                Button("Resume") { engine.resume() }.buttonStyle(.bumpPrimary)
-            case .preparing:
-                title("Getting ready", "Starting BUMP on this phone.")
-            case .lookingForPhones(let hint):
-                title("Looking for nearby phones", hint ?? "Ask the person in front of you to open BUMP too.")
-                if hint != nil {
+                if case .blocked(let step) = engine.autoStatus {
+                    title("One thing first", step)
                     Button("Open Settings") {
                         if let url = URL(string: UIApplication.openSettingsURLString) {
                             UIApplication.shared.open(url)
                         }
-                    }.buttonStyle(.bumpSecondary)
+                    }
+                    .buttonStyle(.bumpPrimary)
+                } else {
+                    title("Meet someone new", "Bump their phone.")
+                    Button("Start bumping") {
+                        if engine.autoStatus == .paused { engine.resume() }
+                        else { engine.autoStart() }
+                    }
+                    .buttonStyle(.bumpPrimary)
                 }
-            case .connecting:
-                title("Connecting", "Found a nearby phone. Joining it now.")
-            case .reconnecting:
-                title("Reconnecting", "The other phone went away. Finding it again.")
-            case .listening:
-                title(engine.members.isEmpty ? "Waiting for someone to meet" : "Tap your phones together",
-                      engine.members.isEmpty ? "Ask the person in front of you to open BUMP too."
-                                             : "A gentle tap, back to back, with the person you want to meet.")
             }
+            .frame(minHeight: max(548, UIScreen.main.bounds.height - 262))
 
-            nearbyPeople
             howItWorks
+                .padding(.top, 90)
             HStack(spacing: Space.s) {
                 if engine.autoStatus != .paused, engine.setupBlocker == nil {
                     Button("Pause") { engine.pause() }
@@ -396,7 +384,7 @@ struct BumpScreen: View {
     private var nearbyPeople: some View {
         if !engine.members.isEmpty {
             RowPill {
-                HStack(spacing: -12) {
+                HStack(spacing: Space.xs) {
                     ForEach(Array(engine.members.prefix(3).enumerated()), id: \.element.id) { i, member in
                         Avatar(name: member.displayName, size: 40,
                                tint: i.isMultiple(of: 2) ? BumpColor.illustrationWarm : BumpColor.primary)
@@ -455,7 +443,7 @@ struct BumpScreen: View {
                 VStack(alignment: .leading, spacing: Space.l) {
                     SectionHeading(
                         title: "Pick the person",
-                        subtitle: "BUMP couldn't tell who you bumped, so you're choosing manually. This gets saved as a manual pick, not a detected bump."
+                        subtitle: "Couldn't pinpoint who you bumped. Pick the person you met."
                     )
                     if engine.members.isEmpty {
                         Text("Nobody else is in this event yet.")

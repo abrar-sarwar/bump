@@ -19,11 +19,11 @@ struct ConfirmPartnerView: View {
                         ScreenTitle(proposal.partner.displayName, alignment: .center)
                     }
 
-                    if proposal.manual {
-                        StatusPill(text: "You picked them manually", tone: .warn)
-                    } else if proposal.uwbCorroborated {
-                        StatusPill(text: "Your phones were touching", tone: .good)
-                    }
+                    StatusPill(
+                        text: proposal.manual ? "Matched thru manual pick" :
+                            (proposal.uwbCorroborated ? "Matched thru BUMP" : "Matched thru motion"),
+                        tone: proposal.manual ? .warn : .good
+                    )
 
                     VStack(spacing: Space.s) {
                         Button(action: onConfirm) {

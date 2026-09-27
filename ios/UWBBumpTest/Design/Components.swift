@@ -40,22 +40,17 @@ struct Wordmark: View {
     }
 }
 
-// MARK: - Frosted surface (the site's .folk-card)
+// MARK: - Flat surfaces
 
-/// A white gradient, a bright top edge, a hairline and stacked soft shadows.
+/// A white surface with a subtle hairline.
 struct FrostedBackground<S: Shape>: View {
     var shape: S
     var raised = false
 
     var body: some View {
         shape
-            .fill(LinearGradient(colors: [Color.white.opacity(0.92), Color.white.opacity(0.78)],
-                                 startPoint: .top, endPoint: .bottom))
-            .overlay(shape.stroke(BumpColor.hairline, lineWidth: 0.5))
-            .overlay(shape.stroke(LinearGradient(colors: [Color.white, Color.white.opacity(0)],
-                                                 startPoint: .top, endPoint: .center), lineWidth: 1))
-            .shadow(color: BumpColor.ink.opacity(raised ? 0.07 : 0.04), radius: raised ? 9 : 5, x: 0, y: raised ? 8 : 4)
-            .shadow(color: BumpColor.ink.opacity(raised ? 0.08 : 0.05), radius: raised ? 20 : 12, x: 0, y: raised ? 18 : 10)
+            .fill(Color.white)
+            .overlay(shape.stroke(BumpColor.hairline, lineWidth: 1))
     }
 }
 
@@ -362,42 +357,16 @@ struct Card<Content: View>: View {
 
 enum CardStyle { case frosted, filled, tertiaryTonal }
 
-/// Pastel washes for bentos (the site's --folk-wash-*).
+/// Flat pastel fills for bentos.
 enum Wash {
     case sky, lilac, peach, mint
 
     @ViewBuilder var background: some View {
         switch self {
-        case .sky:
-            ZStack {
-                Color(hex: 0xF3F5F8)
-                EllipticalGradient(colors: [Color(hex: 0xD7EBFB), Color(hex: 0xD7EBFB, opacity: 0)],
-                                   center: UnitPoint(x: 0.5, y: 1), startRadiusFraction: 0, endRadiusFraction: 0.62)
-            }
-        case .lilac:
-            ZStack {
-                Color(hex: 0xF3F4F8)
-                EllipticalGradient(colors: [Color(hex: 0xE6DCFA), Color(hex: 0xE6DCFA, opacity: 0)],
-                                   center: UnitPoint(x: 0.1, y: 1), startRadiusFraction: 0, endRadiusFraction: 0.6)
-                EllipticalGradient(colors: [Color(hex: 0xD9ECFB), Color(hex: 0xD9ECFB, opacity: 0)],
-                                   center: UnitPoint(x: 1, y: 1), startRadiusFraction: 0, endRadiusFraction: 0.65)
-            }
-        case .peach:
-            ZStack {
-                Color(hex: 0xF4F4F7)
-                EllipticalGradient(colors: [Color(hex: 0xF8E0D4), Color(hex: 0xF8E0D4, opacity: 0)],
-                                   center: UnitPoint(x: 0.3, y: 1), startRadiusFraction: 0, endRadiusFraction: 0.62)
-                EllipticalGradient(colors: [Color(hex: 0xECE0F5), Color(hex: 0xECE0F5, opacity: 0)],
-                                   center: UnitPoint(x: 1, y: 0.9), startRadiusFraction: 0, endRadiusFraction: 0.65)
-            }
-        case .mint:
-            ZStack {
-                Color(hex: 0xF3F5F8)
-                EllipticalGradient(colors: [Color(hex: 0xC9F1EA), Color(hex: 0xC9F1EA, opacity: 0)],
-                                   center: UnitPoint(x: 0.2, y: 1), startRadiusFraction: 0, endRadiusFraction: 0.6)
-                EllipticalGradient(colors: [Color(hex: 0xDFE2FB), Color(hex: 0xDFE2FB, opacity: 0)],
-                                   center: UnitPoint(x: 1, y: 1), startRadiusFraction: 0, endRadiusFraction: 0.65)
-            }
+        case .sky: Color(hex: 0xE8F2FF)
+        case .lilac: Color(hex: 0xF1EDFA)
+        case .peach: Color(hex: 0xFFF0E7)
+        case .mint: Color(hex: 0xE5F4EF)
         }
     }
 }
@@ -472,9 +441,9 @@ struct StatusPill: View {
     }
 }
 
-// MARK: - Orbs and avatars (the site's .folk-orb)
+// MARK: - Flat icon discs and avatars
 
-/// The glossy sphere that holds an icon or a letter.
+/// A flat MD3 container for an icon or a letter.
 struct Orb<Content: View>: View {
     var size: CGFloat = 44
     @ViewBuilder var content: Content
@@ -482,18 +451,7 @@ struct Orb<Content: View>: View {
     var body: some View {
         content
             .frame(width: size, height: size)
-            .background(
-                Circle().fill(RadialGradient(
-                    gradient: Gradient(stops: [
-                        .init(color: Color.white, location: 0),
-                        .init(color: Color(hex: 0xEEF1F4), location: 0.46),
-                        .init(color: Color(hex: 0xD6DCE3), location: 1),
-                    ]),
-                    center: UnitPoint(x: 0.34, y: 0.28), startRadius: 0, endRadius: size * 0.8))
-            )
-            .overlay(Circle().stroke(BumpColor.hairline, lineWidth: 0.5))
-            .overlay(Circle().stroke(LinearGradient(colors: [Color.white, Color.clear], startPoint: .top, endPoint: .center), lineWidth: 1))
-            .shadow(color: BumpColor.ink.opacity(0.12), radius: 7, x: 0, y: 6)
+            .background(BumpColor.primaryContainer, in: Circle())
     }
 }
 
@@ -513,8 +471,7 @@ struct IconOrb: View {
     }
 }
 
-/// A profile photo when there is one, otherwise an orb with a coloured letter
-/// (the site's .person__avatar). Blue letter = you, orange = them.
+/// A profile photo when there is one, otherwise a flat coloured letter disc.
 struct Avatar: View {
     let name: String
     var size: CGFloat = 56
@@ -535,15 +492,14 @@ struct Avatar: View {
                     .scaledToFill()
                     .frame(width: size, height: size)
                     .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                    .shadow(color: BumpColor.ink.opacity(0.12), radius: 7, x: 0, y: 6)
+                    .overlay(Circle().stroke(BumpColor.hairline, lineWidth: 1))
             } else {
-                Orb(size: size) {
-                    Text(initials)
-                        .font(BumpFont.archivo(Archivo.bold, size * 0.4, relativeTo: .body))
-                        .foregroundStyle(tint)
-                        .minimumScaleFactor(0.5)
-                }
+                Text(initials)
+                    .font(BumpFont.archivo(Archivo.bold, size * 0.4, relativeTo: .body))
+                    .foregroundStyle(tint)
+                    .minimumScaleFactor(0.5)
+                    .frame(width: size, height: size)
+                    .background(tint.opacity(0.13), in: Circle())
             }
         }
         .frame(width: size, height: size)
@@ -707,45 +663,6 @@ extension ChatBubble where Content == Text {
     }
 }
 
-/// Decorative lines, verbatim from the site's hero floaters
-/// (web/src/components/HeroFloaters.tsx). Fictional; never presented as data.
-enum FloaterLine {
-    static let lecture = "we’ve sat next to each other in lecture all semester"
-    static let film = "wait you shoot 35mm too??"
-    static let mixer = "3 hours at this mixer and i’ve asked “what’s your major” 11 times"
-}
-
-/// A tilted bubble laid over some art, like the site's hero floaters.
-struct Floater: Identifiable {
-    let id = UUID()
-    var text: String
-    var isMe = false
-    var alignment: Alignment
-    var offset: CGSize = .zero
-    var rotation: Double = 0
-}
-
-extension View {
-    /// Lays decorative tilted bubbles over this view. Hidden from VoiceOver.
-    func floaters(_ items: [Floater]) -> some View {
-        overlay {
-            ZStack {
-                ForEach(items) { f in
-                    BubbleBody(isMe: f.isMe) {
-                        Text(f.text).font(BumpFont.caption)
-                    }
-                    .frame(maxWidth: 210)
-                    .rotationEffect(.degrees(f.rotation))
-                    .offset(f.offset)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: f.alignment)
-                }
-            }
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-        }
-    }
-}
-
 // MARK: - Toast (the site's .walkby__notice)
 
 /// An app tile, a title and a line, and an optional trailing view.
@@ -863,9 +780,137 @@ struct MorphingBlob<Content: View>: View {
 /// "You both share this": the morphing blob with the text on top. With several
 /// interests it cycles through them, one every `BumpMotion.badgeInterestHold`
 /// seconds. The morph runs at 0.4x the site's speed.
+private enum InterestTheme: CaseIterable, Equatable {
+    case night, photography, music, art, food, drink, outdoors, sports
+    case books, technology, gaming, travel, cinema, collecting, general
+
+    /// Website badge positions, normalized around the centre. Keep the
+    /// middle band empty so the interest stays easy to read.
+    static let starMarks: [(CGFloat, CGFloat, Bool)] = [
+        (-0.28, -0.26, true), (0.24, -0.30, true), (0.34, 0.22, true),
+        (-0.24, 0.30, true), (0.08, 0.38, false), (-0.39, -0.02, false),
+        (-0.02, -0.40, false), (0.40, -0.08, false), (0.20, 0.34, false),
+    ]
+
+    private var terms: [String] {
+        switch self {
+        case .night: return ["night", "stargazing", "astronomy", "constellation", "moon", "stars"]
+        case .photography: return ["photography", "photographer", "photo", "photos", "35mm", "camera", "cameras", "darkroom", "analog film", "portraiture"]
+        case .music: return ["music", "musician", "jazz", "piano", "guitar", "drums", "singing", "singer", "concert", "dj", "orchestra", "classical", "hip hop", "rap", "saxophone", "sax", "bass", "ukulele", "band", "song", "songs", "songwriting", "beatmaking", "beats", "techno", "edm", "playlist", "violin", "karaoke", "choir", "flute"]
+        case .art: return ["art", "artist", "design", "designer", "drawing", "draw", "sketch", "painting", "paint", "illustration", "ceramics", "pottery", "animation", "typography", "architecture", "fashion", "crafts", "sculpture", "watercolor", "doodle"]
+        case .food: return ["food", "cooking", "cook", "baking", "bake", "baker", "pasta", "ramen", "pizza", "bread", "recipe", "restaurant", "chef", "sushi", "dinner", "brunch", "pastry", "dessert", "cuisine"]
+        case .drink: return ["drink", "coffee", "espresso", "tea", "matcha", "cocktail", "cocktails", "wine", "beer", "barista", "latte", "brew", "brewing", "boba", "smoothie", "cafe"]
+        case .outdoors: return ["outdoors", "nature", "hiking", "hike", "camping", "climbing", "bouldering", "mountain", "forest", "garden", "plants", "birdwatching"]
+        case .sports: return ["sport", "basketball", "soccer", "football", "tennis", "running", "run club", "cycling", "skating", "swimming", "volleyball", "baseball", "yoga"]
+        case .books: return ["book", "books", "reading", "novel", "novels", "poetry", "literature", "writing", "writer", "library", "comics", "manga"]
+        case .technology: return ["technology", "tech", "robot", "robotics", "hardware", "software", "coding", "code", "programming", "engineering", "science", "ai", "electronics", "maker"]
+        case .gaming: return ["gaming", "game", "games", "gamer", "esports", "nintendo", "playstation", "tabletop", "dungeons", "rpg", "chess"]
+        case .travel: return ["travel", "trip", "backpacking", "exploring", "city break", "road trip", "train", "flight", "flying", "passport"]
+        case .cinema: return ["film", "films", "movie", "movies", "cinema", "filmmaking", "screenwriting", "documentary", "anime", "theater", "theatre"]
+        case .collecting: return ["collecting", "collectibles", "trading cards", "figures", "sneakers", "coins", "stamps", "lego", "thrifting", "rocks", "minerals", "vinyl records"]
+        case .general: return []
+        }
+    }
+
+    static func match(_ interest: String, hint: String? = nil) -> InterestTheme {
+        let words = interest.lowercased().map { $0.isLetter || $0.isNumber ? $0 : " " }
+        let haystack = " " + String(words).split(separator: " ").joined(separator: " ") + " "
+        if let direct = allCases.first(where: { theme in theme.terms.contains { haystack.contains(" \($0) ") } }) {
+            return direct
+        }
+        switch hint {
+        case "music": return .music
+        case "coffee": return .drink
+        case "food": return .food
+        case "movement": return .sports
+        case "games": return .gaming
+        case "screen": return .cinema
+        case "collecting": return .collecting
+        case "outdoors": return .outdoors
+        case "building": return .technology
+        case "design": return .art
+        case "words": return .books
+        case "travel": return .travel
+        default: return .general
+        }
+    }
+
+    var outer: Color {
+        switch self {
+        case .night: Color(hex: 0x123D72)
+        case .photography: Color(hex: 0xD5EADB)
+        case .music: Color(hex: 0xE0E0FF)
+        case .art: Color(hex: 0xFFE2D9)
+        case .food: Color(hex: 0xFFE7C2)
+        case .drink: Color(hex: 0xD6EFF1)
+        case .outdoors: Color(hex: 0xE0EDCF)
+        case .sports: Color(hex: 0xFFE1D4)
+        case .books: Color(hex: 0xE9DEF6)
+        case .technology: Color(hex: 0xD8E6EF)
+        case .gaming: Color(hex: 0xE7DFFF)
+        case .travel: Color(hex: 0xD7ECF7)
+        case .cinema: Color(hex: 0xF2DFEE)
+        case .collecting: Color(hex: 0xE8E3D4)
+        case .general: Color(hex: 0xD4E3FF)
+        }
+    }
+
+    var form: Color {
+        switch self {
+        case .night: Color(hex: 0x001C3A)
+        case .photography: Color(hex: 0x176747)
+        case .music: Color(hex: 0x394FA3)
+        case .art: Color(hex: 0xA24B44)
+        case .food: Color(hex: 0xA64B24)
+        case .drink: Color(hex: 0x176A72)
+        case .outdoors: Color(hex: 0x3A6A39)
+        case .sports: Color(hex: 0xA74735)
+        case .books: Color(hex: 0x694B8C)
+        case .technology: Color(hex: 0x284F6D)
+        case .gaming: Color(hex: 0x6545A0)
+        case .travel: Color(hex: 0x176D92)
+        case .cinema: Color(hex: 0x7A456D)
+        case .collecting: Color(hex: 0x675C35)
+        case .general: Color(hex: 0x155FA9)
+        }
+    }
+
+    var symbols: (String, String) {
+        switch self {
+        case .night: ("star.fill", "sparkle")
+        case .photography: ("tree.fill", "tree.fill")
+        case .music: ("music.note", "music.note.list")
+        case .art: ("scribble.variable", "pencil.tip")
+        case .food: ("fork.knife", "fork.knife.circle")
+        case .drink: ("cup.and.saucer.fill", "cup.and.saucer")
+        case .outdoors: ("mountain.2.fill", "leaf.fill")
+        case .sports: ("basketball.fill", "figure.run")
+        case .books: ("book.closed.fill", "text.book.closed.fill")
+        case .technology: ("cpu.fill", "point.3.connected.trianglepath.dotted")
+        case .gaming: ("gamecontroller.fill", "circle.grid.2x2.fill")
+        case .travel: ("airplane", "location.north.fill")
+        case .cinema: ("film.fill", "play.rectangle.fill")
+        case .collecting: ("rectangle.stack.fill", "square.stack.3d.up.fill")
+        case .general: ("sparkle", "star")
+        }
+    }
+
+    func drift(at elapsed: Double) -> CGFloat {
+        let speed: Double = switch self {
+        case .night, .technology: 2.2
+        case .photography, .outdoors, .travel: 1.1
+        case .music, .drink: 2.8
+        case .sports, .gaming: 3.3
+        default: 1.7
+        }
+        return CGFloat(sin(elapsed * speed) * 4)
+    }
+}
+
 struct SharedBadge: View {
     var kicker: String
     var interests: [String]
+    var themeHints: [String?] = []
     var size: CGFloat = 200
     var loop: Double = BumpMotion.badgeLoop
     var container: Color = BumpColor.primaryContainer
@@ -876,31 +921,62 @@ struct SharedBadge: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
+    @State private var start = Date()
 
     var body: some View {
-        MorphingBlob(size: size, loop: loop, container: container, form: form) { elapsed in
+        TimelineView(.animation(minimumInterval: nil, paused: reduceMotion)) { context in
+            let elapsed = reduceMotion ? 0 : context.date.timeIntervalSince(start)
+            let phase = ScallopGeometry.badgePhase(elapsed: elapsed, loop: loop)
             let index = ScallopGeometry.cycleIndex(elapsed: elapsed, count: interests.count,
                                                    hold: BumpMotion.badgeInterestHold)
-            VStack(spacing: 4) {
-                Text(kicker)
-                    .font(BumpFont.archivo(Archivo.semibold, size * 0.048, relativeTo: .caption))
-                    .opacity(0.85)
-                ZStack {
-                    ForEach(interests.indices, id: \.self) { i in
-                        Text(interests[i])
-                            .font(BumpFont.archivo(Archivo.bold, size * 0.092, relativeTo: .title2))
-                            .multilineTextAlignment(.center)
-                            .opacity(i == index ? 1 : 0)
-                            .offset(y: i == index ? 0 : 6)
+            let theme = InterestTheme.match(interests.indices.contains(index) ? interests[index] : "",
+                                            hint: themeHints.indices.contains(index) ? themeHints[index] : nil)
+            ZStack {
+                Circle().fill(theme == .general ? container : theme.outer)
+                BlendedScallop(from: phase.from, to: phase.to, t: phase.t)
+                    .fill(theme == .general ? form : theme.form)
+                    .rotationEffect(.degrees(ScallopGeometry.badgeRotation(elapsed: elapsed, loop: loop)))
+                    .padding(size * 0.07)
+                if theme == .night {
+                    ForEach(InterestTheme.starMarks.indices, id: \.self) { i in
+                        let mark = InterestTheme.starMarks[i]
+                        Image(systemName: mark.2 ? "sparkle" : "circle.fill")
+                            .font(.system(size: size * (mark.2 ? 0.035 : 0.008)))
+                            .opacity(reduceMotion ? 0.8 : 0.65 + 0.3 * sin(elapsed * 1.1 + Double(i)))
+                            .offset(x: size * mark.0, y: size * mark.1)
                     }
+                } else {
+                    let symbols = theme.symbols
+                    Image(systemName: symbols.0)
+                        .offset(x: -size * 0.30, y: -size * 0.30 + (reduceMotion ? 0 : theme.drift(at: elapsed) * 0.35))
+                    Image(systemName: symbols.1)
+                        .offset(x: size * 0.30, y: size * 0.29 - (reduceMotion ? 0 : theme.drift(at: elapsed) * 0.35))
                 }
-                .animation(.easeInOut(duration: 0.5), value: index)
+                VStack(spacing: 4) {
+                    Text(kicker)
+                        .font(BumpFont.archivo(Archivo.semibold, size * 0.048, relativeTo: .caption))
+                        .opacity(0.85)
+                    ZStack {
+                        ForEach(interests.indices, id: \.self) { i in
+                            Text(interests[i])
+                                .font(BumpFont.archivo(Archivo.bold, size * 0.092, relativeTo: .title2))
+                                .multilineTextAlignment(.center)
+                                .opacity(i == index ? 1 : 0)
+                                .offset(y: i == index ? 0 : 6)
+                        }
+                    }
+                    .animation(.easeInOut(duration: 0.5), value: index)
+                }
+                .foregroundStyle(onForm)
+                .minimumScaleFactor(0.6)
+                .frame(maxWidth: size * 0.64)
             }
-            .foregroundStyle(onForm)
-            .minimumScaleFactor(0.6)
-            .frame(maxWidth: size * 0.64)
+            .frame(width: size, height: size)
+            .foregroundStyle(Color.white.opacity(0.78))
+            .font(.system(size: size * 0.042, weight: .light))
+            .animation(.easeInOut(duration: 0.5), value: theme)
         }
-        .scaleEffect(popIn && !appeared ? 0.4 : 1)
+        .scaleEffect(popIn && !appeared ? 0.4 : 1, anchor: .center)
         .opacity(popIn && !appeared ? 0 : 1)
         .onAppear {
             guard popIn, !reduceMotion else { appeared = true; return }
@@ -913,8 +989,8 @@ struct SharedBadge: View {
 
 // MARK: - Backdrop (the site's HeroBackdrop)
 
-/// Dot grid fading in from the edges, plus faint MD3 outline shapes and a
-/// glyph or two. Texture only: never hit-testable, hidden from VoiceOver.
+/// Dot grid plus faint MD3 outline shapes. Texture only: never hit-testable,
+/// hidden from VoiceOver.
 struct Backdrop: View {
     enum Style { case hero, soft }
     var style: Style = .hero
@@ -931,17 +1007,11 @@ struct Backdrop: View {
                             var x: CGFloat = step / 2
                             while x < size.width {
                                 ctx.fill(Path(ellipseIn: CGRect(x: x - 1.1, y: y - 1.1, width: 2.2, height: 2.2)),
-                                         with: .color(BumpColor.primary.opacity(0.16)))
+                                         with: .color(BumpColor.primary.opacity(0.09)))
                                 x += step
                             }
                             y += step
                         }
-                    }
-                    .mask {
-                        EllipticalGradient(gradient: Gradient(stops: [
-                            .init(color: .clear, location: 0.3),
-                            .init(color: .black, location: 1),
-                        ]), center: .center, startRadiusFraction: 0, endRadiusFraction: 0.7)
                     }
 
                     ScallopShape(form: .cookie)
@@ -956,11 +1026,6 @@ struct Backdrop: View {
                         .stroke(BumpColor.secondary.opacity(0.18), lineWidth: 1.5)
                         .frame(width: 110, height: 110)
                         .position(x: w - 73, y: h * 0.12 + 55)
-                    Image(systemName: "hand.wave.fill")
-                        .font(.system(size: 26))
-                        .foregroundStyle(BumpColor.primary.opacity(0.11))
-                        .rotationEffect(.degrees(-12))
-                        .position(x: w * 0.7, y: h * 0.15)
                 } else {
                     ScallopShape(form: .cookie)
                         .stroke(BumpColor.primary.opacity(0.18), lineWidth: 1.5)

@@ -7,6 +7,7 @@ struct OnboardingFlow: View {
     @StateObject private var model: OnboardingModel
     var onFinished: () -> Void
 
+    @Namespace private var morphNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var movingForward = true
 
@@ -21,12 +22,14 @@ struct OnboardingFlow: View {
             ZStack {
                 switch model.step {
                 case .name: NameStep(model: model).transition(transition)
-                case .intro: IntroStep(model: model).transition(transition)
-                case .questions: QuestionsStep(model: model).transition(transition)
+                case .intro: IntroStep(model: model, morphNamespace: morphNamespace).transition(.opacity)
+                case .questions: QuestionsStep(model: model, morphNamespace: morphNamespace).transition(.opacity)
                 case .card: CardStep(model: model, onFinished: finish).transition(transition)
                 }
             }
-            .animation(reduceMotion ? .easeInOut(duration: 0.2) : .easeInOut(duration: 0.28), value: model.step)
+            .animation(reduceMotion ? .easeInOut(duration: 0.2) :
+                (model.step == .questions ? .spring(response: 0.68, dampingFraction: 0.82) : .easeInOut(duration: 0.28)),
+                value: model.step)
         }
         .background(BumpColor.background.ignoresSafeArea())
         .onChange(of: model.step) { old, new in movingForward = new > old }
@@ -40,17 +43,21 @@ struct OnboardingFlow: View {
                            removal: .opacity)
     }
 
-    /// The site's square back button, then the step progress.
+    /// Centre the shorter progress track while reserving room for Back.
     private var topBar: some View {
-        HStack(spacing: Space.m) {
-            SquareIconButton(systemImage: "arrow.left", label: "Back") {
-                movingForward = false
-                model.goBack()
-            }
-            .opacity(model.step == .name ? 0 : 1)
-            .disabled(model.step == .name)
-
+        ZStack {
             SegmentedProgress(current: model.step.rawValue, total: OnboardingModel.Step.allCases.count)
+                .frame(width: min(240, UIScreen.main.bounds.width - 120))
+
+            HStack {
+                SquareIconButton(systemImage: "arrow.left", label: "Back") {
+                    movingForward = false
+                    model.goBack()
+                }
+                .opacity(model.step == .name ? 0 : 1)
+                .disabled(model.step == .name)
+                Spacer()
+            }
         }
         .padding(.horizontal, Space.gutter)
         .padding(.vertical, Space.s)
@@ -152,25 +159,28 @@ private struct NameStep: View {
 private struct IntroStep: View {
     @ObservedObject var model: OnboardingModel
     @ObservedObject private var recorder: IntroRecorder
+    let morphNamespace: Namespace.ID
     @FocusState private var focused: Bool
 
-    init(model: OnboardingModel) {
+    init(model: OnboardingModel, morphNamespace: Namespace.ID) {
         self.model = model
         self.recorder = model.recorder
+        self.morphNamespace = morphNamespace
     }
 
     var body: some View {
         Screen {
             VStack(alignment: .leading, spacing: Space.l) {
                 StepHeader(eyebrow: "Step 2 of 4", title: "Introduce yourself",
-                           subtitle: "Say what you're into, what you've done, and what you're hoping to find. We'll turn it into a card you can edit.")
+                           subtitle: "Tell us what you're into and what you're looking for.")
 
                 if model.cloud == .undecided {
                     CloudConsentCard(model: model)
                 } else if model.busy == .drafting {
                     WorkingCard(title: "Drafting your profile…",
                                 detail: model.cloudAllowed ? "Grok is reading your intro." : nil,
-                                onCancel: model.cancelUpload)
+                                onCancel: model.cancelUpload,
+                                surfaceNamespace: morphNamespace, surfaceID: "draftChat")
                 } else if !model.transcript.isEmpty && model.transcriptFromVoice && !model.typing {
                     transcriptReview
                 } else if model.typing || !model.cloudAllowed {
@@ -184,6 +194,8 @@ private struct IntroStep: View {
                 }
             }
         }
+        .animation(.spring(response: 0.65, dampingFraction: 0.82), value: model.transcriptFromVoice)
+        .animation(.spring(response: 0.65, dampingFraction: 0.82), value: model.busy)
         .safeAreaInset(edge: .bottom) {
             if model.cloud != .undecided && model.busy == .idle {
                 BottomBar {
@@ -218,7 +230,8 @@ private struct IntroStep: View {
                         onCancel: model.cancelUpload)
         case .transcribing:
             WorkingCard(title: "Transcribing…", detail: "Turning your recording into text.",
-                        onCancel: model.cancelUpload)
+                        onCancel: model.cancelUpload,
+                        surfaceNamespace: morphNamespace, surfaceID: "transcriptField")
         default:
             recorderPanel
         }
@@ -228,17 +241,33 @@ private struct IntroStep: View {
     private var recorderPanel: some View {
         VStack(spacing: Space.m) {
             switch recorder.state {
-            case .idle:
-                RecordButton(recording: false) { recorder.start() }
-                Text("Tap to record · up to 45 seconds")
-                    .font(BumpFont.caption)
-                    .foregroundStyle(BumpColor.secondaryText)
-
-            case .requestingPermission:
-                ProgressView("Asking for microphone access…")
-                    .tint(BumpColor.primary)
-                    .foregroundStyle(BumpColor.secondaryText)
-                    .padding(.vertical, Space.l)
+            case .idle, .requestingPermission, .recording:
+                let isRecording = recorder.state == .recording
+                RecordButton(recording: isRecording) {
+                    if isRecording { recorder.stop() }
+                    else if recorder.state == .idle { recorder.start() }
+                }
+                .disabled(recorder.state == .requestingPermission)
+                Group {
+                    if isRecording {
+                        VStack(spacing: Space.m) {
+                            LevelMeter(level: recorder.level)
+                            Text("\(Self.clock(recorder.remaining)) left")
+                                .font(BumpFont.bodyEmphasis.monospacedDigit())
+                                .foregroundStyle(BumpColor.navy)
+                                .accessibilityLabel("\(Int(recorder.remaining)) seconds left")
+                        }
+                    } else if recorder.state == .requestingPermission {
+                        ProgressView("Asking for microphone access…")
+                            .tint(BumpColor.primary)
+                            .foregroundStyle(BumpColor.secondaryText)
+                    } else {
+                        Text("Tap to record · up to 45 seconds")
+                            .font(BumpFont.caption)
+                            .foregroundStyle(BumpColor.secondaryText)
+                    }
+                }
+                .frame(height: 58, alignment: .top)
 
             case .denied:
                 Bento(wash: .peach, label: "Microphone access is off", systemImage: "mic.slash.fill") {
@@ -250,14 +279,6 @@ private struct IntroStep: View {
                     }
                     .buttonStyle(.bumpSecondary)
                 }
-
-            case .recording:
-                RecordButton(recording: true) { recorder.stop() }
-                LevelMeter(level: recorder.level)
-                Text("\(Self.clock(recorder.remaining)) left")
-                    .font(BumpFont.bodyEmphasis.monospacedDigit())
-                    .foregroundStyle(BumpColor.navy)
-                    .accessibilityLabel("\(Int(recorder.remaining)) seconds left")
 
             case .finished(let duration, let interrupted):
                 Card {
@@ -289,11 +310,11 @@ private struct IntroStep: View {
                 }
             }
 
-            if recorder.state != .recording {
-                Button("Type instead") { recorder.discard(); model.typing = true }
-                    .font(BumpFont.bodyEmphasis)
-                    .foregroundStyle(BumpColor.primary)
-            }
+            Button("Type instead") { recorder.discard(); model.typing = true }
+                .font(BumpFont.bodyEmphasis)
+                .foregroundStyle(BumpColor.primary)
+                .opacity(recorder.state == .recording ? 0 : 1)
+                .disabled(recorder.state == .recording)
         }
         .frame(maxWidth: .infinity)
     }
@@ -301,8 +322,9 @@ private struct IntroStep: View {
     private var transcriptReview: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             SectionHeading(title: "Here's what we heard",
-                           subtitle: "Fix anything that's off before we draft your card. This text isn't saved or shared.")
+                           subtitle: "Edit anything before we draft your card.")
             BumpField(label: "", placeholder: "", axis: .vertical, lines: 4...12, text: $model.transcript)
+                .matchedGeometryEffect(id: "transcriptField", in: morphNamespace)
                 .focused($focused)
             HStack {
                 Text("Transcribed by xAI speech-to-text")
@@ -371,10 +393,11 @@ private struct CloudConsentCard: View {
     }
 }
 
-// MARK: - 3. Questions (as a chat: Grok's questions are "them", answers are "me")
+// MARK: - 3. Questions (Grok's questions use chat; on-phone prompts stay flat)
 
 private struct QuestionsStep: View {
     @ObservedObject var model: OnboardingModel
+    let morphNamespace: Namespace.ID
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -385,10 +408,18 @@ private struct QuestionsStep: View {
 
                 if !model.answered.isEmpty {
                     VStack(spacing: Space.s) {
-                        ForEach(model.answered) { qa in
-                            ChatBubble(qa.question.text, who: Self.origin(qa.question.origin == .grok))
+                        ForEach(Array(model.answered.enumerated()), id: \.element.id) { index, qa in
+                            if qa.question.origin == .grok {
+                                grokQuestion(qa.question.text, morph: index == 0)
+                            } else {
+                                Card { Text(qa.question.text).font(BumpFont.bodyEmphasis) }
+                            }
                             if let answer = qa.answer {
-                                ChatBubble(answer, isMe: true)
+                                if qa.question.origin == .grok {
+                                    ChatBubble(answer, isMe: true)
+                                } else {
+                                    Text(answer).font(BumpFont.body).foregroundStyle(BumpColor.secondaryText)
+                                }
                             } else {
                                 Text("Skipped")
                                     .font(BumpFont.caption2).foregroundStyle(BumpColor.faint)
@@ -406,8 +437,12 @@ private struct QuestionsStep: View {
                     VStack(alignment: .leading, spacing: Space.s) {
                         Eyebrow("Question \(model.questionNumber) of up to \(OnboardingModel.maxQuestions)")
                             .frame(maxWidth: .infinity)
-                        ChatBubble(who: Self.origin(question.origin == .grok)) {
-                            Text(question.text).font(BumpFont.bodyEmphasis)
+                        Group {
+                            if question.origin == .grok {
+                                grokQuestion(question.text, morph: model.answered.isEmpty)
+                            } else {
+                                Card { Text(question.text).font(BumpFont.bodyEmphasis) }
+                            }
                         }
                         .id(question.text)
                         .transition(.opacity)
@@ -459,6 +494,15 @@ private struct QuestionsStep: View {
         .onChange(of: model.current) { _, q in if q != nil { focused = true } }
     }
 
+    @ViewBuilder
+    private func grokQuestion(_ question: String, morph: Bool) -> some View {
+        let bubble = ChatBubble(who: Self.origin(true)) {
+            Text(question).font(BumpFont.bodyEmphasis)
+        }
+        if morph { bubble.matchedGeometryEffect(id: "draftChat", in: morphNamespace) }
+        else { bubble }
+    }
+
     private static func origin(_ fromGrok: Bool) -> String {
         fromGrok ? "Question from Grok" : "Question from your phone"
     }
@@ -480,7 +524,7 @@ private struct CardStep: View {
         Screen {
             VStack(alignment: .leading, spacing: Space.l) {
                 StepHeader(eyebrow: "Step 4 of 4", title: "Your Bump card",
-                           subtitle: "Confirmed partners receive this card. Keep what's right, fix what isn't, and uncheck anything you'd rather not share.")
+                           subtitle: "Change anything you need.")
 
                 if let notice = model.notice { NoticeText(text: notice) }
 
@@ -654,11 +698,7 @@ private struct BottomBar<Content: View>: View {
             .padding(.horizontal, Space.gutter)
             .padding(.top, Space.m)
             .padding(.bottom, Space.s)
-            .background(
-                LinearGradient(colors: [BumpColor.background.opacity(0), BumpColor.background],
-                               startPoint: .top, endPoint: .init(x: 0.5, y: 0.3))
-                    .ignoresSafeArea(edges: .bottom)
-            )
+            .background(BumpColor.background.ignoresSafeArea(edges: .bottom))
     }
 }
 
@@ -667,11 +707,20 @@ private struct WorkingCard: View {
     let title: String
     let detail: String?
     var onCancel: (() -> Void)?
+    var surfaceNamespace: Namespace.ID? = nil
+    var surfaceID: String? = nil
 
     var body: some View {
         VStack(spacing: Space.m) {
-            Toast(systemImage: "waveform", title: title, message: detail) {
-                ProgressView().tint(BumpColor.primary)
+            if let surfaceNamespace, let surfaceID {
+                Toast(systemImage: "waveform", title: title, message: detail) {
+                    ProgressView().tint(BumpColor.primary)
+                }
+                .matchedGeometryEffect(id: surfaceID, in: surfaceNamespace)
+            } else {
+                Toast(systemImage: "waveform", title: title, message: detail) {
+                    ProgressView().tint(BumpColor.primary)
+                }
             }
             if let onCancel {
                 Button("Cancel", action: onCancel)
@@ -697,29 +746,61 @@ private struct NoticeText: View {
     }
 }
 
-/// Idle: a large glossy orb with a mic. Recording: the red morphing blob.
+/// Idle: a flat MD3 microphone button. Recording: the red morphing blob.
 private struct RecordButton: View {
     let recording: Bool
     let action: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
-            if recording {
-                MorphingBlob(size: 180, loop: 6, container: BumpColor.errorContainer, form: BumpColor.error) { _ in
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 34, weight: .semibold))
-                        .foregroundStyle(Color.white)
-                }
-            } else {
-                ZStack {
-                    PulseRings(active: false)
-                    IconOrb(systemImage: "mic.fill", size: 116, tint: BumpColor.primary)
+            ZStack {
+                if recording {
+                    MorphingBlob(size: 116, loop: 6, container: BumpColor.errorContainer, form: BumpColor.error) { _ in
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 34, weight: .semibold))
+                            .foregroundStyle(Color.white)
+                    }
+                    .transition(.scale(scale: 0.64, anchor: .center).combined(with: .opacity))
+                } else {
+                    MaterialMicIcon()
+                        .frame(width: 48, height: 48)
+                        .foregroundStyle(BumpColor.primary)
+                        .frame(width: 116, height: 116)
+                        .background(BumpColor.primaryContainer, in: Circle())
+                        .transition(.scale(scale: 1.45, anchor: .center).combined(with: .opacity))
                 }
             }
+            .frame(width: 148, height: 148)
+            .animation(reduceMotion ? nil : .spring(response: 0.65, dampingFraction: 0.78), value: recording)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(recording ? "Stop recording" : "Start recording")
         .padding(.top, Space.m)
+    }
+}
+
+/// The filled Material 3 microphone silhouette, drawn at a 48-point scale.
+private struct MaterialMicIcon: View {
+    var body: some View {
+        ZStack {
+            Capsule()
+                .fill(BumpColor.primary)
+                .frame(width: 12, height: 24)
+                .offset(y: -7)
+            Path { path in
+                path.move(to: CGPoint(x: 9, y: 24))
+                path.addCurve(to: CGPoint(x: 24, y: 39),
+                              control1: CGPoint(x: 9, y: 33), control2: CGPoint(x: 16, y: 39))
+                path.addCurve(to: CGPoint(x: 39, y: 24),
+                              control1: CGPoint(x: 32, y: 39), control2: CGPoint(x: 39, y: 33))
+            }
+            .stroke(BumpColor.primary, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+            Capsule()
+                .fill(BumpColor.primary)
+                .frame(width: 4, height: 8)
+                .offset(y: 19)
+        }
     }
 }
 

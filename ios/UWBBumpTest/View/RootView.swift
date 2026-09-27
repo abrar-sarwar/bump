@@ -175,7 +175,7 @@ enum MainTab: Hashable, CaseIterable {
     var title: String {
         switch self {
         case .bump: return "Bump"
-        case .connections: return "Connections"
+        case .connections: return "Friends"
         case .you: return "You"
         }
     }

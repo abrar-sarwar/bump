@@ -41,7 +41,7 @@ struct TalkingPointsSection: View {
             Eyebrow(title)
                 .padding(.horizontal, Space.xs)
             ForEach(items) { point in
-                ChatBubble {
+                Card {
                     VStack(alignment: .leading, spacing: Space.xs) {
                         Text(point.prompt)
                             .font(BumpFont.bodyEmphasis)

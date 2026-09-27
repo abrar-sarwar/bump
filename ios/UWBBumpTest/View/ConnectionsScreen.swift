@@ -13,7 +13,7 @@ struct ConnectionsScreen: View {
                 }
             }
             .background(BumpColor.background)
-            .navigationTitle("Connections")
+            .navigationTitle("Friends")
             .navigationBarTitleDisplayMode(.large)
         }
     }
@@ -26,8 +26,6 @@ struct ConnectionsScreen: View {
                 Spacer()
                 PhonesIllustration(apart: true)
                     .padding(.top, 60)
-                    .floaters([Floater(text: FloaterLine.lecture, alignment: .topLeading,
-                                       offset: CGSize(width: 0, height: -10), rotation: -3)])
                     .padding(.horizontal, Space.gutter)
                 ScreenTitle("Nobody yet", alignment: .center)
                 Text("The people you bump show up here, with what you have in common and the question you started on.")
@@ -111,7 +109,9 @@ struct ConnectionDetail: View {
                             }
                         }
                         if !connection.partnerBio.isEmpty {
-                            ChatBubble(connection.partnerBio)
+                            Text(connection.partnerBio)
+                                .font(BumpFont.body)
+                                .foregroundStyle(BumpColor.secondaryText)
                         }
                     }
                 }
@@ -147,9 +147,14 @@ struct ConnectionDetail: View {
                 VStack(alignment: .leading, spacing: Space.s) {
                     Eyebrow("Something to talk about")
                         .padding(.horizontal, Space.xs)
-                    ChatBubble(isMe: true, who: connection.insight.openerSource.label) {
-                        Text(connection.insight.opener)
-                            .font(BumpFont.archivo(Archivo.semibold, 19, relativeTo: .title3))
+                    Card {
+                        VStack(alignment: .leading, spacing: Space.xs) {
+                            Text(connection.insight.opener)
+                                .font(BumpFont.archivo(Archivo.semibold, 19, relativeTo: .title3))
+                            Text(connection.insight.openerSource.label)
+                                .font(BumpFont.caption2)
+                                .foregroundStyle(BumpColor.faint)
+                        }
                     }
                 }
 

@@ -1,8 +1,7 @@
 # ios-mockup
 
-An HTML stand-in for the SwiftUI app in `ios/`, so the app's UI can be designed
-without a Mac. Design here, get it approved, then port the approved changes to
-Swift.
+An HTML stand-in for the SwiftUI app in `ios/`, so the app's UI can be reviewed
+without a Mac. Keep changes here and in SwiftUI aligned.
 
 **This is not the app.** It is a careful transcription of it: same tokens, same
 components, same copy, same layout rules. The fonts, spacing and system chrome
@@ -27,6 +26,16 @@ Two ways to look at it:
 switches between Material 3 (the default), iOS 26 (Liquid Glass) and iOS 17/18
 (flat bars).
 
+For the shared-interest badge experiments, open
+`interest-themes.html` (`http://localhost:8000/interest-themes.html`) or the
+**Explore interest themes** link in the mockup sidebar. Filter 15 theme types,
+search their keywords, or enter any interest in the live preview. The same
+keyword map, colors, and SVG motifs drive the mockup reveal and tutorial. The
+tutorial cycles through interests approved on the card or profile editor, with
+catalogue categories helping classify short labels. SwiftUI uses the same
+categories and colors with SF Symbol decorations. Unknown terms keep the
+default blue badge. The page is a review tool, not a product screen.
+
 ## Design language: the marketing site
 
 The mockup follows the live site (`web/`, localhost:5173). `web/` is never
@@ -37,10 +46,10 @@ edited from here; its tokens and assets are copied in.
   scheme (seed `#70aaf9`), blue pill buttons with a trailing icon, the drawn
   blue and orange phones.
 - **Borrowed from the site:** the hero backdrop (dot grid, faint MD3 shapes),
-  frosted cards with layered shadows, glossy orbs, pill rows, tags, pill tabs,
-  chat bubbles and tilted bubble "floaters" (lines verbatim from
-  `HeroFloaters.tsx`), and the morphing "you both share this" badge
-  (`SharedBadge.tsx`), here at 0.4x the site's speed (23s loop).
+  pill rows, tags, pill tabs, and the morphing "you both share this" badge
+  (`SharedBadge.tsx`), here at 0.4x the site's speed (23s loop). Cards, icon
+  discs, and avatars now have flat fills and subtle outlines. Chat bubbles
+  appear only when Grok asks onboarding questions.
 - **Not borrowed:** the sections' lowercase and rounded system face.
 - `shapes.js` uses the site's `scallop()` formula, so the shapes match.
 - Chrome defaults to "BUMP (site)": frosted square buttons and a frosted
@@ -77,11 +86,8 @@ wordmark is Archivo at width 125 / weight 900.
 
 ## Porting and merge conflicts
 
-The mockup only lives in `ios-mockup/`, so design work never touches `ios/`
-and can't conflict with Swift work going on at the same time. When a batch of
-changes is approved, port them in one pass, tokens first (`Theme.swift`), then
-components, then views. The diff of this folder since the last port is your
-checklist:
+For screen changes, update the mockup and SwiftUI together. The diff of this
+folder since the last port is a useful checklist:
 
 ```bash
 git diff <last-port-commit> -- ios-mockup/
