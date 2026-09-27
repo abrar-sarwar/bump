@@ -172,16 +172,10 @@ Everything here is future work; none of it is in the current build.
 
 ## Team & acknowledgments
 
-Built on Apple's Nearby Interaction and MultipeerConnectivity frameworks and the
-xAI Grok API. The design is informed by the WHO Commission on Social Connection
-(2025), [Epley & Schroeder (2014)](https://doi.org/10.1037/a0037323),
-[Sandstrom & Boothby (2021)](https://doi.org/10.1080/15298868.2020.1816568),
-[Sandstrom & Dunn (2014)](https://doi.org/10.1177/0146167214529799),
-[Alves (2018)](https://doi.org/10.1177/0146167218766861) and
-[Vélez et al. (2019)](https://doi.org/10.1016/j.cognition.2019.06.006), none of
-whom studied BUMP. An earlier Node + Socket.io browser experiment was removed
-from the tree; it is still in git history at commit `278d2e0` if the matching
-algorithm or the browser `devicemotion` work is ever needed again.
+[@jsberesford](https://github.com/jsberesford)
+[@CharanPeeriga](https://github.com/CharanPeeriga)
+[@lui-gi](https://github.com/lui-gi)
+[@abrar-sarwar](https://github.com/abrar-sarwar)
 
 ## License
 
