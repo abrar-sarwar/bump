@@ -8,11 +8,16 @@ struct RevealView: View {
     let result: BumpEngine.Result
     let myName: String
     var myPhoto: Data? = nil
+    /// Keep this person, and go to them.
     var onSave: () -> Void
-    var onAgain: () -> Void
+    /// Keep this person, and go straight back to listening for the next bump.
+    var onSaveAndContinue: () -> Void
+    /// Throw the connection away. Nothing is kept.
+    var onDiscard: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var revealed = false
+    @State private var confirmingDiscard = false
 
     private var hasOverlap: Bool { !result.insight.highlights.isEmpty }
     private var suggestedQuestions: [String] {
@@ -109,15 +114,31 @@ struct RevealView: View {
                 .animation(reduceMotion ? nil : BumpMotion.emphasizedIn.delay(0.3), value: revealed)
                 }
 
+                // Both ways of keeping the person come before the way of losing
+                // them, and losing them says so. Previously the secondary
+                // button read "Bump again" and discarded the connection
+                // silently, which is not something a button should do quietly.
                 VStack(spacing: Space.s) {
                     Button(action: onSave) {
                         TrailingIconLabel("Save connection", systemImage: "bookmark.fill")
                     }
                     .buttonStyle(.bumpPrimary)
-                    Button("Bump again", action: onAgain)
+                    Button("Save and bump someone else", action: onSaveAndContinue)
                         .buttonStyle(.bumpSecondary)
+                    Button("Don\u{2019}t save", role: .destructive) {
+                        confirmingDiscard = true
+                    }
+                    .buttonStyle(.bumpText)
                 }
                 .padding(.top, Space.s)
+                .confirmationDialog("Forget \(result.partner.displayName)?",
+                                    isPresented: $confirmingDiscard,
+                                    titleVisibility: .visible) {
+                    Button("Don\u{2019}t save", role: .destructive, action: onDiscard)
+                    Button("Keep them", role: .cancel) { }
+                } message: {
+                    Text("You bumped, so you can\u{2019}t get this back without bumping again.")
+                }
             }
         }
         .onAppear { revealed = true }
@@ -125,5 +146,6 @@ struct RevealView: View {
 }
 
 #Preview {
-    RevealView(result: PreviewFixtures.result, myName: "Jared", onSave: {}, onAgain: {})
+    RevealView(result: PreviewFixtures.result, myName: "Jared",
+               onSave: {}, onSaveAndContinue: {}, onDiscard: {})
 }

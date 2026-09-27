@@ -13,6 +13,19 @@ struct RootView: View {
     /// Height of the StreetPass pass card's single detent. @ScaledMetric so the
     /// card grows with Dynamic Type instead of clipping its buttons.
     @ScaledMetric(relativeTo: .body) private var passCardHeight: CGFloat = 470
+    /// Decides when to ask about an interaction that already happened. Held
+    /// here, not in a screen, because it must remember what was waved off for
+    /// the rest of the launch.
+    @State private var prompter = RatingPrompter()
+    /// The app's single rating target. Published as `\.ratingTarget` so the
+    /// Connections tab and a connection's detail screen can raise the same card.
+    /// One copy on purpose: with a `@State` of its own, `promptForRatingIfDue`
+    /// could not see a card raised on the Connections tab, would set this while
+    /// a sheet was already up, and SwiftUI would silently drop the second one.
+    @State private var connectionToRate: SavedConnection?
+    /// Set when a bump has just been saved, so the Connections tab pushes that
+    /// person instead of dropping the user back on the radar.
+    @State private var savedConnection: SavedConnection?
 
     enum Stage { case welcome, onboarding, main }
 
@@ -39,6 +52,7 @@ struct RootView: View {
             if DemoMode.active == nil, stage == .main {
                 streetPassEngine.start()
             }
+            promptForRatingIfDue()
         }
     }
 
@@ -61,10 +75,12 @@ struct RootView: View {
                 // The system tab bar is hidden; the site's frosted floating
                 // pill (its header nav) stands in, with a blue active tab.
                 TabView(selection: $tab) {
-                    BumpScreen(engine: engine, store: store)
+                    BumpScreen(engine: engine, store: store, onSaved: handleSavedConnection)
                         .tag(MainTab.bump)
                         .toolbar(.hidden, for: .tabBar)
-                    ConnectionsScreen(store: store)
+                    ConnectionsScreen(store: store,
+                                      pushedConnection: $savedConnection,
+                                      tab: $tab)
                         .tag(MainTab.connections)
                         .toolbar(.hidden, for: .tabBar)
                     YouScreen(store: store, engine: engine)
@@ -89,12 +105,18 @@ struct RootView: View {
                     .presentationBackground(BumpColor.surfaceContainerLowest)
                     .presentationDragIndicator(.visible)
                 }
+                .rateInteraction(item: $connectionToRate, store: store,
+                                 onSkip: { prompter.dismiss($0) })
             }
         }
         .animation(.easeInOut(duration: 0.25), value: stage)
         .onChange(of: scenePhase) { _, phase in
             engine.handleScenePhase(phase)
             streetPassEngine.handleScenePhase(phase)
+            // Coming back to the app is the signal that a conversation is over,
+            // which is why the question is asked here and not as the two of you
+            // part — at that moment you are still talking.
+            if phase == .active { promptForRatingIfDue() }
         }
         .onChange(of: stage) { _, newStage in
             if DemoMode.active == nil, newStage == .main { streetPassEngine.start() }
@@ -149,6 +171,16 @@ struct RootView: View {
                                            mutualInterestStatement: "You're both into photography.",
                                            teasedMutualStatements: ["You're both into bouldering.",
                                                                     "You both like espresso."]))
+        case .rate, .insights:
+            // Seed rated demo history so both new screens have something to show,
+            // then open the card (.rate) or leave the tab for .insights, which is
+            // one tap away behind "What lands".
+            store.profile = PreviewFixtures.profile
+            PreviewFixtures.seedRatings(store)
+            tab = .connections
+            stage = .main
+            if demo == .rate { connectionToRate = store.unratedConnections.first }
+
         case .connections, .you, .tools, .home, .tutorial, .notifications:
             store.profile = PreviewFixtures.profile
             if demo == .connections { PreviewFixtures.seed(store); tab = .connections }
@@ -157,6 +189,25 @@ struct RootView: View {
             stage = .main
         }
         #endif
+    }
+
+    /// Raises the rating card when something is due. Silent under a DEBUG demo,
+    /// before the main stage, while a card is already up, and while a StreetPass
+    /// card is up — two sheets at once means SwiftUI drops one of them.
+    private func promptForRatingIfDue() {
+        guard DemoMode.active == nil,
+              stage == .main,
+              connectionToRate == nil,
+              savedConnection == nil,
+              streetPassEngine.pendingEncounter == nil else { return }
+        connectionToRate = prompter.next(connections: store.connections,
+                                         ratings: store.ratings)
+    }
+
+    /// A bump has just been kept: show the person, not the radar.
+    private func handleSavedConnection(_ connection: SavedConnection) {
+        savedConnection = connection
+        tab = .connections
     }
 
     private var streetPassSheetBinding: Binding<StreetPassEncounter?> {

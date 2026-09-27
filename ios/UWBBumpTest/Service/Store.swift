@@ -15,6 +15,13 @@ final class Store: ObservableObject {
     @Published private(set) var streetpasses: [StreetpassEvent] {
         didSet { persist(streetpasses, to: Self.streetpassesURL) }
     }
+    /// Private per-connection ratings, keyed by `SavedConnection.id`. Local only:
+    /// never exchanged with a partner and never sent to the BUMP server.
+    /// The dictionary is the in-memory index; `InteractionRating.persistable`
+    /// and `.index` own the conversion to and from the flat on-disk array.
+    @Published private(set) var ratings: [UUID: InteractionRating] {
+        didSet { persist(InteractionRating.persistable(ratings), to: Self.ratingsURL) }
+    }
     /// Developer/testing settings, persisted so a tuning session survives a relaunch.
     @Published var settings: Settings {
         didSet { persist(settings, to: Self.settingsURL) }
@@ -78,11 +85,12 @@ final class Store: ObservableObject {
     private static let settingsURL = directory.appendingPathComponent("settings.json")
     private static let privacyURL = directory.appendingPathComponent("privacy.json")
     private static let streetpassesURL = directory.appendingPathComponent("streetpasses.json")
+    private static let ratingsURL = directory.appendingPathComponent("ratings.json")
 
     init(inMemory: Bool = false) {
         if inMemory {
             profile = Profile(); connections = []; settings = Settings(); privacy = PrivacyPreferences()
-            streetpasses = []
+            streetpasses = []; ratings = [:]
             return
         }
         profile = Self.load(Profile.self, from: Self.profileURL) ?? Profile()
@@ -90,6 +98,10 @@ final class Store: ObservableObject {
         settings = Self.load(Settings.self, from: Self.settingsURL) ?? Settings()
         privacy = Self.load(PrivacyPreferences.self, from: Self.privacyURL) ?? PrivacyPreferences()
         streetpasses = Self.load([StreetpassEvent].self, from: Self.streetpassesURL) ?? []
+        // Older installs have no ratings file; every connection simply reads as
+        // unrated, which is the correct starting state.
+        ratings = InteractionRating.index(Self.load([InteractionRating].self,
+                                                    from: Self.ratingsURL) ?? [])
     }
 
     /// Whether the bump tutorial has been shown (a UI convenience, kept in
@@ -121,10 +133,31 @@ final class Store: ObservableObject {
 
     func delete(_ connection: SavedConnection) {
         connections.removeAll { $0.id == connection.id }
+        ratings[connection.id] = nil
     }
 
     func deleteConnections(at offsets: IndexSet) {
+        // Capture the ids BEFORE removing: after the removal the offsets no
+        // longer point at the rows they described.
+        let doomed = offsets.compactMap { connections.indices.contains($0) ? connections[$0].id : nil }
         connections.remove(atOffsets: offsets)
+        for id in doomed { ratings[id] = nil }
+    }
+
+    // MARK: Ratings
+
+    /// Records what landed. Idempotent by id, so re-rating a connection
+    /// overwrites the previous answer instead of accumulating two.
+    func saveRating(_ rating: InteractionRating) {
+        ratings[rating.id] = rating
+    }
+
+    func rating(for id: UUID) -> InteractionRating? { ratings[id] }
+
+    /// Connections the user has never answered for. Order follows `connections`,
+    /// which is newest first.
+    var unratedConnections: [SavedConnection] {
+        connections.filter { ratings[$0.id] == nil }
     }
 
     // MARK: Streetpasses
