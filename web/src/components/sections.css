@@ -5,8 +5,8 @@
    (--folk-*). The hero keeps MD3 and is untouched by this file.
    =========================================================================== */
 
-/* Section rhythm: 35% tighter than the first folk pass (was 80 / 11vw / 150). */
-.section { position: relative; padding-block: clamp(52px, 7.15vw, 98px); }
+/* Section rhythm: 30% tighter again (was 52 / 7.15vw / 98). */
+.section { position: relative; padding-block: clamp(36px, 5vw, 69px); }
 
 .folk-section {
   background: var(--folk-page);
@@ -25,7 +25,7 @@
 .folk-section h3 { letter-spacing: -0.02em; font-weight: 600; line-height: 1.1; }
 
 /* --- shared pieces ---------------------------------------------------- */
-.folk-head { text-align: center; margin-bottom: clamp(32px, 4vw, 52px); }
+.folk-head { text-align: center; margin-bottom: clamp(24px, 3vw, 38px); }
 
 .folk-eyebrow {
   font-size: 0.8rem;
@@ -191,7 +191,7 @@
 .folk-section :focus-visible { outline-color: var(--folk-ink); }
 
 /* ------------------------------------------------------------ statement */
-.statement { padding-block: clamp(72px, 10.4vw, 143px); }
+.statement { padding-block: clamp(50px, 7.3vw, 100px); }
 
 .statement__text {
   margin: 18px auto 0;
@@ -338,25 +338,74 @@
 }
 .shared-badge__art { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 /* One colour pair per example (MD3 container + its accent), cross-faded. */
-.shared-badge--primary { --badge-c: var(--md-sys-color-primary-container); --badge: var(--md-sys-color-primary); --on-badge: var(--md-sys-color-on-primary); }
-.shared-badge--secondary { --badge-c: var(--md-sys-color-secondary-container); --badge: var(--md-sys-color-secondary); --on-badge: var(--md-sys-color-on-secondary); }
-.shared-badge--tertiary { --badge-c: var(--md-sys-color-tertiary-container); --badge: var(--md-sys-color-tertiary); --on-badge: var(--md-sys-color-on-tertiary); }
+/* Per-interest themes (src/interestThemes.ts picks data-theme). */
+.shared-badge { --on-badge: #fff; }
+.shared-badge[data-theme="night"] { --badge-c: var(--interest-night-ring); --badge: var(--interest-night-form); }
+.shared-badge[data-theme="photography"] { --badge-c: var(--interest-photography-ring); --badge: var(--interest-photography-form); }
+.shared-badge[data-theme="music"] { --badge-c: var(--interest-music-ring); --badge: var(--interest-music-form); }
+.shared-badge[data-theme="art"] { --badge-c: var(--interest-art-ring); --badge: var(--interest-art-form); }
+.shared-badge[data-theme="food"] { --badge-c: var(--interest-food-ring); --badge: var(--interest-food-form); }
+.shared-badge[data-theme="drink"] { --badge-c: var(--interest-drink-ring); --badge: var(--interest-drink-form); }
+.shared-badge[data-theme="outdoors"] { --badge-c: var(--interest-outdoors-ring); --badge: var(--interest-outdoors-form); }
+.shared-badge[data-theme="sports"] { --badge-c: var(--interest-sports-ring); --badge: var(--interest-sports-form); }
+.shared-badge[data-theme="books"] { --badge-c: var(--interest-books-ring); --badge: var(--interest-books-form); }
+.shared-badge[data-theme="technology"] { --badge-c: var(--interest-technology-ring); --badge: var(--interest-technology-form); }
+.shared-badge[data-theme="gaming"] { --badge-c: var(--interest-gaming-ring); --badge: var(--interest-gaming-form); }
+.shared-badge[data-theme="travel"] { --badge-c: var(--interest-travel-ring); --badge: var(--interest-travel-form); }
+.shared-badge[data-theme="cinema"] { --badge-c: var(--interest-cinema-ring); --badge: var(--interest-cinema-form); }
+.shared-badge[data-theme="collecting"] { --badge-c: var(--interest-collecting-ring); --badge: var(--interest-collecting-form); }
+.shared-badge[data-theme="general"] { --badge-c: var(--interest-general-ring); --badge: var(--interest-general-form); }
 .shared-badge__oval,
 .shared-badge__form { transition: fill var(--md-sys-motion-duration-long2) var(--md-sys-motion-easing-standard); }
 .shared-badge__oval { fill: var(--badge-c); }
-/* Night: dark blue sky, darker shape, white stars. */
-.shared-badge--night {
-  --badge-c: color-mix(in srgb, var(--md-sys-color-primary) 62%, var(--md-sys-color-shadow));
-  --badge: var(--md-sys-color-on-primary-container);
-  --on-badge: var(--md-sys-color-on-primary);
-}
-.shared-badge__star { fill: var(--md-sys-color-on-primary); }
-.shared-badge__stars {
-  opacity: 0;
-  transition: opacity var(--md-sys-motion-duration-long2) var(--md-sys-motion-easing-standard);
-}
-.shared-badge--night .shared-badge__stars { opacity: 1; }
 .shared-badge__form { fill: var(--badge); }
+.shared-badge__motif {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.82;
+  pointer-events: none;
+}
+.theme-motif--night { fill: #fff; stroke: none; opacity: 1; }
+.theme-motif__part { transform-box: fill-box; }
+
+/* Motif animations, one per theme: ported from ios-mockup/interest-themes.css. */
+@media (prefers-reduced-motion: no-preference) {
+  .shared-badge[data-theme="night"] .theme-motif__part { transform-origin: center; animation: motif-twinkle 3s ease-in-out infinite alternate; }
+  .shared-badge[data-theme="night"] .theme-motif__part:nth-child(2) { animation-delay: -1.7s; }
+  .shared-badge[data-theme="photography"] .theme-motif__part { transform-origin: 50% 75%; animation: motif-sway 4s ease-in-out infinite alternate; }
+  .shared-badge[data-theme="photography"] .theme-motif__part:nth-child(2) { animation-delay: -2s; }
+  .shared-badge[data-theme="music"] .theme-motif__part { animation: motif-rise 2.6s ease-in-out infinite alternate; }
+  .shared-badge[data-theme="music"] .theme-motif__part:nth-child(2) { animation-delay: -1.3s; }
+  .shared-badge[data-theme="art"] .theme-motif__part { stroke-dasharray: 24; animation: motif-draw 4s ease-in-out infinite alternate; }
+  .shared-badge[data-theme="food"] .theme-motif__part:first-child { transform-origin: center; animation: motif-breathe 3.5s ease-in-out infinite alternate; }
+  .shared-badge[data-theme="drink"] .theme-motif__part:nth-child(2), .shared-badge[data-theme="drink"] .theme-motif__part:nth-child(3) { animation: motif-rise 2.7s ease-in-out infinite alternate; }
+  .shared-badge[data-theme="outdoors"] .theme-motif__part:last-child { animation: motif-drift 4s ease-in-out infinite alternate; }
+  .shared-badge[data-theme="sports"] .theme-motif__part:first-child { animation: motif-bounce 2.3s ease-in-out infinite; }
+  .shared-badge[data-theme="books"] .theme-motif__part:last-child { animation: motif-page 3s ease-in-out infinite alternate; }
+  .shared-badge[data-theme="technology"] .theme-motif__part:last-child { animation: motif-twinkle 2s ease-in-out infinite alternate; }
+  .shared-badge[data-theme="gaming"] .theme-motif__part:last-child { animation: motif-breathe 2s ease-in-out infinite alternate; }
+  .shared-badge[data-theme="travel"] .theme-motif__part:first-child { animation: motif-glide 4s ease-in-out infinite alternate; }
+  .shared-badge[data-theme="cinema"] .theme-motif__part:last-child { animation: motif-breathe 2.5s ease-in-out infinite alternate; }
+  .shared-badge[data-theme="collecting"] .theme-motif__part:first-child { animation: motif-page 3s ease-in-out infinite alternate; }
+}
+@keyframes motif-twinkle { from { opacity: .25; transform: scale(.92); } to { opacity: 1; transform: scale(1.08); } }
+@keyframes motif-sway { from { transform: rotate(-2deg); } to { transform: rotate(2deg); } }
+@keyframes motif-rise { from { transform: translateY(1.5px); opacity: .6; } to { transform: translateY(-1.5px); opacity: 1; } }
+@keyframes motif-draw { from { stroke-dashoffset: 24; opacity: .45; } to { stroke-dashoffset: 0; opacity: 1; } }
+@keyframes motif-breathe { from { transform: scale(.94); opacity: .55; } to { transform: scale(1.04); opacity: 1; } }
+@keyframes motif-drift { from { transform: translate(-1px, 1px) rotate(-2deg); } to { transform: translate(1px, -1px) rotate(2deg); } }
+@keyframes motif-bounce { 0%, 100% { transform: translateY(1px); } 50% { transform: translateY(-2px); } }
+@keyframes motif-page { from { transform: scaleX(.95); opacity: .5; } to { transform: scaleX(1.04); opacity: 1; } }
+@keyframes motif-glide { from { transform: translate(-2px, 1px); } to { transform: translate(2px, -1px); } }
+
 .shared-badge__text {
   position: relative;
   display: grid;
@@ -439,7 +488,7 @@
 .closing {
   --cta-primary: var(--md-sys-color-primary);
   --cta-on-primary: var(--md-sys-color-on-primary);
-  padding-block: clamp(120px, 16vw, 220px);
+  padding-block: clamp(84px, 11.2vw, 154px);
   background: var(--md-sys-color-primary);
   color: var(--md-sys-color-on-primary);
   text-align: center;
@@ -577,4 +626,119 @@
 
 @media (max-width: 860px) {
   .wave { grid-template-columns: 1fr; }
+}
+
+/* -------------------------------------------------------------- problem */
+.problem__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+.problem__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: clamp(22px, 2.4vw, 32px);
+  border-radius: var(--folk-radius-bento);
+}
+.problem__stat--primary { background: var(--md-sys-color-primary-container); --figure: var(--md-sys-color-primary); }
+.problem__stat--tertiary { background: var(--md-sys-color-tertiary-container); --figure: var(--md-sys-color-tertiary); }
+.problem__figure {
+  font-family: var(--md-ref-typeface-brand);
+  font-size: clamp(3.4rem, 1.8rem + 5.6vw, 7rem);
+  margin-top: 6px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  color: var(--figure);
+  text-transform: none;
+}
+.problem__line {
+  font-size: clamp(1.3rem, 1rem + 1vw, 1.9rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  padding-bottom: 14px;
+}
+/* Citations keep their real capitals (authors, titles). */
+.problem__cite,
+.problem__papers { text-transform: none; }
+.problem__cite {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--folk-hairline);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--folk-ink-soft);
+}
+
+.problem__why {
+  margin: clamp(28px, 3.5vw, 44px) 0 18px;
+  text-align: center;
+  font-size: clamp(1.3rem, 1rem + 1vw, 1.8rem);
+}
+.problem__reasons {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.problem__reason { display: flex; flex-direction: column; gap: 10px; padding: 20px; }
+.problem__q { margin: 4px 0 0; font-size: 1.08rem; }
+.problem__finding { color: var(--folk-ink-soft); font-size: 0.92rem; line-height: 1.45; }
+.problem__papers {
+  display: grid;
+  gap: 8px;
+  margin: auto 0 0;
+  padding: 12px 0 0;
+  list-style: none;
+  border-top: 1px solid var(--folk-hairline);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.problem__papers a { color: var(--folk-ink-soft); text-decoration: none; }
+.problem__papers a:hover { color: var(--md-sys-color-primary); text-decoration: underline; }
+
+@media (max-width: 1100px) { .problem__reasons { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) {
+  .problem__stats, .problem__reasons { grid-template-columns: 1fr; }
+}
+
+/* ---------------------------------------------------------------- stack */
+/* Two marquee rows scrolling in opposite directions. Pauses on hover. */
+.stack { overflow: hidden; }
+.stack__row { display: flex; overflow: hidden; padding-block: 6px; }
+.stack__row + .stack__row { margin-top: 10px; }
+.stack__track {
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  padding: 0 6px;
+  list-style: none;
+  width: max-content;
+  animation: stack-scroll 60s linear infinite;
+}
+.stack__row--reverse .stack__track { animation-direction: reverse; animation-duration: 70s; }
+.stack__row:hover .stack__track { animation-play-state: paused; }
+.stack__item { flex: none; padding-right: 22px; }
+/* API and framework names keep their real case (NISession, P2P, API). */
+.stack__item { text-transform: none; }
+.stack__item .folk-chip__text > span { white-space: nowrap; }
+
+/* The track holds the list twice; moving it by half loops seamlessly. */
+@keyframes stack-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-50% - 6px)); }
+}
+
+/* Reduced motion: no scrolling, the rows wrap into a static grid. */
+@media (prefers-reduced-motion: reduce) {
+  .stack__row { overflow: visible; justify-content: center; }
+  .stack__track { animation: none; flex-wrap: wrap; justify-content: center; width: auto; max-width: var(--shell); }
+  .stack__track > [aria-hidden='true'] { display: none; }
 }

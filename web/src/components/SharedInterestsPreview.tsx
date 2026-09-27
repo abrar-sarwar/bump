@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './sections.css'
 import Shapes, { type ShapeSpec } from './Shapes'
-import SharedBadge, { type BadgeTone } from './SharedBadge'
+import SharedBadge from './SharedBadge'
 
 /**
  * An ILLUSTRATIVE preview of what appears after two people connect.
@@ -56,9 +56,6 @@ const SHAPES: ShapeSpec[] = [
   { shape: 'circle', at: { right: '7%', top: '9%' }, size: 90, fill: true, drift: -90, tone: 'tertiary' },
   { shape: 'cookie', at: { right: '3%', bottom: '6%' }, size: 130, turn: -14, drift: -60, tone: 'secondary' },
 ]
-
-// Each example gets its own colour pair in the shared-interest badge.
-const TONES: BadgeTone[] = ['primary', 'tertiary', 'night']
 
 export default function SharedInterestsPreview() {
   const [index, setIndex] = useState(0)
@@ -122,7 +119,7 @@ export default function SharedInterestsPreview() {
               Something to talk about
             </p>
             <div className="overlap__pair">
-              <SharedBadge interest={ex.shared} tone={TONES[index % TONES.length]} />
+              <SharedBadge interest={ex.shared} />
               {/* Your reply: the opener, as something you'd actually say. */}
               <blockquote className="overlap__reply">
                 <span className="overlap__reply-who">You</span>
