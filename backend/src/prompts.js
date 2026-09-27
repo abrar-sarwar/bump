@@ -17,7 +17,7 @@ const FACT_RULES = `Each fact has:
 - kind: "interest" (something they enjoy or are into), "experience" (something they do, have done, or work on), or "goal" (something they want, are looking for, or hope to do).
 - label: a short label (at most ${LIMITS.label} characters). If a label in catalogLabels means the same thing as the person's words, use that exact catalog label. Never narrow a broad interest into a more specific catalog label (someone who says "coffee" is NOT into "Espresso"; someone who says "jazz" is NOT into "Jazz piano"), and never broaden a specific one into a more general label. Otherwise use the person's own words.
 - source: an exact excerpt copied verbatim from the text (at most ${LIMITS.source} characters) showing that they said it.
-Only extract what was actually said. Do not invent details. Never infer personality, traits, or characteristics.
+Only extract what was actually said. Do not invent details. Never name a specific title, show, artist, team, or work unless the person said that exact name; "I watch anime" is the interest "Anime", nothing more specific. Never extract something they dislike, used to like, or that belongs to someone else ("my friend loves X"). Questions and examples are not the person's words. Never infer personality, traits, or characteristics.
 Do not propose facts about health, religion, ethnicity, sexual orientation, gender identity, political views, immigration status, age, or finances, even if they were mentioned; the person can add those manually if they want.`;
 
 const QUESTION_RULES = `Never use em dashes or en dashes; use a period or comma instead. Questions must be short, friendly, end with "?", and never ask about health, religion, ethnicity, sexual orientation, gender identity, political views, immigration status, age, or finances.`;
@@ -112,12 +112,13 @@ The JSON has:
 Return:
 1. facts: up to ${LIMITS.followupFacts} new facts taken ONLY from "answer" (the source must be an exact excerpt of "answer"). If "answer" is empty, return []. Do not repeat anything already in "known".
 ${FACT_RULES}
-2. question (only when the schema has this field): the next follow-up question (at most ${LIMITS.followupQuestion} characters). It must not repeat or rephrase anything in "asked", and must not ask about anything already in "known" or in "answer". Use null if there is nothing useful left to ask.
+2. question (only when the schema has this field): if "topic" is present, the question must be about "topic.purpose" and nothing else. Otherwise the next follow-up question (at most ${LIMITS.followupQuestion} characters). It must not repeat or rephrase anything in "asked", and must not ask about anything already in "known" or in "answer". Use null if there is nothing useful left to ask.
 ${QUESTION_RULES}`,
   schema: followupSchema(true),
   schemaFactsOnly: followupSchema(false),
-  input: ({ known, asked, answer, catalogLabels }) =>
-    wrapUserData({ known, asked, answer, catalogLabels, questionWanted: asked.length < LIMITS.asked }),
+  input: ({ known, asked, answer, catalogLabels, topic }) =>
+    wrapUserData({ known, asked, answer, catalogLabels, topic: topic ?? undefined,
+                   questionWanted: asked.length < LIMITS.asked }),
 };
 
 // ---------------------------------------------------------------------------

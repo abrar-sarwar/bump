@@ -142,14 +142,21 @@ struct BumpAPIClient: Sendable {
     }
 
     func followup(known: [(kind: ProfileFact.Kind, label: String)], asked: [String], answer: String) async throws -> Followup {
-        try await post("v1/profile/followup", timeout: 15, body: [
+        try await followup(known: known, asked: asked, answer: answer, topic: nil)
+    }
+
+    func followup(known: [(kind: ProfileFact.Kind, label: String)], asked: [String], answer: String,
+                  topic: OnboardingTopic?) async throws -> Followup {
+        var body: [String: Body] = [
             "known": .objects(known.prefix(30).map {
                 ["kind": $0.kind.rawValue, "label": $0.label.clipped(Limit.label)]
             }),
-            "asked": .strings(Array(asked.suffix(3)).map { $0.clipped(Limit.question) }),
+            "asked": .strings(asked.map { $0.clipped(Limit.question) }),
             "answer": .string(answer.trimmed().clipped(Limit.answer)),
             "catalogLabels": .strings(InterestCatalog.all.map(\.label)),
-        ])
+        ]
+        if let topic { body["topic"] = .objects([["id": topic.rawValue, "purpose": topic.purpose]]) }
+        return try await post("v1/profile/followup", timeout: 15, body: body)
     }
 
     func talkingPoints(_ candidates: [Candidate], timeout: TimeInterval = 7) async throws -> TalkingPoints {
@@ -346,12 +353,75 @@ enum Grounding {
             let label = String(fact.label.withoutDashes().trimmed().prefix(BumpAPIClient.Limit.label))
             let source = String(fact.source.trimmed().prefix(BumpAPIClient.Limit.evidence))
             guard !label.isEmpty, supports(text, source) else { continue }
+            // Valid JSON is not evidence. The quote must sit in a positive
+            // statement about the person themselves, and an interest's label
+            // must come from their own words: "I watch anime" can never
+            // become "Golden Boy", and "I don't like Golden Boy" is not a like.
+            guard isAffirmative(source, in: text) else { continue }
+            if kind == .interest, !labelSupported(label, in: text) {
+                // Only a broad catalogue category ("Music") may be worded
+                // differently from what they said. Titles never may.
+                guard let known = InterestCatalog.canonical(from: label), !known.custom,
+                      known.specificity == 1 else { continue }
+            }
             let key = "\(kind.rawValue)|\(fold(label))"
             guard seen.insert(key).inserted else { continue }
             out.append(ProfileFact(kind: kind, text: label, evidence: source))
             if out.count == limit { break }
         }
         return out
+    }
+
+    // MARK: Evidence
+
+    private static let negations = [
+        "don't", "dont", "do not", "does not", "doesn't", "doesnt", "not", "never", "no longer",
+        "hate", "hated", "dislike", "can't stand", "cant stand", "not a fan", "not into", "used to",
+        "isn't", "isnt", "aren't", "arent", "wasn't", "wasnt",
+    ]
+    private static let otherPeople = [
+        "my friend", "my friends", "my brother", "my sister", "my mom", "my mum", "my dad",
+        "my partner", "my girlfriend", "my boyfriend", "my wife", "my husband", "my roommate",
+        "my kid", "my son", "my daughter", "my cousin", "my coworker", "my colleague",
+        "he likes", "she likes", "he loves", "she loves", "they like", "they love", "he is into", "she is into",
+    ]
+
+    /// The person's text split into clauses on sentence punctuation, commas
+    /// and "but", so "My friend likes Golden Boy, but I like Naruto" is two.
+    static func clauses(_ text: String) -> [String] {
+        text.replacingOccurrences(of: #"\s+but\s+"#, with: ".", options: [.regularExpression, .caseInsensitive])
+            .components(separatedBy: CharacterSet(charactersIn: ".;!?,\n"))
+            .map { $0.trimmed() }.filter { !$0.isEmpty }
+    }
+
+    /// Clauses that state something positive about the speaker.
+    static func affirmativeClauses(_ text: String) -> [String] {
+        clauses(text).filter { clause in
+            let f = " " + fold(clause.replacingOccurrences(of: "\u{2019}", with: "'")) + " "
+            let raw = " " + clause.lowercased().replacingOccurrences(of: "\u{2019}", with: "'") + " "
+            let negated = negations.contains { raw.contains(" \($0) ") || f.contains(" \(fold($0)) ") }
+            let someoneElse = otherPeople.contains { f.contains(" \(fold($0)) ") }
+            return !negated && !someoneElse
+        }
+    }
+
+    /// The quote appears in at least one positive clause about the speaker.
+    static func isAffirmative(_ excerpt: String, in text: String) -> Bool {
+        affirmativeClauses(text).contains { supports($0, excerpt) || supports(excerpt, $0) }
+    }
+
+    /// Every meaningful word of the label is in ONE positive clause of the
+    /// person's text (a plural "s" is allowed either way).
+    static func labelSupported(_ label: String, in text: String) -> Bool {
+        let filler: Set<String> = ["a", "an", "the", "of", "and", "to", "in", "on", "at"]
+        let words = fold(label).split(separator: " ").map(String.init).filter { !filler.contains($0) }
+        guard !words.isEmpty else { return false }
+        return affirmativeClauses(text).contains { clause in
+            let have = Set(fold(clause).split(separator: " ").map(String.init))
+            return words.allSatisfy { w in
+                have.contains(w) || have.contains(w + "s") || (w.hasSuffix("s") && have.contains(String(w.dropLast())))
+            }
+        }
     }
 
     /// A usable question: short, actually a question, not a repeat.

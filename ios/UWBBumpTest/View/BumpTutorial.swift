@@ -163,7 +163,7 @@ struct BumpTutorial: View {
             // Pops in and cycles what two people might have in common.
             SharedBadge(kicker: "You both share this",
                         interests: badgePicks.isEmpty ? ["Something unexpected"] : badgePicks.map(\.label),
-                        themeHints: badgePicks.map { $0.parent ?? $0.id },
+                        themeHints: badgePicks.map { InterestCatalog.themeHint(for: $0) },
                         size: 300,
                         popIn: active)
         }

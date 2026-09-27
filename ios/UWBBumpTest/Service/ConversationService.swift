@@ -73,13 +73,14 @@ enum ConversationService {
         let started = Date()
         let highlights = InterestMatcher.overlap(mine, theirs)
         let candidates = TalkingPointMatcher.candidates(mine, theirs)
+        let oneSided = oneSidedLabels(mine: mine, theirs: theirs, highlights: highlights)
 
         // Hard ceiling on top of the request timeout: one try, then move on.
         if let cloud, !Task.isCancelled,
            let phrased = try? await withDeadline(cloudBudget, {
                try await cloud.talkingPoints(candidates, timeout: cloudBudget)
            }),
-           let insight = validateCloud(phrased, candidates: candidates, highlights: highlights) {
+           let insight = validateCloud(phrased, candidates: candidates, highlights: highlights, oneSided: oneSided) {
             return insight
         }
         if Task.isCancelled {
@@ -91,7 +92,8 @@ enum ConversationService {
         // Apple Intelligence only gets what's left of the overall budget.
         let remaining = min(onDeviceBudget, totalBudget - Date().timeIntervalSince(started))
         if remaining >= 2,
-           let opener = await generateWithModel(mine: mine, theirs: theirs, highlights: highlights, budget: remaining) {
+           let opener = await generateWithModel(mine: mine, theirs: theirs, highlights: highlights,
+                                                oneSided: oneSided, budget: remaining) {
             return ConnectionInsight(highlights: highlights, opener: opener, openerSource: .onDeviceModel,
                                      talkingPoints: points)
         }
@@ -104,22 +106,43 @@ enum ConversationService {
     /// Accept a Grok result only if every point refers to a candidate we
     /// verified, reads as one question, and invents no scores. Kinds and
     /// evidence come from OUR candidates, never from the model.
+    /// Labels only ONE of the two people listed. Generated text may mention
+    /// them ("one of you likes X"), but never inside a "both" claim.
+    static func oneSidedLabels(mine: SharedProfile, theirs: SharedProfile,
+                               highlights: [SharedHighlight]) -> [String] {
+        let shared = Set(highlights.map { Grounding.fold($0.sharedLabel) })
+        let a = Set(mine.interests.map { Grounding.fold($0.label) })
+        let b = Set(theirs.interests.map { Grounding.fold($0.label) })
+        return Array(a.symmetricDifference(b).union(a.intersection(b).subtracting(shared))
+            .subtracting(shared)).filter { !$0.isEmpty }
+    }
+
+    /// True when `text` says "both" (or "you two") and names a one-sided label.
+    static func claimsUnsharedAsShared(_ text: String, oneSided: [String]) -> Bool {
+        let f = " " + Grounding.fold(text) + " "
+        guard f.contains(" both ") || f.contains(" you two ") || f.contains(" in common ") else { return false }
+        return oneSided.contains { f.contains(" \($0) ") }
+    }
+
     static func validateCloud(_ phrased: BumpAPIClient.TalkingPoints,
                               candidates: [BumpAPIClient.Candidate],
-                              highlights: [SharedHighlight]) -> ConnectionInsight? {
+                              highlights: [SharedHighlight],
+                              oneSided: [String] = []) -> ConnectionInsight? {
         guard phrased.generator.provider == "xai" else { return nil }
         let byID = Dictionary(candidates.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         var seen = Set<String>()
         var points: [TalkingPoint] = []
         for p in phrased.points {
             guard let c = byID[p.candidateId], seen.insert(c.id).inserted,
-                  let prompt = Grounding.question(p.prompt, notIn: [], limit: BumpAPIClient.Limit.prompt)
+                  let prompt = Grounding.question(p.prompt, notIn: [], limit: BumpAPIClient.Limit.prompt),
+                  !claimsUnsharedAsShared(prompt, oneSided: oneSided)
             else { continue }
             points.append(TalkingPoint(id: c.id, kind: c.kind, prompt: prompt,
                                        yourEntry: c.mine, theirEntry: c.theirs, source: .grok))
             if points.count == 4 { break }
         }
-        guard let opener = Grounding.question(phrased.opener, notIn: [], limit: BumpAPIClient.Limit.prompt) else {
+        guard let opener = Grounding.question(phrased.opener, notIn: [], limit: BumpAPIClient.Limit.prompt),
+              !claimsUnsharedAsShared(opener, oneSided: oneSided) else {
             return nil
         }
         // Candidates existed but nothing survived: treat as a failed result.
@@ -145,6 +168,7 @@ enum ConversationService {
 
     private static func generateWithModel(mine: SharedProfile, theirs: SharedProfile,
                                           highlights: [SharedHighlight],
+                                          oneSided: [String] = [],
                                           budget: TimeInterval = onDeviceBudget) async -> String? {
         #if canImport(FoundationModels)
         guard #available(iOS 26.0, *), case .available = SystemLanguageModel.default.availability else { return nil }
@@ -152,7 +176,7 @@ enum ConversationService {
         // The model is given ONLY confirmed, necessary facts. Names and bios are
         // left out — they aren't needed to write a question about a shared
         // interest, and not sending them is the cheaper privacy choice.
-        let shared = highlights.map(\.yourEntry)
+        let shared = highlights.map(\.sharedLabel)
         let evidence = shared.isEmpty
             ? "They share no interests in common."
             : "Shared interests:\n" + shared.map { "- \($0)" }.joined(separator: "\n")
@@ -180,6 +204,7 @@ enum ConversationService {
             return try await withTimeout(seconds: budget) {
                 let response = try await session.respond(to: prompt, generating: GeneratedOpener.self)
                 return Self.validate(response.content, against: highlights)
+                    .flatMap { Self.claimsUnsharedAsShared($0, oneSided: oneSided) ? nil : $0 }
             }
         } catch {
             // Refusal, guardrail trip, timeout, model unloaded — all land here and
@@ -201,7 +226,7 @@ enum ConversationService {
 
         let claim = generated.basedOn.trimmed()
         if !claim.isEmpty {
-            let allowed = Set(highlights.map { InterestCatalog.normalize($0.yourEntry) })
+            let allowed = Set(highlights.map { InterestCatalog.normalize($0.sharedLabel) })
             guard allowed.contains(InterestCatalog.normalize(claim)) else {
                 return nil      // it grounded itself in something neither person listed
             }
@@ -222,8 +247,8 @@ enum ConversationService {
         guard let top = highlights.first else {
             return "You two haven't listed anything in common yet. What's something you're into that most people have never tried?"
         }
-        let subject = top.yourEntry.trimmed()
-        if top.specificity >= 2 {
+        let subject = top.sharedLabel.trimmed()
+        if top.specificity >= 2 && !top.isRelated {
             return "You're both into \(subject.lowercasedFirstWord()). How did you get started with it?"
         }
         return "You both like \(subject.lowercasedFirstWord()). What got you into it?"

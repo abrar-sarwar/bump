@@ -115,3 +115,32 @@ test('generated text never contains em or en dashes', () => {
     'You both play jazz piano, what do you love about it?');
   assert.equal(cleanQuestion('Coffee – how do you take it?', { max: 180 }), 'Coffee, how do you take it?');
 });
+
+// ---- Evidence regressions: invented, negated and third-party interests ----
+import { groundFacts as gf, labelSupported, isAffirmative } from '../src/validate.js';
+
+test('a specific title is never inferred from a genre', () => {
+  const facts = gf([{ kind: 'interest', label: 'Golden Boy', source: 'I watch a lot of anime' }],
+    'I watch a lot of anime', { max: 5 });
+  assert.deepEqual(facts, []);
+});
+
+test('a disliked title is not saved as an interest', () => {
+  const text = "I don't like Golden Boy";
+  assert.deepEqual(gf([{ kind: 'interest', label: 'Golden Boy', source: 'Golden Boy' }], text, { max: 5 }), []);
+  assert.equal(isAffirmative('Golden Boy', text), false);
+});
+
+test("a friend's interest is not the user's", () => {
+  const text = 'My friend likes Golden Boy, but I like Naruto';
+  const facts = gf([
+    { kind: 'interest', label: 'Golden Boy', source: 'Golden Boy' },
+    { kind: 'interest', label: 'Naruto', source: 'I like Naruto' },
+  ], text, { max: 5 });
+  assert.deepEqual(facts.map((f) => f.label), ['Naruto']);
+});
+
+test('multiword titles with "and" or "&" stay whole', () => {
+  assert.equal(labelSupported('Pride and Prejudice', 'I reread Pride and Prejudice every year'), true);
+  assert.equal(labelSupported('Law & Order', 'I binge Law & Order'), true);
+});

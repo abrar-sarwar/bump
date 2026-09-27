@@ -27,8 +27,12 @@ enum LocalDrafter {
         }
 
         for sentence in sentences {
-            for interest in interests(in: sentence) {
-                add(Suggestion(kind: .interest, label: interest.label, source: sentence))
+            // Only positive statements about the speaker: "I don't drink
+            // coffee" and "my friend loves anime" are not interests.
+            for clause in Grounding.affirmativeClauses(sentence) {
+                for interest in interests(in: clause) {
+                    add(Suggestion(kind: .interest, label: interest.label, source: sentence))
+                }
             }
             if let clause = clause(in: sentence, after: goalTriggers) {
                 add(Suggestion(kind: .goal, label: clip(clause), source: clause))

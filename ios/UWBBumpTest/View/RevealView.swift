@@ -50,8 +50,11 @@ struct RevealView: View {
                 if hasOverlap {
                     // Cycles through every interest you both actually listed.
                     SharedBadge(kicker: "You're both into",
-                                interests: result.insight.highlights.map(\.yourEntry),
-                                themeHints: result.insight.highlights.map { InterestCatalog.byID[$0.interestID].map { $0.parent ?? $0.id } },
+                                interests: result.insight.highlights.map(\.sharedLabel),
+                                themeHints: result.insight.highlights.map {
+                                    InterestCatalog.themeHint(forHighlight: $0.interestID, entry: $0.theirEntry,
+                                                              in: result.partner.interests)
+                                },
                                 size: 320, popIn: true)
                         .frame(maxWidth: .infinity)
 

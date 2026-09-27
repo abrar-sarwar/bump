@@ -133,6 +133,18 @@ struct SharedHighlight: Codable, Equatable, Hashable, Identifiable, Sendable {
     var theirEntry: String
     /// 2 = specific interest, 1 = broad category.
     let specificity: Int
+
+    /// A related match: two DIFFERENT interests under one topic ("One Piece"
+    /// and "Naruto" under anime). Only the topic is shared.
+    var isRelated: Bool { interestID.hasPrefix("related:") }
+
+    /// The thing both people actually have. Use this, never `yourEntry`, for
+    /// any "you both" claim: for a related match `yourEntry` is only YOUR
+    /// title, which is how "You're both into Golden Boy" reached the screen.
+    var sharedLabel: String {
+        guard isRelated else { return yourEntry }
+        return InterestCatalog.byID[String(interestID.dropFirst("related:".count))]?.label ?? yourEntry
+    }
 }
 
 /// Something worth talking about, backed by an approved entry from EACH profile.

@@ -85,6 +85,47 @@ export function fold(s) {
  * A source is grounded iff its folded form is ≥ 2 chars and occurs in the
  * folded user text on word boundaries, so "ja" is NOT grounded in "jazz".
  */
+// Evidence rules, mirrored in the app (Grounding in BumpAPI.swift).
+const NEGATIONS = ["don't", 'dont', 'do not', 'does not', "doesn't", 'doesnt', 'not', 'never', 'no longer',
+  'hate', 'hated', 'dislike', "can't stand", 'cant stand', 'not a fan', 'not into', 'used to',
+  "isn't", 'isnt', "aren't", 'arent', "wasn't", 'wasnt'];
+const OTHER_PEOPLE = ['my friend', 'my friends', 'my brother', 'my sister', 'my mom', 'my mum', 'my dad',
+  'my partner', 'my girlfriend', 'my boyfriend', 'my wife', 'my husband', 'my roommate', 'my kid',
+  'my son', 'my daughter', 'my cousin', 'my coworker', 'my colleague', 'he likes', 'she likes',
+  'he loves', 'she loves', 'they like', 'they love', 'he is into', 'she is into'];
+
+/** Clauses split on sentence punctuation, commas and "but". */
+export function clauses(text) {
+  return String(text).replace(/\s+but\s+/gi, '.').split(/[.;!?,\n]/).map((c) => c.trim()).filter(Boolean);
+}
+
+/** Clauses that state something positive about the speaker themselves. */
+export function affirmativeClauses(text) {
+  return clauses(text).filter((c) => {
+    const raw = ` ${c.toLowerCase().replace(/\u2019/g, "'")} `;
+    const f = ` ${fold(c)} `;
+    const negated = NEGATIONS.some((n) => raw.includes(` ${n} `) || f.includes(` ${fold(n)} `));
+    const other = OTHER_PEOPLE.some((p) => f.includes(` ${fold(p)} `));
+    return !negated && !other;
+  });
+}
+
+/** The excerpt sits in a positive clause about the speaker. */
+export function isAffirmative(excerpt, userText) {
+  return affirmativeClauses(userText).some((c) => isGrounded(excerpt, c) || isGrounded(c, excerpt));
+}
+
+/** Every meaningful word of the label is in ONE positive clause. */
+export function labelSupported(label, userText) {
+  const filler = new Set(['a', 'an', 'the', 'of', 'and', 'to', 'in', 'on', 'at']);
+  const words = fold(label).split(' ').filter((w) => w && !filler.has(w));
+  if (!words.length) return false;
+  return affirmativeClauses(userText).some((c) => {
+    const have = new Set(fold(c).split(' '));
+    return words.every((w) => have.has(w) || have.has(`${w}s`) || (w.endsWith('s') && have.has(w.slice(0, -1))));
+  });
+}
+
 export function isGrounded(source, userText) {
   const f = fold(source);
   return f.length >= 2 && ` ${fold(userText)} `.includes(` ${f} `);
@@ -149,7 +190,15 @@ export function parseFollowupRequest(body) {
     stringField(q, `asked[${i}]`, { max: LIMITS.askedQuestion }),
   );
   const answer = stringField(body.answer ?? '', 'answer', { max: LIMITS.answer });
-  return { known, asked, answer, catalogLabels: catalogLabelsField(body.catalogLabels) };
+  // Optional app-chosen topic for the next question: [{ id, purpose }].
+  let topic = null;
+  if (Array.isArray(body.topic) && body.topic[0] && typeof body.topic[0] === 'object') {
+    topic = {
+      id: stringField(body.topic[0].id, 'topic.id', { min: 1, max: 60 }),
+      purpose: stringField(body.topic[0].purpose, 'topic.purpose', { min: 1, max: 160 }),
+    };
+  }
+  return { known, asked, answer, topic, catalogLabels: catalogLabelsField(body.catalogLabels) };
 }
 
 export function parseTalkingPointsRequest(body) {
@@ -179,7 +228,10 @@ const factKey = (kind, label) => `${kind}\u0000${fold(label)}`;
  * Keep only well-formed, grounded, non-duplicate facts, up to `max`.
  * `exclude` is a list of {kind,label} the user already has (followup).
  */
-export function groundFacts(rawFacts, userText, { max, exclude = [] }) {
+export function groundFacts(rawFacts, userText, { max, exclude = [], broad = [] }) {
+  // Broad catalogue categories ("Music") may be worded differently from the
+  // person's words; anything specific must appear in them.
+  const broadLabels = new Set(broad.map(fold));
   if (!Array.isArray(rawFacts)) throw upstreamInvalid();
   const seen = new Set(exclude.map((f) => factKey(f.kind, f.label)));
   const facts = [];
@@ -193,6 +245,10 @@ export function groundFacts(rawFacts, userText, { max, exclude = [] }) {
     const source = clip(raw.source.trim(), LIMITS.source);
     if (!label || !fold(label)) continue;
     if (!isGrounded(source, userText)) continue;
+    // Valid JSON is not evidence: the quote must be a positive statement
+    // about the speaker, and an interest's label must come from their words.
+    if (!isAffirmative(source, userText)) continue;
+    if (raw.kind === 'interest' && !labelSupported(label, userText) && !broadLabels.has(fold(label))) continue;
 
     const key = factKey(raw.kind, label);
     if (seen.has(key)) continue;

@@ -76,7 +76,7 @@ struct ConnectionsScreen: View {
     }
 
     private func summary(_ connection: SavedConnection) -> String {
-        let shared = connection.insight.highlights.map(\.yourEntry)
+        let shared = connection.insight.highlights.map(\.sharedLabel)
         let when = connection.metOn.formatted(date: .abbreviated, time: .omitted)
         if shared.isEmpty { return "\(when) · \(connection.roomName) · no shared interests yet" }
         return "\(when) · \(shared.joined(separator: ", "))"

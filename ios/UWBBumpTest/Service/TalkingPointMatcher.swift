@@ -21,7 +21,10 @@ enum TalkingPointMatcher {
         var out: [Candidate] = []
 
         // 1. Genuine overlap, already ranked specific-first.
-        for h in InterestMatcher.overlap(mine, theirs, limit: 4) {
+        // Related matches (two different titles under one topic) are NOT
+        // shared: they reach Grok below as complementary pairs, so it is never
+        // told one person's title is something both listed.
+        for h in InterestMatcher.overlap(mine, theirs, limit: 4) where !h.isRelated {
             out.append(Candidate(id: "shared:\(h.interestID)", kind: .shared,
                                  mine: h.yourEntry, theirs: h.theirEntry))
         }

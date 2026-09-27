@@ -7,6 +7,17 @@ protocol OnboardingCloud: Sendable {
     func transcribe(fileURL: URL, onUploaded: @escaping @Sendable () -> Void) async throws -> BumpAPIClient.Transcription
     func draft(transcript: String) async throws -> BumpAPIClient.Draft
     func followup(known: [(kind: ProfileFact.Kind, label: String)], asked: [String], answer: String) async throws -> BumpAPIClient.Followup
+    /// Same, with the app-chosen topic the next question must be about.
+    func followup(known: [(kind: ProfileFact.Kind, label: String)], asked: [String], answer: String,
+                  topic: OnboardingTopic?) async throws -> BumpAPIClient.Followup
+}
+
+extension OnboardingCloud {
+    /// Stubs that predate topics fall back to the topic-less request.
+    func followup(known: [(kind: ProfileFact.Kind, label: String)], asked: [String], answer: String,
+                  topic: OnboardingTopic?) async throws -> BumpAPIClient.Followup {
+        try await followup(known: known, asked: asked, answer: answer)
+    }
 }
 
 extension BumpAPIClient: OnboardingCloud {}
@@ -67,6 +78,8 @@ final class OnboardingModel: ObservableObject {
     struct Question: Equatable {
         let text: String
         let origin: Origin
+        /// What the question is for, owned by the app. Never asked twice.
+        var topic: OnboardingTopic? = nil
     }
 
     struct Answered: Equatable, Identifiable {
@@ -319,8 +332,16 @@ final class OnboardingModel: ObservableObject {
             bioOrigin = .grok
         }
         lastDrafted = text
-        let q = Grounding.question(draft.question, notIn: answered.map(\.question.text))
-        advance(to: q.map { Question(text: $0, origin: .grok) })
+        // The first question may come from the draft, but only if it is not
+        // a repeat and its topic has not been asked.
+        if let q = OnboardingPlan.acceptFollowUp(draft.question, askedQuestions: askedQuestions,
+                                                 askedTopics: askedTopics) {
+            advance(to: Question(text: q, origin: .grok, topic: OnboardingTopic.classify(q)))
+            return true
+        }
+        // Grok returning no question means nothing is worth asking: go to the
+        // card. A question that failed the checks gets the fixed one instead.
+        advance(to: draft.question == nil ? nil : plannedQuestion(generated: nil, origin: .onPhone))
         return true
     }
 
@@ -435,6 +456,9 @@ final class OnboardingModel: ObservableObject {
 
         let known = knownFacts
         let asked = answered.map(\.question.text)
+        // The app picks the next topic BEFORE asking Grok to phrase it.
+        let topic = OnboardingPlan.next(known: known, asked: askedTopics,
+                                        remaining: Self.maxQuestions - answered.count)
         guard cloudAllowed, let client = cloudProvider() else {
             applyLocalAnswer(text)
             return
@@ -444,7 +468,7 @@ final class OnboardingModel: ObservableObject {
         run { [weak self] g in
             do {
                 let result = try await withDeadline(deadline) {
-                    try await client.followup(known: known, asked: asked, answer: text ?? "")
+                    try await client.followup(known: known, asked: asked, answer: text ?? "", topic: nil)
                 }
                 guard let self, self.generation == g else { return }
                 self.busy = .idle
@@ -453,8 +477,21 @@ final class OnboardingModel: ObservableObject {
                 }
                 let facts = text.map { Grounding.facts(result.facts, groundedIn: $0, limit: 6) } ?? []
                 self.appendAnswerItems(facts.map { self.item(from: $0, origin: .grok, fromIntro: false) })
-                let q = Grounding.question(result.question, notIn: asked)
-                self.advance(to: q.map { Question(text: $0, origin: .grok) })
+                // Re-plan with the new facts: the answer may already cover the
+                // topic we picked. A generated question is used only for the
+                // topic it was asked for, and only if it passes the checks.
+                let replanned = OnboardingPlan.next(known: self.knownFacts, asked: self.askedTopics,
+                                                    remaining: Self.maxQuestions - self.answered.count)
+                // Keep Grok's in-depth question unless it repeats an earlier
+                // one or its topic; only then use a fixed question instead.
+                if let q = OnboardingPlan.acceptFollowUp(result.question, askedQuestions: self.askedQuestions,
+                                                         askedTopics: self.askedTopics) {
+                    self.advance(to: Question(text: q, origin: .grok, topic: OnboardingTopic.classify(q)))
+                } else {
+                    _ = replanned; _ = topic
+                    self.advance(to: result.question == nil ? nil
+                        : self.plannedQuestion(generated: nil, origin: .onPhone))
+                }
             } catch {
                 guard let self, self.generation == g else { return }
                 self.busy = .idle
@@ -484,9 +521,25 @@ final class OnboardingModel: ObservableObject {
     }
 
     private func localQuestion() -> Question? {
-        LocalDrafter.nextQuestion(known: knownFacts, asked: answered.map(\.question.text),
-                                  maxQuestions: Self.maxQuestions)
-            .map { Question(text: $0, origin: .onPhone) }
+        plannedQuestion(generated: nil, origin: .onPhone)
+    }
+
+    private var askedQuestions: [String] { answered.map(\.question.text) }
+    private var askedTopics: [OnboardingTopic] { answered.compactMap(\.question.topic) }
+
+    /// The next question, for the topic the app chooses. A generated question
+    /// is used only if it passes `OnboardingPlan.accept`; otherwise the
+    /// topic's fixed question. nil when nothing useful is left (go to the card).
+    private func plannedQuestion(generated: String?, origin: Origin) -> Question? {
+        let covered = OnboardingPlan.covered(by: knownFacts)
+        guard let topic = OnboardingPlan.next(known: knownFacts, asked: askedTopics,
+                                              remaining: Self.maxQuestions - answered.count),
+              let text = OnboardingPlan.question(for: topic, generated: generated,
+                                                 askedQuestions: askedQuestions,
+                                                 askedTopics: askedTopics, covered: covered)
+        else { return nil }
+        let usedGenerated = generated.map { Grounding.fold($0) == Grounding.fold(text) } ?? false
+        return Question(text: text, origin: usedGenerated ? origin : .onPhone, topic: topic)
     }
 
     /// What the person has kept so far — the only profile context a follow-up

@@ -812,13 +812,30 @@ private enum InterestTheme: CaseIterable, Equatable {
         }
     }
 
+    /// Catalogue interests whose theme differs from their category's
+    /// (anime lives under Movies & TV, tea under Food & drink).
+    private static let catalogOverrides: [String: InterestTheme] = [
+        "anime": .cinema, "movies": .cinema, "documentaries": .cinema, "filmmaking": .cinema,
+        "manga": .books, "comics": .books,
+        "photography": .photography, "stargazing": .night,
+        "tea": .drink, "matcha": .drink, "boba": .drink,
+        "climbing": .outdoors, "hiking": .outdoors, "camping": .outdoors,
+        "chess": .gaming, "board-games": .gaming, "tabletop-rpgs": .gaming,
+    ]
+
+    /// `hint` is a catalogue id: a Grok tag or the interest's own catalogue
+    /// entry (see `InterestCatalog.themeHint`). A structured tag is trusted
+    /// before keywords, so "One Piece" (tagged anime) is cinema, not general.
     static func match(_ interest: String, hint: String? = nil) -> InterestTheme {
+        if let hint, let exact = catalogOverrides[hint] { return exact }
         let words = interest.lowercased().map { $0.isLetter || $0.isNumber ? $0 : " " }
         let haystack = " " + String(words).split(separator: " ").joined(separator: " ") + " "
         if let direct = allCases.first(where: { theme in theme.terms.contains { haystack.contains(" \($0) ") } }) {
             return direct
         }
-        switch hint {
+        // A specific catalogue id falls back to its category.
+        let category = hint.flatMap { InterestCatalog.byID[$0]?.parent } ?? hint
+        switch category {
         case "music": return .music
         case "coffee": return .drink
         case "food": return .food
@@ -1157,10 +1174,15 @@ struct Screen<Content: View>: View {
             ScrollView {
                 content
                     .padding(.horizontal, Space.gutter)
-                    .padding(.vertical, Space.l)
+                    .padding(.top, Space.l)
+                    // The floating tab bar sits over the content (its inset on
+                    // the TabView does not reach each tab's ScrollView), so
+                    // leave room to scroll the last section clear of it.
+                    .padding(.bottom, Space.l + 96)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollDismissesKeyboard(.interactively)
+            .scrollBounceBehavior(.basedOnSize)
         }
     }
 }

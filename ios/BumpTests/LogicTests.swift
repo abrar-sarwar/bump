@@ -781,3 +781,153 @@ final class RelatedInterestTests: XCTestCase {
         XCTAssertTrue(InterestMatcher.overlap(a, b).isEmpty, "nothing is invented")
     }
 }
+
+// MARK: - AI reliability regressions (repeated questions, invented overlap)
+
+final class OnboardingPlanTests: XCTestCase {
+
+    func testThreeParaphrasesOfTheShowsQuestionCannotAllBeAsked() {
+        let asked = ["What specific shows and movies are you into?"]
+        let topics: [OnboardingTopic] = [.entertainment]
+        for repeatQ in ["What are more shows and movies you're into?",
+                        "What are more shows and movies you\u{2019}re into?"] {
+            XCTAssertNil(OnboardingPlan.accept(repeatQ, for: .goals, askedQuestions: asked,
+                                               askedTopics: topics, covered: []),
+                         "a paraphrase of an asked question is rejected: \(repeatQ)")
+        }
+        XCTAssertTrue(OnboardingPlan.isParaphrase(asked[0], "What are more shows and movies you're into?"))
+    }
+
+    func testAnAskedTopicIsNeverChosenAgain() {
+        let known: [(kind: ProfileFact.Kind, label: String)] = [(.interest, "Movies & TV")]
+        XCTAssertEqual(OnboardingPlan.next(known: known, asked: [], remaining: 3), .entertainment)
+        XCTAssertEqual(OnboardingPlan.next(known: known, asked: [.entertainment], remaining: 2), .goals)
+    }
+
+    func testASkippedTopicIsNotReAsked() {
+        // A skip is recorded as asked, so the plan moves on.
+        XCTAssertNotEqual(OnboardingPlan.next(known: [], asked: [.goals], remaining: 2), .goals)
+    }
+
+    func testATopicAnsweredEarlyIsSkippedLater() {
+        // Anime is specific under Movies & TV: no "what do you watch?" later.
+        let known: [(kind: ProfileFact.Kind, label: String)] = [(.interest, "Movies & TV"), (.interest, "Anime")]
+        XCTAssertNotEqual(OnboardingPlan.next(known: known, asked: [], remaining: 3), .entertainment)
+    }
+
+    func testAGeneratedQuestionThatDriftsToACoveredTopicFallsBack() {
+        let q = OnboardingPlan.question(for: .goals, generated: "What shows are you watching?",
+                                        askedQuestions: ["What's something you've been watching lately?"],
+                                        askedTopics: [.entertainment], covered: [])
+        XCTAssertEqual(q, OnboardingTopic.goals.fallback)
+    }
+
+    func testRepeatedBadModelOutputEndsInABoundedFallbackNotALoop() {
+        let bad = "What specific shows and movies are you into?"
+        var asked = [bad]
+        var topics: [OnboardingTopic] = [.entertainment]
+        for _ in 0..<5 {
+            guard let topic = OnboardingPlan.next(known: [], asked: topics, remaining: 3 - topics.count),
+                  let q = OnboardingPlan.question(for: topic, generated: bad, askedQuestions: asked,
+                                                  askedTopics: topics, covered: [])
+            else { break }
+            XCTAssertNotEqual(q, bad)
+            asked.append(q); topics.append(topic)
+        }
+        XCTAssertLessThanOrEqual(asked.count, 3, "never more than the intended length")
+        XCTAssertEqual(Set(topics).count, topics.count, "no topic twice")
+    }
+}
+
+final class EvidenceTests: XCTestCase {
+
+    private func fact(_ label: String, _ source: String) -> BumpAPIClient.ProposedFact {
+        .init(kind: "interest", label: label, source: source)
+    }
+
+    func testASpecificTitleIsNotInferredFromAGenre() {
+        XCTAssertTrue(Grounding.facts([fact("Golden Boy", "I watch anime")], groundedIn: "I watch anime", limit: 5).isEmpty)
+    }
+
+    func testNegatedPreferencesAreNotSaved() {
+        let text = "I don't like Golden Boy"
+        XCTAssertTrue(Grounding.facts([fact("Golden Boy", "Golden Boy")], groundedIn: text, limit: 5).isEmpty)
+        XCTAssertTrue(LocalDrafter.extract(from: "I don't drink coffee").filter { $0.kind == .interest }.isEmpty)
+    }
+
+    func testAnotherPersonsInterestIsNotTheUsers() {
+        let text = "My friend likes Golden Boy, but I like Naruto"
+        let kept = Grounding.facts([fact("Golden Boy", "Golden Boy"), fact("Naruto", "I like Naruto")],
+                                   groundedIn: text, limit: 5)
+        XCTAssertEqual(kept.map(\.text), ["Naruto"])
+    }
+
+    func testAssistantExamplesAreNotEvidence() {
+        // The question suggested Golden Boy; the answer never said it.
+        XCTAssertTrue(Grounding.facts([fact("Golden Boy", "Golden Boy")], groundedIn: "Mostly Naruto", limit: 5).isEmpty)
+    }
+
+    func testMultiwordTitlesStayWhole() {
+        XCTAssertTrue(Grounding.labelSupported("Pride and Prejudice", in: "I reread Pride and Prejudice"))
+        XCTAssertTrue(Grounding.labelSupported("Law & Order", in: "I binge Law & Order"))
+    }
+
+    func testABroadCategoryMayBeWordedDifferently() {
+        let kept = Grounding.facts([fact("Music", "I listen to songs all day")],
+                                   groundedIn: "I listen to songs all day", limit: 5)
+        XCTAssertEqual(kept.map(\.text), ["Music"])
+    }
+}
+
+final class OverlapClaimTests: XCTestCase {
+
+    private func p(_ interests: [Interest]) -> SharedProfile { SharedProfile(displayName: "x", bio: "", interests: interests) }
+    private func custom(_ label: String, tags: [String]? = nil) -> Interest {
+        Interest(id: "custom:\(label.lowercased())", label: label, specificity: 2, custom: true, tags: tags)
+    }
+
+    func testGoldenBoyVersusNarutoNeverClaimsGoldenBoyIsShared() {
+        let a = p([custom("Golden Boy", tags: ["anime"])]), b = p([custom("Naruto", tags: ["anime"])])
+        let h = InterestMatcher.overlap(a, b)
+        XCTAssertEqual(h.map(\.sharedLabel), ["Anime"], "only the topic is shared")
+        XCTAssertFalse(h.map(\.sharedLabel).contains("Golden Boy"))
+        let opener = ConversationService.fallbackOpener(highlights: h, theirs: b)
+        XCTAssertFalse(opener.contains("Golden Boy"))
+        let candidates = TalkingPointMatcher.candidates(a, b)
+        XCTAssertFalse(candidates.contains { $0.kind == .shared && ($0.mine == "Golden Boy" || $0.theirs == "Golden Boy") },
+                       "Grok is never told Golden Boy is shared")
+    }
+
+    func testBothAffirmingGoldenBoyIsShared() {
+        let h = InterestMatcher.overlap(p([custom("Golden Boy")]), p([custom("Golden Boy")]))
+        XCTAssertEqual(h.first?.sharedLabel, "Golden Boy")
+    }
+
+    func testASpecificTitleAgainstOnlyABroadCategoryIsNotTheTitle() {
+        let h = InterestMatcher.overlap(p([custom("Golden Boy", tags: ["anime"])]), p([InterestCatalog.byID["anime"]!]))
+        XCTAssertFalse(h.contains { $0.sharedLabel == "Golden Boy" })
+    }
+
+    func testNoOverlapIsATruthfulEmptyResult() {
+        XCTAssertTrue(InterestMatcher.overlap(p([custom("Golden Boy")]), p([custom("Sourdough")])).isEmpty)
+    }
+
+    func testGeneratedCopyClaimingAOneSidedInterestIsRejected() {
+        let a = p([custom("Golden Boy", tags: ["anime"])]), b = p([custom("Naruto", tags: ["anime"])])
+        let h = InterestMatcher.overlap(a, b)
+        let oneSided = ConversationService.oneSidedLabels(mine: a, theirs: b, highlights: h)
+        XCTAssertTrue(ConversationService.claimsUnsharedAsShared("Since you both love Golden Boy, who's your favorite?", oneSided: oneSided))
+        XCTAssertFalse(ConversationService.claimsUnsharedAsShared("You're both into anime. Golden Boy or Naruto first?", oneSided: []) )
+        let phrased = BumpAPIClient.TalkingPoints(points: [], opener: "Since you both love Golden Boy, who's your favorite?",
+                                                  generator: .init(provider: "xai", model: "m"))
+        XCTAssertNil(ConversationService.validateCloud(phrased, candidates: [], highlights: h, oneSided: oneSided))
+    }
+
+    func testAFabricatedCandidateIDIsRejected() {
+        let phrased = BumpAPIClient.TalkingPoints(points: [.init(candidateId: "shared:golden-boy", prompt: "What do you love about it?")],
+                                                  opener: "What brought you here tonight?",
+                                                  generator: .init(provider: "xai", model: "m"))
+        let real = [BumpAPIClient.Candidate(id: "shared:chess", kind: .shared, mine: "Chess", theirs: "Chess")]
+        XCTAssertNil(ConversationService.validateCloud(phrased, candidates: real, highlights: []))
+    }
+}

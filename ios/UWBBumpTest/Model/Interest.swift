@@ -101,6 +101,23 @@ enum InterestCatalog {
     }
 
     static let all: [Interest] = groups.flatMap { [$0.category] + $0.children }
+
+    /// The catalogue id that best describes an interest for theming: its
+    /// first Grok tag, else its own catalogue entry, else its category.
+    static func themeHint(for interest: Interest) -> String? {
+        if let tag = interest.tags?.first, byID[tag] != nil { return tag }
+        let canonical = canonical(from: interest.label)
+        if let id = canonical?.id, byID[id] != nil { return id }
+        return canonical?.parent ?? interest.parent
+    }
+
+    /// Theme hint for a reveal highlight ("chess", "related:anime", or a
+    /// custom id, which falls back to `profile`'s tags for that entry).
+    static func themeHint(forHighlight id: String, entry: String, in profile: [Interest]) -> String? {
+        let bare = id.hasPrefix("related:") ? String(id.dropFirst(8)) : id
+        if byID[bare] != nil { return bare }
+        return profile.first { $0.label.lowercased() == entry.lowercased() }.flatMap(themeHint(for:))
+    }
     static let byID: [String: Interest] = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
 
     /// A small, readable synonym map so free text lands on a canonical interest
