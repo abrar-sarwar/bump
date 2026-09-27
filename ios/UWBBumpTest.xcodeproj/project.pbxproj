@@ -396,7 +396,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				BUMP_API_BASE_URL = "https://britney-typical-sagem-grain.trycloudflare.com";
+				BUMP_API_BASE_URL = "https://packets-trails-generic-forbes.trycloudflare.com";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 56KWU9QP85;
@@ -422,7 +422,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				BUMP_API_BASE_URL = "https://britney-typical-sagem-grain.trycloudflare.com";
+				BUMP_API_BASE_URL = "https://packets-trails-generic-forbes.trycloudflare.com";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 56KWU9QP85;
