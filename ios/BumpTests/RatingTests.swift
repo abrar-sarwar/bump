@@ -306,3 +306,91 @@ final class RatingStoreTests: XCTestCase {
         XCTAssertNotNil(store.rating(for: a.id))
     }
 }
+
+// MARK: - Landed entries
+//
+// The recap string shown on the Connections row and the detail screen is built
+// from this, so it is tested here rather than through the views.
+
+final class LandedEntriesTests: XCTestCase {
+
+    private let highlights = [Fixture.highlight("jazz"),
+                              Fixture.highlight("baking"),
+                              Fixture.highlight("bouldering")]
+
+    func testReturnsTheUsersOwnWordingForWhatLanded() {
+        let rating = InteractionRating(id: UUID(), landedInterestIDs: ["bouldering", "jazz"])
+        XCTAssertEqual(rating.landedEntries(among: highlights), ["Jazz", "Bouldering"],
+                       "order follows the highlights as presented, not the recorded id order")
+    }
+
+    func testAnEmptyAnswerLandsNothing() {
+        let rating = InteractionRating(id: UUID(), landedInterestIDs: [])
+        XCTAssertEqual(rating.landedEntries(among: highlights), [])
+    }
+
+    func testIDsWithNoMatchingHighlightAreIgnored() {
+        // An answer can outlive the insight it was given about. The connection
+        // is the source of truth for what was actually on offer.
+        let rating = InteractionRating(id: UUID(), landedInterestIDs: ["jazz", "kitesurfing"])
+        XCTAssertEqual(rating.landedEntries(among: highlights), ["Jazz"])
+    }
+
+    func testNothingCanLandWhenThereWasNothingShared() {
+        let rating = InteractionRating(id: UUID(), landedInterestIDs: ["jazz"])
+        XCTAssertEqual(rating.landedEntries(among: []), [])
+    }
+}
+
+// MARK: - ratings.json round trip
+//
+// `RatingStoreTests` runs in memory, so these cover the encode/decode rules that
+// only run against the file: the flat array `Store` writes, and the index it
+// rebuilds on launch.
+
+final class RatingPersistenceTests: XCTestCase {
+
+    private func reload(_ ratings: [UUID: InteractionRating]) throws -> [UUID: InteractionRating] {
+        let data = try JSONEncoder().encode(InteractionRating.persistable(ratings))
+        return InteractionRating.index(try JSONDecoder().decode([InteractionRating].self, from: data))
+    }
+
+    func testAnswersSurviveAFullRoundTripThroughTheFileFormat() throws {
+        let a = InteractionRating(id: UUID(), ratedOn: Date(timeIntervalSince1970: 200),
+                                 landedInterestIDs: ["jazz", "baking"])
+        let b = InteractionRating(id: UUID(), ratedOn: Date(timeIntervalSince1970: 100),
+                                  landedInterestIDs: [])
+        let reloaded = try reload([a.id: a, b.id: b])
+
+        XCTAssertEqual(reloaded[a.id], a)
+        XCTAssertEqual(reloaded[b.id], b, "an empty answer must survive as an answer, not vanish")
+    }
+
+    func testTheFileIsWrittenNewestAnswerFirst() {
+        let old = InteractionRating(id: UUID(), ratedOn: Date(timeIntervalSince1970: 100),
+                                   landedInterestIDs: [])
+        let new = InteractionRating(id: UUID(), ratedOn: Date(timeIntervalSince1970: 300),
+                                   landedInterestIDs: [])
+        XCTAssertEqual(InteractionRating.persistable([old.id: old, new.id: new]).map(\.id),
+                       [new.id, old.id])
+    }
+
+    func testADuplicatedConnectionOnDiskResolvesToTheNewestAnswer() {
+        let id = UUID()
+        let stale = InteractionRating(id: id, ratedOn: Date(timeIntervalSince1970: 100),
+                                     landedInterestIDs: ["jazz"])
+        let fresh = InteractionRating(id: id, ratedOn: Date(timeIntervalSince1970: 200),
+                                      landedInterestIDs: ["baking"])
+
+        // Both orderings, because the file's order is not a guarantee.
+        for file in [[stale, fresh], [fresh, stale]] {
+            let index = InteractionRating.index(file)
+            XCTAssertEqual(index.count, 1)
+            XCTAssertEqual(index[id], fresh, "the answer the user gave last wins")
+        }
+    }
+
+    func testAnEmptyFileReadsAsNothingRatedRatherThanFailing() {
+        XCTAssertTrue(InteractionRating.index([]).isEmpty)
+    }
+}

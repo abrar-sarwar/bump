@@ -17,12 +17,10 @@ final class Store: ObservableObject {
     }
     /// Private per-connection ratings, keyed by `SavedConnection.id`. Local only:
     /// never exchanged with a partner and never sent to the BUMP server.
-    /// Persisted as a flat array, not as a dictionary: `UUID` is not a string
-    /// coding key, so `[UUID: _]` would encode as an alternating key/value array
-    /// that is unreadable on disk. The dictionary is the in-memory index.
+    /// The dictionary is the in-memory index; `InteractionRating.persistable`
+    /// and `.index` own the conversion to and from the flat on-disk array.
     @Published private(set) var ratings: [UUID: InteractionRating] {
-        didSet { persist(Array(ratings.values).sorted { $0.ratedOn > $1.ratedOn },
-                         to: Self.ratingsURL) }
+        didSet { persist(InteractionRating.persistable(ratings), to: Self.ratingsURL) }
     }
     /// Developer/testing settings, persisted so a tuning session survives a relaunch.
     @Published var settings: Settings {
@@ -102,10 +100,8 @@ final class Store: ObservableObject {
         streetpasses = Self.load([StreetpassEvent].self, from: Self.streetpassesURL) ?? []
         // Older installs have no ratings file; every connection simply reads as
         // unrated, which is the correct starting state.
-        let loaded = Self.load([InteractionRating].self, from: Self.ratingsURL) ?? []
-        ratings = Dictionary(loaded.map { ($0.id, $0) }, uniquingKeysWith: { a, b in
-            a.ratedOn >= b.ratedOn ? a : b    // newest answer wins
-        })
+        ratings = InteractionRating.index(Self.load([InteractionRating].self,
+                                                    from: Self.ratingsURL) ?? [])
     }
 
     /// Whether the bump tutorial has been shown (a UI convenience, kept in

@@ -136,6 +136,72 @@ struct RateInteractionSheet: View {
     }
 }
 
+/// The app's single rating target, so any screen can raise the rating card
+/// without the card — or the state behind it — being duplicated per screen.
+///
+/// An environment value rather than a chain of `Binding` parameters on purpose:
+/// `ConnectionDetail` is pushed from two different tabs, and a screen that only
+/// passes the value through should not have to mention it. It also means the UI
+/// overhaul can rearrange the view tree without re-threading anything.
+private struct RatingTargetKey: EnvironmentKey {
+    /// No target: previews and tests render the entry points without a card.
+    static let defaultValue: Binding<SavedConnection?> = .constant(nil)
+}
+
+extension EnvironmentValues {
+    var ratingTarget: Binding<SavedConnection?> {
+        get { self[RatingTargetKey.self] }
+        set { self[RatingTargetKey.self] = newValue }
+    }
+}
+
+/// Presents the rating card, in one place.
+///
+/// Three screens put up the same card (the automatic prompt, the Connections
+/// list, a connection's detail screen), so the detents, corner radius, card
+/// background and height live here rather than being repeated at each site — a
+/// change to the card's treatment is then a change to one file.
+///
+/// The `SavedConnection?` is owned by the caller and deliberately NOT stored
+/// here: `RootView` keeps the single copy — published as `\.ratingTarget` — so
+/// its automatic prompt can tell whether a card is already up before raising
+/// another one.
+struct RateInteractionPresentation: ViewModifier {
+    @Binding var connection: SavedConnection?
+    @ObservedObject var store: Store
+    /// Called with the connection's id when the card is waved off rather than
+    /// answered, so a caller that tracks "Not now" can record it.
+    var onSkip: (UUID) -> Void
+
+    @ScaledMetric(relativeTo: .body) private var cardHeight: CGFloat = 520
+
+    func body(content: Content) -> some View {
+        content.sheet(item: $connection) { connection in
+            RateInteractionSheet(
+                connection: connection,
+                existing: store.rating(for: connection.id),
+                onSave: { store.saveRating($0) },
+                onSkip: { onSkip(connection.id) }
+            )
+            .presentationDetents([.height(cardHeight)])
+            .presentationCornerRadius(Radius.extraLargeIncreased)
+            .presentationBackground(BumpColor.surfaceContainerLowest)
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+extension View {
+    /// Shows the rating card whenever `item` holds a connection, and publishes
+    /// `item` as `\.ratingTarget` so descendants can raise the card themselves.
+    func rateInteraction(item: Binding<SavedConnection?>,
+                         store: Store,
+                         onSkip: @escaping (UUID) -> Void = { _ in }) -> some View {
+        modifier(RateInteractionPresentation(connection: item, store: store, onSkip: onSkip))
+            .environment(\.ratingTarget, item)
+    }
+}
+
 #Preview("Rate") {
     let store = PreviewFixtures.populatedStore()
     return RateInteractionSheet(connection: store.connections[0], onSave: { _ in }, onSkip: {})

@@ -3,10 +3,11 @@ import SwiftUI
 struct ConnectionsScreen: View {
     @ObservedObject var store: Store
 
-    /// The connection whose rating sheet is open, driven on demand from this tab
-    /// rather than by the automatic post-interaction prompt in `RootView`.
-    @State private var rating: SavedConnection?
-    @ScaledMetric(relativeTo: .body) private var rateCardHeight: CGFloat = 520
+    /// The app's rating target, owned by `RootView`. Assigning to it raises the
+    /// card. There must be exactly one of these, or the automatic
+    /// post-interaction prompt cannot tell that a card is already up and will
+    /// try to raise a second sheet that SwiftUI then silently drops.
+    @Environment(\.ratingTarget) private var ratingTarget
     /// Pushes the Insights screen. Normally driven by the "What lands" link;
     /// also set by the DEBUG `.insights` demo so the screen can be inspected in
     /// the Simulator without tapping through.
@@ -24,24 +25,12 @@ struct ConnectionsScreen: View {
             .background(BumpColor.surface.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showingInsights) {
-                InsightsScreen(store: store, onRate: { rating = $0 })
+                InsightsScreen(store: store, onRate: { ratingTarget.wrappedValue = $0 })
             }
             .onAppear {
                 #if DEBUG
                 if DemoMode.active == .insights { showingInsights = true }
                 #endif
-            }
-            .sheet(item: $rating) { connection in
-                RateInteractionSheet(
-                    connection: connection,
-                    existing: store.rating(for: connection.id),
-                    onSave: { store.saveRating($0) },
-                    onSkip: {}
-                )
-                .presentationDetents([.height(rateCardHeight)])
-                .presentationCornerRadius(Radius.extraLargeIncreased)
-                .presentationBackground(BumpColor.surfaceContainerLowest)
-                .presentationDragIndicator(.visible)
             }
         }
     }
@@ -135,7 +124,7 @@ struct ConnectionsScreen: View {
                 Spacer(minLength: Space.xs)
                 // Tappable independently of the row's NavigationLink, so "Rate"
                 // opens the sheet instead of pushing the detail screen.
-                Button { rating = connection } label: { StatusPill(text: "Rate", tone: .active, icon: "text.bubble.fill") }
+                Button { ratingTarget.wrappedValue = connection } label: { StatusPill(text: "Rate", tone: .active, icon: "text.bubble.fill") }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Rate your interaction with \(connection.partnerName)")
             }
@@ -154,16 +143,17 @@ struct ConnectionsScreen: View {
         let when = connection.metOn.formatted(date: .abbreviated, time: .omitted)
         let highlights = connection.insight.highlights
 
+        // Checked first, so a connection with nothing shared reads the same
+        // whether or not it somehow carries an answer.
+        if highlights.isEmpty { return "\(when) · \(connection.roomName) · no shared interests yet" }
+
         if let rating = store.rating(for: connection.id) {
-            let landedIDs = Set(rating.landedInterestIDs)
-            let landed = highlights.filter { landedIDs.contains($0.interestID) }.map(\.yourEntry)
+            let landed = rating.landedEntries(among: highlights)
             if landed.isEmpty { return "\(when) · nothing landed" }
             return "\(when) · talked about \(landed.joined(separator: ", "))"
         }
 
-        let shared = highlights.map(\.yourEntry)
-        if shared.isEmpty { return "\(when) · \(connection.roomName) · no shared interests yet" }
-        return "\(when) · \(shared.joined(separator: ", "))"
+        return "\(when) · \(highlights.map(\.yourEntry).joined(separator: ", "))"
     }
 }
 
@@ -171,8 +161,8 @@ struct ConnectionDetail: View {
     let connection: SavedConnection
     @ObservedObject var store: Store
     @Environment(\.dismiss) private var dismiss
-    @State private var showingRate = false
-    @ScaledMetric(relativeTo: .body) private var rateCardHeight: CGFloat = 520
+    /// Same single rating target as the rest of the app; see `ConnectionsScreen`.
+    @Environment(\.ratingTarget) private var ratingTarget
 
     var body: some View {
         Screen {
@@ -241,7 +231,7 @@ struct ConnectionDetail: View {
                         }
                         Button(store.rating(for: connection.id) == nil
                                ? "Rate this interaction" : "Update what landed") {
-                            showingRate = true
+                            ratingTarget.wrappedValue = connection
                         }
                         .buttonStyle(.bumpSecondary)
                     }
@@ -258,25 +248,10 @@ struct ConnectionDetail: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(BumpColor.surface, for: .navigationBar)
-        .sheet(isPresented: $showingRate) {
-            RateInteractionSheet(
-                connection: connection,
-                existing: store.rating(for: connection.id),
-                onSave: { store.saveRating($0) },
-                onSkip: {}
-            )
-            .presentationDetents([.height(rateCardHeight)])
-            .presentationCornerRadius(Radius.extraLargeIncreased)
-            .presentationBackground(BumpColor.surfaceContainerLowest)
-            .presentationDragIndicator(.visible)
-        }
     }
 
     private func ratedRecap(_ rating: InteractionRating) -> String {
-        let landedIDs = Set(rating.landedInterestIDs)
-        let landed = connection.insight.highlights
-            .filter { landedIDs.contains($0.interestID) }
-            .map(\.yourEntry)
+        let landed = rating.landedEntries(among: connection.insight.highlights)
         if landed.isEmpty { return "None of the shared interests came up." }
         return landed.joined(separator: ", ")
     }
