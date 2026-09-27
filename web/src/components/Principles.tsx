@@ -43,7 +43,7 @@ const PRINCIPLES = [
     icon: 'radar',
     label: 'distance',
     title: 'Ultra Wideband',
-    body: 'On iPhones that have it, measured distance helps confirm which phone you actually tapped.',
+    body: 'On iPhones that have it, measured distance powers Wave and helps confirm which phone you actually tapped.',
   },
 ]
 

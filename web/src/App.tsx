@@ -4,7 +4,7 @@ import IntroSection from './components/IntroSection'
 import Moments from './components/Moments'
 import HowItWorks from './components/HowItWorks'
 import SharedInterestsPreview from './components/SharedInterestsPreview'
-import WalkBy from './components/WalkBy'
+import Wave from './components/Wave'
 import Principles from './components/Principles'
 import ClosingCTA from './components/ClosingCTA'
 import BackToTop from './components/BackToTop'
@@ -20,8 +20,8 @@ export default function App() {
         <IntroSection />
         <Moments />
         <HowItWorks />
+        <Wave />
         <SharedInterestsPreview />
-        <WalkBy />
         <Principles />
         <ClosingCTA />
       </main>
