@@ -228,7 +228,15 @@ struct RootView: View {
 
         case .connections, .you, .tools, .home, .tutorial, .notifications:
             store.profile = PreviewFixtures.profile
-            if demo == .connections { PreviewFixtures.seed(store); tab = .connections }
+            if demo == .connections {
+                PreviewFixtures.seed(store)
+                tab = .connections
+                // One row matched and one not, so the list shows both the
+                // unlocked badge and its absence side by side.
+                if let unlockable = store.connections.first(where: { $0.partnerProfile != nil }) {
+                    store.recordMatch(MutualMatch(id: unlockable.id))
+                }
+            }
             if demo == .notifications {
                 PreviewFixtures.seed(store)
                 tab = .bump
