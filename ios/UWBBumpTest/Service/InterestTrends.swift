@@ -24,6 +24,19 @@ enum InterestTrends {
         var rated: Int
         /// Of the rated ones, how many the user said this was talked about in.
         var landed: Int
+        /// The most recent connection this came up in, for the recency column.
+        var lastSurfaced: Date
+
+        /// Landed over rated. `nil` when nothing has been rated yet: there is no
+        /// rate to report, and 0 would read as "never lands" rather than "unknown".
+        var landingRate: Double? {
+            guard rated > 0 else { return nil }
+            return Double(landed) / Double(rated)
+        }
+
+        /// Rated conversations where this did NOT come up. The other half of the
+        /// bar, so the chart shows the denominator instead of implying it.
+        var missed: Int { rated - landed }
     }
 
     struct Summary: Equatable, Sendable {
@@ -34,6 +47,23 @@ enum InterestTrends {
         var stats: [InterestStat]
         /// Too few answers to say anything honest about trends.
         var isTooSparse: Bool
+        /// Shared-interest appearances across every rated connection, and how
+        /// many of them the user said were talked about. The headline figure,
+        /// always carried with its denominator.
+        var ratedInstances: Int
+        var landedInstances: Int
+
+        /// Landed over rated across everything. `nil` before anything is rated.
+        var landingRate: Double? {
+            guard ratedInstances > 0 else { return nil }
+            return Double(landedInstances) / Double(ratedInstances)
+        }
+
+        /// Interests with at least one answer, which are the only ones that can
+        /// honestly appear in a rate chart.
+        var charted: [InterestStat] { stats.filter { $0.rated > 0 } }
+        /// Seen, but never in a conversation the user answered for.
+        var unrated: [InterestStat] { stats.filter { $0.rated == 0 } }
     }
 
     /// How many rated connections it takes before trends are worth stating.
@@ -52,8 +82,10 @@ enum InterestTrends {
                 let id = highlight.interestID
                 var stat = byID[id] ?? InterestStat(id: id,
                                                     label: label(for: highlight),
-                                                    surfaced: 0, rated: 0, landed: 0)
+                                                    surfaced: 0, rated: 0, landed: 0,
+                                                    lastSurfaced: connection.metOn)
                 stat.surfaced += 1
+                stat.lastSurfaced = max(stat.lastSurfaced, connection.metOn)
                 if rating != nil {
                     stat.rated += 1
                     if landed.contains(id) { stat.landed += 1 }
@@ -73,7 +105,9 @@ enum InterestTrends {
         return Summary(totalConnections: connections.count,
                        ratedConnections: ratedConnections,
                        stats: stats,
-                       isTooSparse: ratedConnections < minimumRated)
+                       isTooSparse: ratedConnections < minimumRated,
+                       ratedInstances: stats.reduce(0) { $0 + $1.rated },
+                       landedInstances: stats.reduce(0) { $0 + $1.landed })
     }
 
     /// The user's own wording, tidied through the catalog so two spellings of the

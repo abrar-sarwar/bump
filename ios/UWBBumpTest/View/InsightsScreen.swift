@@ -1,12 +1,14 @@
 import SwiftUI
+import Charts
 
-/// What the user's own history says about their mutual interests.
+/// What the user's own history says about their mutual interests, as data.
 ///
-/// Every number here is a count over this person's own connections. There are no
+/// Every figure here is a count over this person's own connections. There are no
 /// percentages of "people like you", no compatibility scores and no population
-/// claims — the app has no data that would make those true. `landed` is always
-/// shown against how many of those conversations were actually rated, so a single
-/// answer never reads as a pattern.
+/// claims — the app has no data that would make those true. Rates are always
+/// drawn with their denominator visible (the bar shows landed AND missed, the
+/// table prints "2/3"), and a low sample count is labelled as one rather than
+/// quietly rendered as a confident percentage.
 struct InsightsScreen: View {
     @ObservedObject var store: Store
     /// Opens the rating sheet for a connection still waiting on an answer.
@@ -20,15 +22,23 @@ struct InsightsScreen: View {
         Screen {
             let summary = trends
             VStack(alignment: .leading, spacing: Space.l) {
-                PageTitle(title: "What lands",
-                          subtitle: overview(summary))
+                PageTitle(title: "What lands")
 
-                if summary.stats.isEmpty {
+                metrics(summary)
+
+                if summary.isTooSparse && summary.ratedInstances > 0 {
+                    lowSampleBanner(summary)
+                }
+
+                if summary.charted.isEmpty {
                     empty
-                } else if summary.isTooSparse {
-                    sparse(summary)
                 } else {
-                    ranked(summary)
+                    chart(summary)
+                    table(summary)
+                }
+
+                if !summary.unrated.isEmpty {
+                    unratedInterests(summary)
                 }
 
                 if !store.unratedConnections.isEmpty {
@@ -45,93 +55,216 @@ struct InsightsScreen: View {
         .toolbarBackground(BumpColor.surface, for: .navigationBar)
     }
 
-    private func overview(_ summary: InterestTrends.Summary) -> String {
-        let people = summary.totalConnections == 1 ? "1 person met" : "\(summary.totalConnections) people met"
-        return "\(people) · \(summary.ratedConnections) rated"
+    // MARK: Headline metrics
+
+    private func metrics(_ summary: InterestTrends.Summary) -> some View {
+        HStack(spacing: Space.s) {
+            metric(value: "\(summary.totalConnections)", caption: "met")
+            metric(value: "\(summary.ratedConnections)", caption: "rated")
+            metric(value: summary.landingRate.map { Self.percent($0) } ?? "—",
+                   caption: "hit rate",
+                   footnote: summary.ratedInstances > 0
+                     ? "\(summary.landedInstances)/\(summary.ratedInstances)" : "no data")
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func metric(value: String, caption: String, footnote: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(BumpFont.displaySmall)
+                .foregroundStyle(BumpColor.onSurface)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Text(caption.uppercased())
+                .font(BumpFont.labelSmall)
+                .kerning(0.8)
+                .foregroundStyle(BumpColor.onSurfaceVariant)
+            // The denominator, always. A rate with no n is not a finding.
+            Text(footnote ?? " ")
+                .font(BumpFont.bodySmall)
+                .foregroundStyle(BumpColor.onSurfaceVariant)
+                .monospacedDigit()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Space.m)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.large, style: .continuous)
+                .fill(BumpColor.surfaceContainerHigh)
+        )
+    }
+
+    /// Says the sample is small instead of hiding the numbers. The data is the
+    /// user's own and they are entitled to see it; what it must not do is imply
+    /// a pattern that three answers cannot support.
+    private func lowSampleBanner(_ summary: InterestTrends.Summary) -> some View {
+        HStack(alignment: .top, spacing: Space.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(BumpColor.warning)
+                .padding(.top, 2)
+            Text("Low sample: \(summary.ratedConnections) rated \(summary.ratedConnections == 1 ? "conversation" : "conversations"). Read these as counts, not as a trend.")
+                .font(BumpFont.bodySmall)
+                .foregroundStyle(BumpColor.onSurfaceVariant)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Space.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.large, style: .continuous)
+                .fill(BumpColor.warningContainer.opacity(0.5))
+        )
+    }
+
+    // MARK: Chart
+
+    /// Landed vs missed per interest, stacked, on a whole-number axis. Stacking
+    /// the misses rather than plotting a bare percentage keeps the sample size
+    /// visible in the chart itself: a 1-of-1 bar is visibly one unit wide.
+    private func chart(_ summary: InterestTrends.Summary) -> some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Eyebrow(text: "Rated conversations per interest")
+            Chart {
+                ForEach(summary.charted) { stat in
+                    BarMark(
+                        x: .value("Conversations", stat.landed),
+                        y: .value("Interest", stat.label),
+                        stacking: .standard
+                    )
+                    .foregroundStyle(by: .value("Outcome", "Talked about"))
+                    .cornerRadius(Radius.small)
+
+                    BarMark(
+                        x: .value("Conversations", stat.missed),
+                        y: .value("Interest", stat.label),
+                        stacking: .standard
+                    )
+                    .foregroundStyle(by: .value("Outcome", "Didn't come up"))
+                    .cornerRadius(Radius.small)
+                }
+            }
+            .chartForegroundStyleScale([
+                "Talked about": BumpColor.primary,
+                "Didn't come up": BumpColor.surfaceContainerHigh,
+            ])
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                    AxisGridLine().foregroundStyle(BumpColor.outlineVariant)
+                    AxisValueLabel {
+                        if let n = value.as(Int.self) {
+                            Text("\(n)").font(BumpFont.labelSmall)
+                                .foregroundStyle(BumpColor.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(preset: .aligned, position: .leading) { _ in
+                    AxisValueLabel(horizontalSpacing: Space.sm)
+                        .font(BumpFont.labelMedium)
+                        .foregroundStyle(BumpColor.onSurface)
+                }
+            }
+            .chartLegend(position: .bottom, spacing: Space.s)
+            .frame(height: chartHeight(summary.charted.count))
+        }
+        .padding(Space.m)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.large, style: .continuous)
+                .fill(BumpColor.surfaceContainerLowest)
+        )
+    }
+
+    private func chartHeight(_ rows: Int) -> CGFloat {
+        // One comfortable bar per interest, plus room for axis and legend.
+        CGFloat(rows) * 34 + 56
+    }
+
+    // MARK: Table
+
+    private func table(_ summary: InterestTrends.Summary) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Eyebrow(text: "Interest")
+                Spacer()
+                Eyebrow(text: "Hit")
+                    .frame(width: 52, alignment: .trailing)
+                Eyebrow(text: "Seen")
+                    .frame(width: 44, alignment: .trailing)
+                Eyebrow(text: "Last")
+                    .frame(width: 56, alignment: .trailing)
+            }
+            .padding(.bottom, Space.xs)
+
+            Divider().overlay(BumpColor.outlineVariant)
+
+            ForEach(summary.charted) { stat in
+                HStack {
+                    Text(stat.label)
+                        .font(BumpFont.bodyMedium)
+                        .foregroundStyle(BumpColor.onSurface)
+                        .lineLimit(1)
+                    Spacer(minLength: Space.xs)
+                    Text("\(stat.landed)/\(stat.rated)")
+                        .font(BumpFont.bodyMedium)
+                        .monospacedDigit()
+                        .foregroundStyle(stat.landed > 0 ? BumpColor.primary : BumpColor.onSurfaceVariant)
+                        .frame(width: 52, alignment: .trailing)
+                    Text("\(stat.surfaced)")
+                        .font(BumpFont.bodyMedium)
+                        .monospacedDigit()
+                        .foregroundStyle(BumpColor.onSurfaceVariant)
+                        .frame(width: 44, alignment: .trailing)
+                    Text(stat.lastSurfaced.formatted(.dateTime.month(.abbreviated).day()))
+                        .font(BumpFont.bodySmall)
+                        .monospacedDigit()
+                        .foregroundStyle(BumpColor.onSurfaceVariant)
+                        .frame(width: 56, alignment: .trailing)
+                }
+                .padding(.vertical, Space.xs)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(stat.label): talked about in \(stat.landed) of \(stat.rated) rated conversations, seen \(stat.surfaced) times")
+
+                Divider().overlay(BumpColor.outlineVariant.opacity(0.5))
+            }
+        }
+        .padding(Space.m)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.large, style: .continuous)
+                .fill(BumpColor.surfaceContainerLowest)
+        )
+    }
+
+    /// Interests that have come up but never in a conversation with an answer.
+    /// Kept out of the chart, because a bar with no denominator is not a
+    /// measurement of anything.
+    private func unratedInterests(_ summary: InterestTrends.Summary) -> some View {
+        VStack(alignment: .leading, spacing: Space.xs) {
+            Eyebrow(text: "Seen, not yet rated")
+            ForEach(summary.unrated) { stat in
+                HStack {
+                    Text(stat.label)
+                        .font(BumpFont.bodyMedium)
+                        .foregroundStyle(BumpColor.onSurfaceVariant)
+                    Spacer()
+                    Text("\(stat.surfaced)×")
+                        .font(BumpFont.bodyMedium)
+                        .monospacedDigit()
+                        .foregroundStyle(BumpColor.onSurfaceVariant)
+                }
+                .padding(.vertical, 2)
+            }
+        }
     }
 
     private var empty: some View {
         Card(style: .filled) {
-            Text("Once you have bumped a few people and said what you talked about, the interests that actually start conversations show up here.")
+            Text("No rated conversations yet. Rate one and the breakdown appears here.")
                 .font(BumpFont.bodyLarge)
                 .foregroundStyle(BumpColor.onSurface)
                 .fixedSize(horizontal: false, vertical: true)
         }
-    }
-
-    /// Below the threshold the app shows the history without ranking it. Three
-    /// answers is not a trend, and presenting it as one would be a fabrication.
-    private func sparse(_ summary: InterestTrends.Summary) -> some View {
-        VStack(alignment: .leading, spacing: Space.s) {
-            Eyebrow(text: "Not enough yet")
-            Card(style: .filled) {
-                Text("Rate a few more interactions and this starts to mean something. So far there are \(summary.ratedConnections) rated \(summary.ratedConnections == 1 ? "conversation" : "conversations") — too few to call anything a pattern.")
-                    .font(BumpFont.bodyLarge)
-                    .foregroundStyle(BumpColor.onSurface)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Eyebrow(text: "Shared ground so far")
-                .padding(.top, Space.s)
-            ForEach(summary.stats) { stat in
-                HStack {
-                    Text(stat.label)
-                        .font(BumpFont.bodyLarge)
-                        .foregroundStyle(BumpColor.onSurface)
-                    Spacer(minLength: Space.m)
-                    Text(stat.surfaced == 1 ? "1 person" : "\(stat.surfaced) people")
-                        .font(BumpFont.labelMedium)
-                        .foregroundStyle(BumpColor.onSurfaceVariant)
-                }
-                .padding(.vertical, Space.xs)
-            }
-        }
-    }
-
-    private func ranked(_ summary: InterestTrends.Summary) -> some View {
-        VStack(alignment: .leading, spacing: Space.s) {
-            Eyebrow(text: "What you actually talk about")
-            ForEach(summary.stats) { stat in
-                Card(style: .elevated) {
-                    VStack(alignment: .leading, spacing: Space.xs) {
-                        Text(stat.label)
-                            .font(BumpFont.titleMedium)
-                            .foregroundStyle(BumpColor.onSurface)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(detail(stat))
-                            .font(BumpFont.bodyMedium)
-                            .foregroundStyle(BumpColor.onSurfaceVariant)
-                            .fixedSize(horizontal: false, vertical: true)
-                        bar(stat)
-                    }
-                }
-            }
-        }
-    }
-
-    /// Stated against `rated`, never against `surfaced`: the app only knows about
-    /// conversations the user answered for.
-    private func detail(_ stat: InterestTrends.InterestStat) -> String {
-        guard stat.rated > 0 else {
-            return "Came up with \(stat.surfaced == 1 ? "1 person" : "\(stat.surfaced) people") · none rated yet"
-        }
-        let conversations = stat.rated == 1 ? "1 rated conversation" : "\(stat.rated) rated conversations"
-        return "Talked about in \(stat.landed) of \(conversations)"
-    }
-
-    /// A plain proportional bar. No chart library: the shape is two rounded
-    /// rectangles and the number is already stated in words above it.
-    private func bar(_ stat: InterestTrends.InterestStat) -> some View {
-        let fraction = stat.rated > 0 ? Double(stat.landed) / Double(stat.rated) : 0
-        return GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(BumpColor.surfaceContainerHigh)
-                Capsule().fill(BumpColor.primary)
-                    .frame(width: max(0, geo.size.width * fraction))
-            }
-        }
-        .frame(height: 6)
-        .accessibilityHidden(true)      // the sentence above already says it
     }
 
     private var waiting: some View {
@@ -152,7 +285,7 @@ struct InsightsScreen: View {
                                 .foregroundStyle(BumpColor.onSurfaceVariant)
                         }
                         Spacer(minLength: 0)
-                        StatusPill(text: "Rate", tone: .active)
+                        StatusPill(text: "Rate", tone: .active, icon: "text.bubble.fill")
                     }
                     .padding(.vertical, Space.xs)
                     .contentShape(Rectangle())
@@ -163,6 +296,11 @@ struct InsightsScreen: View {
                 .opacity(connection.insight.highlights.isEmpty ? 0.45 : 1)
             }
         }
+    }
+
+    /// Whole percent. Never shown without its "landed/rated" footnote.
+    private static func percent(_ fraction: Double) -> String {
+        "\(Int((fraction * 100).rounded()))%"
     }
 }
 

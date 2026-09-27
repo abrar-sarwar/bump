@@ -187,6 +187,49 @@ final class InterestTrendsTests: XCTestCase {
         XCTAssertFalse(InterestTrends.summarize(connections: connections, ratings: three).isTooSparse)
     }
 
+    func testHitRateIsNilUntilSomethingIsRatedRatherThanZero() {
+        let c = Fixture.connection(secondsAgo: 100, reference: now)
+        let s = InterestTrends.summarize(connections: [c], ratings: [:])
+        XCTAssertNil(s.landingRate, "0% would read as 'never lands' instead of 'unknown'")
+        XCTAssertEqual(s.ratedInstances, 0)
+    }
+
+    func testHeadlineInstanceCountsCarryTheirDenominator() {
+        let a = Fixture.connection(secondsAgo: 100, reference: now, interests: ["jazz", "baking"])
+        let b = Fixture.connection(secondsAgo: 200, reference: now, interests: ["jazz", "baking"])
+        let s = InterestTrends.summarize(connections: [a, b],
+                                        ratings: Fixture.ratings([(a.id, ["jazz"]), (b.id, [])]))
+        XCTAssertEqual(s.ratedInstances, 4, "two interests across two rated conversations")
+        XCTAssertEqual(s.landedInstances, 1)
+        XCTAssertEqual(s.landingRate, 0.25)
+    }
+
+    func testOnlyRatedInterestsAreChartableAndTheRestAreSeparated() {
+        let rated = Fixture.connection(secondsAgo: 100, reference: now, interests: ["jazz"])
+        let never = Fixture.connection(secondsAgo: 200, reference: now, interests: ["baking"])
+        let s = InterestTrends.summarize(connections: [rated, never],
+                                        ratings: Fixture.ratings([(rated.id, ["jazz"])]))
+        XCTAssertEqual(s.charted.map(\.id), ["jazz"])
+        XCTAssertEqual(s.unrated.map(\.id), ["baking"], "a bar with no denominator measures nothing")
+    }
+
+    func testMissedIsTheRestOfTheRatedConversations() {
+        let a = Fixture.connection(secondsAgo: 100, reference: now)
+        let b = Fixture.connection(secondsAgo: 200, reference: now)
+        let s = InterestTrends.summarize(connections: [a, b],
+                                        ratings: Fixture.ratings([(a.id, ["jazz"]), (b.id, [])]))
+        let jazz = s.stats.first { $0.id == "jazz" }
+        XCTAssertEqual(jazz?.landed, 1)
+        XCTAssertEqual(jazz?.missed, 1, "landed + missed must equal rated")
+    }
+
+    func testLastSurfacedIsTheMostRecentConnectionNotTheFirstSeen() {
+        let older = Fixture.connection(secondsAgo: 10_000, reference: now)
+        let newer = Fixture.connection(secondsAgo: 100, reference: now)
+        let s = InterestTrends.summarize(connections: [older, newer], ratings: [:])
+        XCTAssertEqual(s.stats.first { $0.id == "jazz" }?.lastSurfaced, newer.metOn)
+    }
+
     func testRanksByLandedThenSurfacedThenIDSoTheOrderIsStable() {
         // jazz lands twice, baking once; photography only ever surfaces.
         let a = Fixture.connection(secondsAgo: 100, reference: now, interests: ["jazz", "baking", "photography"])

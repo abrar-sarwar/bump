@@ -135,7 +135,7 @@ struct ConnectionsScreen: View {
                 Spacer(minLength: Space.xs)
                 // Tappable independently of the row's NavigationLink, so "Rate"
                 // opens the sheet instead of pushing the detail screen.
-                Button { rating = connection } label: { StatusPill(text: "Rate", tone: .active) }
+                Button { rating = connection } label: { StatusPill(text: "Rate", tone: .active, icon: "text.bubble.fill") }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Rate your interaction with \(connection.partnerName)")
             }

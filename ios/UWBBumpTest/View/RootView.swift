@@ -114,13 +114,17 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.25), value: stage)
         .onChange(of: scenePhase) { _, phase in
             engine.handleScenePhase(phase)
-            streetPassEngine.handleScenePhase(phase)
+            // Becoming active also starts StreetPass, which is the third way a
+            // DEBUG demo could otherwise bring up real transport and ranging.
+            if DemoMode.active == nil { streetPassEngine.handleScenePhase(phase) }
             // Coming back to the app is the signal that the interaction is over:
             // they saved the connection, put the phone away, talked, and returned.
             if phase == .active { promptForRatingIfDue() }
         }
         .onChange(of: stage) { _, newStage in
-            if newStage == .main { streetPassEngine.start() }
+            // Skipped under a DEBUG demo for the same reason as the .task path:
+            // a fixture screen must never bring up real transport or ranging.
+            if newStage == .main, DemoMode.active == nil { streetPassEngine.start() }
         }
         .onChange(of: store.settings) { _, _ in engine.applySettings() }
         .onChange(of: store.onboardingResets) { _, _ in
