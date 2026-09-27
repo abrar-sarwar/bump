@@ -268,4 +268,10 @@ struct PrivacyPreferences: Codable, Equatable, Sendable {
     var cloud: Cloud = .undecided
 
     var allowsCloud: Bool { cloud == .allowed }
+
+    /// "Show what we have in common": nearby phones with this on see only the
+    /// broad topics both people share. Off unless the person turns it on.
+    /// Optional so older settings files still load.
+    var showsCommonGround: Bool?
+    var sharesCommonGround: Bool { showsCommonGround ?? false }
 }

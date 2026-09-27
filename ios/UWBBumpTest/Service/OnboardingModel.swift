@@ -11,6 +11,14 @@ protocol OnboardingCloud: Sendable {
 
 extension BumpAPIClient: OnboardingCloud {}
 
+/// Grok's voice for the questions. Separate from `OnboardingCloud` so test
+/// stubs need not implement it; without it the phone's own voice is used.
+protocol OnboardingSpeech: Sendable {
+    func speech(text: String, timeout: TimeInterval) async throws -> Data
+}
+
+extension BumpAPIClient: OnboardingSpeech {}
+
 /// All state for the Pre phase: name → spoken (or typed) intro → up to three
 /// follow-ups → an editable card the person approves.
 ///
@@ -108,6 +116,11 @@ final class OnboardingModel: ObservableObject {
     @Published private(set) var answered: [Answered] = []
     @Published private(set) var current: Question?
     @Published var answer: String = ""
+    /// Read each question aloud. The person can mute it.
+    @Published var speaksQuestions = true {
+        didSet { if !speaksQuestions { voice.stop() } }
+    }
+    let voice = QuestionVoice()
 
     let recorder = IntroRecorder()
 
@@ -338,6 +351,7 @@ final class OnboardingModel: ObservableObject {
             current = question
             answer = ""
             step = .questions
+            speakCurrent()
         } else {
             current = nil
             step = .card
@@ -357,14 +371,58 @@ final class OnboardingModel: ObservableObject {
 
     // MARK: Questions
 
+    func speakCurrent() {
+        guard speaksQuestions, let current else { return }
+        // The question text goes to the server only if cloud is allowed.
+        let grok = cloudAllowed ? cloudProvider() as? OnboardingSpeech : nil
+        voice.speak(current.text, using: grok)
+    }
+
+    /// Voice answers need the server's transcription, so only with cloud on.
+    var canAnswerByVoice: Bool { cloudAllowed && cloudProvider() != nil }
+
+    func startVoiceAnswer() {
+        voice.stop()
+        error = nil
+        recorder.discard()
+        recorder.start()
+    }
+
+    /// Transcribe the spoken answer, show it, and move on to the next question.
+    func useAnswerRecording() {
+        guard current != nil, let file = recorder.fileURL, let client = cloudProvider() else { return }
+        error = nil
+        busy = .transcribing
+        let deadline = deadlines.transcribe
+        run { [weak self] g in
+            do {
+                let result = try await withDeadline(deadline) {
+                    try await client.transcribe(fileURL: file) {}
+                }
+                guard let self, self.generation == g else { return }
+                self.recorder.discard()                // audio is not kept
+                self.busy = .idle
+                self.answer = String(result.transcript.trimmed().prefix(BumpAPIClient.Limit.answer))
+                if !self.answer.isEmpty { self.submitAnswer() }
+            } catch {
+                guard let self, self.generation == g else { return }
+                self.recorder.discard()
+                self.busy = .idle
+                self.error = Self.voiceMessage(for: BumpAPIError.map(error))
+            }
+        }
+    }
+
     func submitAnswer() {
         guard let question = current else { return }
+        voice.stop()
         let text = String(answer.trimmed().prefix(BumpAPIClient.Limit.answer))
         record(question, answer: text.isEmpty ? nil : text)
     }
 
     func skipQuestion() {
         guard let question = current else { return }
+        voice.stop()
         record(question, answer: nil)
     }
 

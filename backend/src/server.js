@@ -11,8 +11,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { ApiError, badRequest, notConfigured, tooLarge } from './errors.js';
 import { createRateLimiter } from './ratelimit.js';
-import { DRAFT, FOLLOWUP, TALKING_POINTS } from './prompts.js';
-import { generateJson, transcribe } from './xai.js';
+import { DRAFT, FOLLOWUP, TAG_INTERESTS, TALKING_POINTS } from './prompts.js';
+import { generateJson, speak, transcribe } from './xai.js';
 import { createRelay } from './relay.js';
 import {
   LIMITS,
@@ -22,6 +22,8 @@ import {
   parseDraftRequest,
   parseFollowupRequest,
   parseTalkingPointsRequest,
+  parseTagRequest,
+  checkTagOutput,
 } from './validate.js';
 
 // Body size limits per endpoint (bytes).
@@ -31,6 +33,8 @@ const BODY_LIMITS = {
   followup: 16 * 1024,
   talkingPoints: 8 * 1024,
   relay: 128 * 1024,
+  tts: 4 * 1024,
+  tags: 16 * 1024,
 };
 
 export const DEFAULTS = {
@@ -45,6 +49,8 @@ export const DEFAULTS = {
   host: '0.0.0.0',
   llmTimeoutMs: 12_000,
   sttTimeoutMs: 20_000,
+  ttsTimeoutMs: 10_000,
+  ttsVoice: 'eve',
   rateLimitPerMinute: 30,
   transcribeRateLimitPerMinute: 6,
   log: (line) => console.log(line),
@@ -91,6 +97,7 @@ export function configFromEnv(env = process.env) {
     baseUrl: env.XAI_BASE_URL?.trim() || DEFAULTS.baseUrl,
     port: Number.isInteger(port) ? port : DEFAULTS.port,
     host: env.HOST?.trim() || DEFAULTS.host,
+    ttsVoice: env.XAI_TTS_VOICE?.trim() || DEFAULTS.ttsVoice,
   };
 }
 
@@ -269,7 +276,34 @@ export function createServer(options = {}) {
     }
   }
 
+  // Short text only: this reads onboarding questions aloud.
+  async function ttsRoute(req, res) {
+    requireKey();
+    const body = await readJson(req, BODY_LIMITS.tts);
+    const text = typeof body?.text === 'string' ? body.text.trim() : '';
+    if (!text || text.length > 300) throw badRequest('text is required, up to 300 characters.');
+    const audio = await speak(config, text, config.ttsVoice);
+    res.writeHead(200, { 'content-type': 'audio/mpeg', 'content-length': audio.length, 'cache-control': 'no-store' });
+    res.end(audio);
+    return undefined;
+  }
+
+  async function tagRoute(req) {
+    requireKey();
+    const input = parseTagRequest(await readJson(req, BODY_LIMITS.tags));
+    if (input.interests.length === 0) return { tags: {}, generator: { provider: 'none', model: 'none' } };
+    const { data, model } = await generateJson(config, {
+      name: TAG_INTERESTS.name,
+      instructions: TAG_INTERESTS.instructions,
+      schema: TAG_INTERESTS.schema,
+      input: TAG_INTERESTS.input(input),
+    });
+    return { ...checkTagOutput(data, input), generator: generator(model) };
+  }
+
   const routes = {
+    '/v1/interests/tag': { POST: tagRoute },
+    '/v1/tts': { POST: ttsRoute },
     '/v1/relay/send': { POST: relaySendRoute },
     '/v1/relay/leave': { POST: relayLeaveRoute },
     '/healthz': { GET: healthz },
@@ -318,8 +352,8 @@ export function createServer(options = {}) {
     const handler = route[req.method];
     if (!handler) throw new ApiError(405, 'method_not_allowed', 'Method not allowed.');
     checkRateLimit(req, pathname);
-    const body = await handler(req);
-    sendJson(res, 200, body);
+    const body = await handler(req, res);
+    if (!res.headersSent) sendJson(res, 200, body);
   }
 
   const server = http.createServer((req, res) => {

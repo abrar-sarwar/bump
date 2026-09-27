@@ -164,3 +164,33 @@ Use only the given labels. Do not invent facts about either person. No compatibi
   },
   input: ({ candidates }) => wrapUserData({ candidates }),
 };
+
+export const TAG_INTERESTS = {
+  name: 'bump_interest_tags',
+  instructions: `You file a person's interests under broader categories so two people with related but different interests (for example "One Piece" and "Naruto") can be told they share a wider one ("Anime").
+
+${DATA_RULE}
+
+The JSON has "interests": short labels one person wrote, and "vocabulary": the only category ids you may use, each with an "id" and a "label".
+For each interest, return up to 2 vocabulary ids it clearly belongs to, most specific first. Prefer a specific id (for example "anime") over a broad one (for example "screen") when it fits. Use [] when nothing fits well. Never invent ids.`,
+  schema: {
+    type: 'object',
+    properties: {
+      tags: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            interest: { type: 'string', maxLength: 80 },
+            ids: { type: 'array', maxItems: 2, items: { type: 'string', maxLength: 40 } },
+          },
+          required: ['interest', 'ids'],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['tags'],
+    additionalProperties: false,
+  },
+  input: ({ interests, vocabulary }) => wrapUserData({ interests, vocabulary }),
+};

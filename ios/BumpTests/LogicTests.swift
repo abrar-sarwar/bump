@@ -746,3 +746,38 @@ final class RelayEndToEndTests: XCTestCase {
         }
     }
 }
+
+// MARK: - Related interests via tags
+
+final class RelatedInterestTests: XCTestCase {
+
+    private func profile(_ interests: [Interest]) -> SharedProfile {
+        SharedProfile(displayName: "x", bio: "", interests: interests)
+    }
+
+    func testDifferentShowsMeetAtTheirSharedTag() {
+        let a = profile([Interest(id: "custom:one piece", label: "One Piece", specificity: 2, custom: true, tags: ["anime", "manga"])])
+        let b = profile([Interest(id: "custom:naruto", label: "Naruto", specificity: 2, custom: true, tags: ["anime"])])
+        let h = InterestMatcher.overlap(a, b)
+        XCTAssertEqual(h.first?.statement, "You're both into anime.")
+        XCTAssertEqual(h.first?.yourEntry, "One Piece")
+        XCTAssertEqual(h.first?.theirEntry, "Naruto")
+        XCTAssertFalse(h.contains { $0.interestID == "related:screen" }, "the broad parent is redundant")
+    }
+
+    func testExactMatchesStillRankFirst() {
+        let a = profile([InterestCatalog.byID["chess"]!,
+                         Interest(id: "custom:one piece", label: "One Piece", specificity: 2, custom: true, tags: ["anime"])])
+        let b = profile([InterestCatalog.byID["chess"]!,
+                         Interest(id: "custom:naruto", label: "Naruto", specificity: 2, custom: true, tags: ["anime"])])
+        let h = InterestMatcher.overlap(a, b)
+        XCTAssertEqual(h.first?.interestID, "chess")
+        XCTAssertTrue(h.contains { $0.interestID == "related:anime" })
+    }
+
+    func testUntaggedUnrelatedInterestsStillDoNotMatch() {
+        let a = profile([Interest(id: "custom:one piece", label: "One Piece", specificity: 2, custom: true)])
+        let b = profile([Interest(id: "custom:sourdough x", label: "Sourdough x", specificity: 2, custom: true, tags: ["baking"])])
+        XCTAssertTrue(InterestMatcher.overlap(a, b).isEmpty, "nothing is invented")
+    }
+}

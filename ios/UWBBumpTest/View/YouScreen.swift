@@ -100,6 +100,26 @@ struct YouScreen: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
+                    // Common ground
+                    VStack(alignment: .leading, spacing: Space.s) {
+                        Eyebrow(text: "Nearby")
+                        ListGroup {
+                            Toggle(isOn: Binding(
+                                get: { store.privacy.sharesCommonGround },
+                                set: { store.privacy.showsCommonGround = $0 })) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Show what we have in common")
+                                        .font(BumpFont.titleMedium).foregroundStyle(BumpColor.onSurface)
+                                    Text("Nearby BUMP users with this on can see which broad topics you share, like anime or coffee. Never your name, photo, bio or the exact things you listed.")
+                                        .font(BumpFont.bodyMedium).foregroundStyle(BumpColor.onSurfaceVariant)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .tint(BumpColor.primary)
+                            .padding(Space.m)
+                        }
+                    }
+
                     // Permissions
                     VStack(alignment: .leading, spacing: Space.s) {
                         Eyebrow(text: "Permissions & capabilities")

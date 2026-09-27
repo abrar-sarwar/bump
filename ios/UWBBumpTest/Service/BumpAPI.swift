@@ -39,7 +39,9 @@ struct BumpAPIClient: Sendable {
     /// Settings override first (so a phone can be pointed at a Mac without a
     /// rebuild), then the build's `BumpAPIBaseURL` Info.plist value.
     static func resolve(override: String?) -> BumpAPIClient? {
-        let raw = [override, Bundle.main.object(forInfoDictionaryKey: "BumpAPIBaseURL") as? String]
+        // The built-in server wins over a saved override, so a phone holding an
+        // old address (a LAN IP, a dead tunnel) still reaches the live server.
+        let raw = [Bundle.main.object(forInfoDictionaryKey: "BumpAPIBaseURL") as? String, override]
             .compactMap { $0?.trimmed() }
             .first { !$0.isEmpty && !$0.hasPrefix("$(") }
         guard let raw, let url = URL(string: raw), let scheme = url.scheme,
@@ -176,6 +178,40 @@ struct BumpAPIClient: Sendable {
             case .strings(let a): try c.encode(a)
             case .objects(let o): try c.encode(o)
             }
+        }
+    }
+
+    /// Grok files custom interests under catalogue ids: label -> ids.
+    func tagInterests(_ labels: [String]) async throws -> [String: [String]] {
+        struct Vocab: Encodable { let id: String; let label: String }
+        struct Body: Encodable { let interests: [String]; let vocabulary: [Vocab] }
+        struct Reply: Decodable { let tags: [String: [String]] }
+        var request = URLRequest(url: baseURL.appendingPathComponent("v1/interests/tag"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 15
+        request.httpBody = try JSONEncoder().encode(Body(
+            interests: Array(labels.prefix(30)).map { String($0.prefix(80)) },
+            vocabulary: InterestCatalog.all.map { Vocab(id: $0.id, label: $0.label) }))
+        let reply: Reply = try await send(request)
+        return reply.tags
+    }
+
+    /// Grok's voice reading `text` aloud, as MP3 bytes.
+    func speech(text: String, timeout: TimeInterval = 3) async throws -> Data {
+        var request = URLRequest(url: baseURL.appendingPathComponent("v1/tts"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = timeout
+        request.httpBody = try JSONEncoder().encode(["text": String(text.prefix(300))])
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200, !data.isEmpty else {
+                throw BumpAPIError.invalidResponse
+            }
+            return data
+        } catch {
+            throw BumpAPIError.map(error)
         }
     }
 

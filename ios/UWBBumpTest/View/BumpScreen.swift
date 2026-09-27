@@ -138,6 +138,11 @@ struct BumpScreen: View {
 
             readinessIndicator
 
+            if let common = engine.nearbyCommon {
+                commonGroundCard(common)
+                    .transition(.scale(scale: 0.92).combined(with: .opacity))
+            }
+
             switch engine.autoStatus {
             case .blocked(let step):
                 title("One thing first", step)
@@ -190,6 +195,38 @@ struct BumpScreen: View {
             secondaryControls
         }
         .frame(maxWidth: .infinity)
+        .animation(Motion.effects, value: engine.nearbyCommon)
+    }
+
+    /// Someone within reach shares at least two broad topics. No name until
+    /// both people confirm a bump.
+    private func commonGroundCard(_ common: BumpEngine.NearbyCommon) -> some View {
+        Card(style: .primaryTonal, padding: Space.l) {
+            VStack(alignment: .leading, spacing: Space.s) {
+                Label("Someone nearby", systemImage: "sparkles")
+                    .font(BumpFont.labelLarge)
+                    .foregroundStyle(BumpColor.primary)
+                Text("You're both into \(Self.list(common.topics))")
+                    .font(BumpFont.headlineSmall)
+                    .foregroundStyle(BumpColor.onPrimaryContainer)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(String(format: "About %.1f m away. Bump phones to connect.", common.distance))
+                    .font(BumpFont.bodyMedium)
+                    .foregroundStyle(BumpColor.onPrimaryContainer.opacity(0.75))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .animation(Motion.effects, value: common)
+        .accessibilityElement(children: .combine)
+    }
+
+    static func list(_ items: [String]) -> String {
+        switch items.count {
+        case 0: return ""
+        case 1: return items[0]
+        case 2: return "\(items[0]) and \(items[1])"
+        default: return items.dropLast().joined(separator: ", ") + " and " + items.last!
+        }
     }
 
     /// Compact, honest status. It says "Ready to bump" only once the motion
