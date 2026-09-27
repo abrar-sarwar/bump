@@ -119,7 +119,19 @@ struct ConnectionsScreen: View {
                    tint: warm ? BumpColor.illustrationWarm : BumpColor.primary,
                    photo: connection.partnerPhoto)
         } content: {
-            RowText.title(connection.partnerName)
+            // The badge sits at the trailing edge of the name column, centred on
+            // the name rather than trailing it, so it lands in the same place on
+            // every row whatever the name's length.
+            HStack(alignment: .center, spacing: Space.xs) {
+                RowText.title(connection.partnerName)
+                Spacer(minLength: Space.xs)
+                if hasFullProfile(connection) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(BumpColor.brand)
+                        .accessibilityLabel("Full profile unlocked")
+                }
+            }
             Text(summary(connection))
                 .font(BumpFont.caption)
                 .foregroundStyle(BumpColor.secondaryText)
@@ -135,6 +147,16 @@ struct ConnectionsScreen: View {
                 .accessibilityLabel("Rate your interaction with \(connection.partnerName)")
             }
         }
+    }
+
+    /// Whether this row can actually show a full profile: you both wanted to
+    /// connect AND the partner's card was kept.
+    ///
+    /// Both halves matter. Matching on `isMatched` alone would badge a connection
+    /// saved before BUMP kept partner cards, promising a profile the detail screen
+    /// then has to admit it does not have.
+    private func hasFullProfile(_ connection: SavedConnection) -> Bool {
+        store.isMatched(connection.id) && connection.partnerProfile != nil
     }
 
     /// Worth asking about: never answered, and there was something shared to ask

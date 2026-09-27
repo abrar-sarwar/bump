@@ -380,3 +380,12 @@ Branch `landing-page-design`. **Uncommitted** at time of writing.
 - Verified in the Simulator via `-BumpDemo rate | match | unlocked |
   notifications`: both questions fit the card, the success sheet, the unlocked
   profile, the match rows at their own times, and matches surviving a relaunch.
+
+## 2026-09-27 — Claude — unlocked badge in the Friends list
+- A row in `ConnectionsScreen` now carries a star at the trailing edge of the
+  name column, centred on the name, when the full profile is available. Gated on `isMatched` AND a
+  stored `partnerProfile`, so a connection saved before BUMP kept partner cards
+  is never badged with a profile the detail screen would then have to admit it
+  does not have.
+- `-BumpDemo connections` records one match, so the list demos the badge and
+  its absence side by side.
