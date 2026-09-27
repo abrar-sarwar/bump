@@ -1004,6 +1004,74 @@ struct SharedBadge: View {
     }
 }
 
+/// Swipe left or right through shared interests, one badge each. The
+/// neighbours peek in at the sides, shrunk, and grow into the main badge as
+/// they scroll to the centre. Tapping a neighbour brings it to the centre.
+struct SharedBadgeCarousel: View {
+    var kicker: String
+    var interests: [String]
+    var themeHints: [String?] = []
+    var size: CGFloat = 260
+
+    @State private var current: Int? = 0
+    @State private var appeared = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(spacing: Space.m) {
+            GeometryReader { geo in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: -size * 0.16) {
+                        ForEach(interests.indices, id: \.self) { i in
+                            SharedBadge(kicker: kicker, interests: [interests[i]],
+                                        themeHints: [themeHints.indices.contains(i) ? themeHints[i] : nil],
+                                        size: size)
+                                .scrollTransition(.interactive, axis: .horizontal) { content, phase in
+                                    content
+                                        .scaleEffect(phase.isIdentity ? 1 : 0.5)
+                                        .opacity(phase.isIdentity ? 1 : 0.7)
+                                }
+                                .zIndex(current == i ? 1 : 0)
+                                .onTapGesture {
+                                    withAnimation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.85)) {
+                                        current = i
+                                    }
+                                }
+                                .id(i)
+                                .accessibilityLabel("\(kicker) \(interests[i])")
+                                .accessibilityAddTraits(current == i ? .isSelected : [])
+                        }
+                    }
+                    .scrollTargetLayout()
+                }
+                .contentMargins(.horizontal, max(0, (geo.size.width - size) / 2), for: .scrollContent)
+                .scrollTargetBehavior(.viewAligned)
+                .scrollPosition(id: $current)
+                .scrollClipDisabled()
+            }
+            .frame(height: size)
+
+            if interests.count > 1 {
+                HStack(spacing: 6) {
+                    ForEach(interests.indices, id: \.self) { i in
+                        Capsule()
+                            .fill(current == i ? BumpColor.primary : BumpColor.primary.opacity(0.25))
+                            .frame(width: current == i ? 18 : 6, height: 6)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.2), value: current)
+                .accessibilityHidden(true)
+            }
+        }
+        .scaleEffect(!appeared ? 0.4 : 1)
+        .opacity(!appeared ? 0 : 1)
+        .onAppear {
+            guard !reduceMotion else { appeared = true; return }
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.6)) { appeared = true }
+        }
+    }
+}
+
 // MARK: - Backdrop (the site's HeroBackdrop)
 
 /// Dot grid plus faint MD3 outline shapes. Texture only: never hit-testable,

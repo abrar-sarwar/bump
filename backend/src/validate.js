@@ -280,9 +280,9 @@ function requireOutputObject(raw) {
 }
 
 /** Draft: {bio_text, bio_sources, facts, question} → contract shape. */
-export function checkDraftOutput(raw, { transcript }) {
+export function checkDraftOutput(raw, { transcript, catalogLabels = [] }) {
   requireOutputObject(raw);
-  const facts = groundFacts(raw.facts, transcript, { max: LIMITS.draftFacts });
+  const facts = groundFacts(raw.facts, transcript, { max: LIMITS.draftFacts, broad: catalogLabels });
 
   let bio = null;
   if (typeof raw.bio_text === 'string' && Array.isArray(raw.bio_sources)) {
@@ -300,10 +300,10 @@ export function checkDraftOutput(raw, { transcript }) {
 }
 
 /** Followup: facts grounded in `answer` only; question never repeats `asked`. */
-export function checkFollowupOutput(raw, { answer, asked, known }) {
+export function checkFollowupOutput(raw, { answer, asked, known, catalogLabels = [] }) {
   requireOutputObject(raw);
   const facts = answer.trim()
-    ? groundFacts(raw.facts, answer, { max: LIMITS.followupFacts, exclude: known })
+    ? groundFacts(raw.facts, answer, { max: LIMITS.followupFacts, exclude: known, broad: catalogLabels })
     : [];
   // The server, not the model, decides when the interview is over.
   const question =
