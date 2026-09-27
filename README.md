@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="web/src/assets/wordmark.png" alt="BUMP logo" width="280" />
+<img src="web/src/assets/wordmark.png" alt="BUMP logo" width="300" />
 
 **Meet someone. Find your overlap.**
 
